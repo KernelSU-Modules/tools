@@ -39,7 +39,9 @@ permissions:
 env:
   DATA_REPO: KernelSU-Modules/repo
   PAGES_PROJECT: kernelsu-modules-repo
-  SITE_URL: https://modules.kernelsu.org
+  # Repository variables SITE_URL / PORTAL_URL override the public origins (e.g. *.pages.dev before DNS is live).
+  SITE_URL: ${{ vars.SITE_URL || 'https://modules.kernelsu.org' }}
+  PORTAL_URL: ${{ vars.PORTAL_URL || 'https://developers.kernelsu.org' }}
   # Production deployment of the Pages project (works before the custom domain is switched).
   LIVE_MANIFEST_URL: https://kernelsu-modules-repo.pages.dev/build-manifest.json
 
@@ -145,7 +147,8 @@ jobs:
             --data-dir "$GITHUB_WORKSPACE/data" \
             --out "$GITHUB_WORKSPACE/dist" \
             --cache-dir "$GITHUB_WORKSPACE/.cache/build" \
-            --base-url "$SITE_URL"
+            --base-url "$SITE_URL" \
+            --portal-url "$PORTAL_URL"
           build_id=$(jq -r '.buildId // empty' dist/build-manifest.json)
           if ! [[ "$build_id" =~ ^[0-9a-f]{16}$ ]]; then
             echo "::error::dist/build-manifest.json has no valid buildId (got '$build_id')"; exit 1

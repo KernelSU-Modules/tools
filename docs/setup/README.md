@@ -58,6 +58,7 @@ are the source of truth (dashboard edits of vars are overwritten) — except dep
 | GitHub variable | Scope | Used by |
 | --- | --- | --- |
 | `TELEGRAM_CHAT_ID` (e.g. `-1001234567890`) | Environment `production` | `portal-deploy.yml` patches the `TELEGRAM_CHAT_ID = ""` placeholder line of `worker/wrangler.toml` (Pages has no `--var`) and deploys `kernelsu-developer-portal-cron` with `--var TELEGRAM_CHAT_ID:<id>`. The job **fails** if it is unset or not numeric. |
+| `PORTAL_URL`, `SITE_URL` (optional, https origins) | repository | Override the public origins in `portal-deploy.yml` (patches both wrangler configs), `sync-build-deploy.yml` (`--base-url` / `--portal-url`) and `tgcloud-deploy.yml`. Use the `*.pages.dev` hosts until DNS is live (then also point the Modules App callback and webhook URLs there); delete the variables afterwards. |
 | `DEPLOY_PAUSED` (`true`/`false`) | repository | `sync-build-deploy.yml`: `true` = sync (+ lock/status commit, Check Runs) still runs, build + Pages deploy are skipped (section 14 rollback). |
 
 Data files the Portal and `kernelsu-developer-portal-cron` read (CONTRACTS.md, sections 5–7): records, `policy.yaml`, `maintainers.yaml`,
@@ -249,7 +250,8 @@ private key; generate a second one later only for rotation (section 13).
 After creation, check in the App settings page (`https://github.com/organizations/KernelSU-Modules/settings/apps/<slug>`):
 
 - KernelSU Modules: Homepage `https://modules.kernelsu.org`; "Callback URL" = `https://developers.kernelsu.org/auth/callback`;
-  "Request user authorization (OAuth) during installation" = on; "Expire user authorization tokens" = on (default);
+  "Request user authorization (OAuth) during installation" = on; Optional features → "User-to-server token expiration"
+  opted in (default for new Apps: the button reads **Opt-out**);
   "Enable Device Flow" off (turn on temporarily only for section 12.1); Webhook active with the generated secret;
   Permissions exactly Checks RW, Contents R, Metadata R; events Release + Check run;
   "Where can this GitHub App be installed?" → **Any account**. Upload a logo.

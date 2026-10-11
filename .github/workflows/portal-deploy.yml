@@ -56,9 +56,23 @@ jobs:
         # TELEGRAM_CHAT_ID is an Environment variable (vars.TELEGRAM_CHAT_ID on `production`), not committed:
         # worker/wrangler.toml and worker/cron/wrangler.toml only carry an empty placeholder. Pages has no
         # `--var`, so the Pages config is patched in the runner; the cron Worker gets `--var` below.
+        # Repository variables PORTAL_URL / SITE_URL (optional) override the committed origins, e.g. the
+        # *.pages.dev hosts before DNS is live. GitHub App callback/webhook URLs must match PORTAL_URL.
         env:
           TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+          PORTAL_URL: ${{ vars.PORTAL_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
         run: |
+          for v in PORTAL_URL SITE_URL; do
+            val=${!v}
+            [ -z "$val" ] && continue
+            if ! [[ "$val" =~ ^https://[A-Za-z0-9.-]+$ ]]; then echo "::error::$v must be an https origin (got '$val')"; exit 1; fi
+            for f in worker/wrangler.toml worker/cron/wrangler.toml; do
+              grep -q "^$v = " "$f" || continue
+              sed -i -E "s|^$v = \".*\"\$|$v = \"$val\"|" "$f"
+              grep -qx "$v = \"$val\"" "$f" || { echo "::error::could not set $v in $f"; exit 1; }
+            done
+          done
           if ! [[ "$TELEGRAM_CHAT_ID" =~ ^-?[0-9]+$ ]] || [ "$TELEGRAM_CHAT_ID" = "0" ]; then
             echo "::error::Environment variable TELEGRAM_CHAT_ID (environment 'production') is missing or not a numeric chat id"
             exit 1

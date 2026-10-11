@@ -45,7 +45,7 @@ jobs:
       - name: Generate lib/env.js (forward secret)
         env:
           TG_FORWARD_SECRET: ${{ secrets.TG_FORWARD_SECRET }}
-          PORTAL_URL: https://developers.kernelsu.org
+          PORTAL_URL: ${{ vars.PORTAL_URL || 'https://developers.kernelsu.org' }}
         run: node scripts/gen-env.mjs
 
       - name: Push
