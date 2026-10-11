@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Author-side GitHub Action: precheck a KernelSU module ZIP and publish it as an immutable GitHub release",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "exports": {
     ".": "./src/main.ts"
   },

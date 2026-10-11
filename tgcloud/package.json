@@ -1,5 +1,6 @@
 {
   "name": "@kernelsu-modules/tgcloud",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
   "description": "Telegram Serverless thin forwarder (not a pnpm workspace member: the platform forbids npm deps)",
