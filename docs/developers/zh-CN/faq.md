@@ -51,7 +51,7 @@ Immutable release 和 GitHub App 使得"作者自托管、自动更新"的模块
 
 ## 更新多久会发布？
 
-通常在 release 发布后几分钟内（由 webhook 触发），最多约 15 分钟加上构建时间。如果看起来卡住了，可以在 Portal 或 Check Run 中使用 **Sync now**。
+通常在 release 发布后几分钟内（由 webhook 触发），最多约 15 分钟加上构建时间。如果看起来卡住了，可以使用 Portal 中的 **立即同步** 或 Check Run 上的 **Sync now**。
 
 ## 去哪里获取帮助？
 

@@ -9,7 +9,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
   - `module.yaml` 和文档检查附加在被跟踪分支上 KernelSU Modules 发现**被跟踪文件发生变化**（`module.yaml`、描述文档、图标或描述引用的仓库内图片）的 commit 上。只修改其他文件的推送不会产生 Check Run。内容无效期间，每个新的失败 commit 会得到一个失败的 Check Run。
   - 仓库问题（仓库变为私有、所有者变化）会以失败的 Check Run 报告在被跟踪分支的**当前最新 commit** 上。
   - 提交或转移申请处理期间，**申请的**仓库会收到同样的内容和 release Check Run（转移时为新仓库）。
-  - **Re-run** 和 **Sync now** 总会发布一个新的 Check Run，即使没有任何变化。
+  - Check Run 上的 **Re-run** / **Sync now** 以及 Portal 中的 **立即同步** 总会发布一个新的 Check Run，即使没有任何变化。
   - release 页面本身不显示检查结果。
 - **命令行**：
 
@@ -20,7 +20,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
   请在仓库的本地克隆中运行：`gh` 会自动填入 `{owner}` 和 `{repo}`。把 `{tag}` 替换为 release 的 tag（例如 `v1.2.0`）或 commit SHA——`gh` 不会自动填入它。
 
-- **在 Portal 中**： **My modules** 显示相同的结果、锁定的版本、上次同步时间以及数据是否 stale。如果仓库上没有安装 KernelSU Modules App，就完全无法发布 Check Run，此时只能在 Portal 中看到问题。
+- **在 Portal 中**： **我的模块** 显示相同的结果、锁定的版本、上次同步时间以及数据是否 stale。如果仓库上没有安装 KernelSU Modules App，就完全无法发布 Check Run，此时只能在 Portal 中看到问题。
 
 每个问题都有一个代码（例如 `version-not-newer`），对应下文中的一个小节。错误会阻止 release 或内容更新；警告不会。
 
@@ -29,10 +29,10 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 | 问题出在… | 该怎么做 |
 | --- | --- |
 | release、其 ZIP、`module.prop` 或 `versionCode` | Immutable release 无法修改。请发布一个 **versionCode 更高的新 release**。 |
-| `module.yaml`、描述文档、图标或图片 | 将修复推送到被跟踪的分支，然后点击 Check Run 上的 **Re-run**，或使用 **Sync now**（Check Run 按钮或 Portal），或等待下一次同步（≤ 15 分钟）。 |
-| 临时的下载 / 网络错误 | 点击 **Re-run** 或 **Sync now**：因可重试原因（`asset-download-failed`、`asset-size-mismatch`、`asset-digest-mismatch`、`tag-not-found`）失败的 release 会被重新检查。 |
+| `module.yaml`、描述文档、图标或图片 | 将修复推送到被跟踪的分支，然后点击 Check Run 上的 **Re-run**，或使用 Check Run 上的 **Sync now** / Portal 中的 **立即同步**，或等待下一次同步（≤ 15 分钟）。 |
+| 临时的下载 / 网络错误 | 点击 Check Run 上的 **Re-run** / **Sync now**，或 Portal 中的 **立即同步**：因可重试原因（`asset-download-failed`、`asset-size-mismatch`、`asset-digest-mismatch`、`tag-not-found`）失败的 release 会被重新检查。 |
 
-**发布前预检**。 [module-release action](releasing.md) 会在发布任何内容之前运行同一个验证器，所以出错不会浪费版本号。Portal 的 **Precheck** 通过 GitHub API 检查 `module.yaml` 和最新的 release，不会下载或读取 ZIP。ZIP 和 `module.prop` 由同步任务（GitHub Actions）在你提交后立即检查，并在之后每次发布新 release 时再次检查——结果显示在此 Check Run 和 Portal 中。
+**发布前预检**。 [module-release action](releasing.md) 会在发布任何内容之前运行同一个验证器，所以出错不会浪费版本号。Portal 的 **预检** 通过 GitHub API 检查 `module.yaml` 和最新的 release，不会下载或读取 ZIP。ZIP 和 `module.prop` 由同步任务（GitHub Actions）在你提交后立即检查，并在之后每次发布新 release 时再次检查——结果显示在此 Check Run 和 Portal 中。
 
 仓库绑定后首次同步时（新上架或转移到另一个仓库），只检查最新的合格 release（immutable 且不是预发布）以及其后发布的 release；更早的 release 只做记录，不会生成 Check Run。
 
@@ -74,7 +74,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **原因**： 绑定的仓库已不存在，或 KernelSU Modules App 已无法访问它（App 被卸载，或仓库已从安装中移除）。
 
-**修复**： 恢复仓库，或在该仓库上重新安装 App。如果模块已搬到其他仓库，请在 Portal 中使用 **Transfer**。
+**修复**： 恢复仓库，或在该仓库上重新安装 App。如果模块已搬到其他仓库，请在 Portal 中使用 **转移**。
 
 ### repo-private
 
@@ -86,7 +86,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **原因**： 模块注册后，仓库被转移给了其他所有者。这会被视为所有权变更。
 
-**修复**： 在 Portal 中提交 **Transfer** 申请，由维护者确认新的所有者。（以失败的 Check Run 报告在被跟踪分支的最新 commit 上；转移通过前同步暂停。）
+**修复**： 在 Portal 中提交 **转移** 申请，由维护者确认新的所有者。（以失败的 Check Run 报告在被跟踪分支的最新 commit 上；转移通过前同步暂停。）
 
 ### ref-not-found
 
@@ -172,7 +172,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **原因（警告**）：`module.yaml` 中的 `starsRepository` 指向的仓库无法用于显示 Star：仓库不存在、是私有仓库，或属于其他账号且没有安装 KernelSU Modules App。模块页面会改为显示模块自身仓库的 Star 数。该警告不会阻止 release 或上架，只会出现在内容 Check Run 中，并作为提示显示在开发者门户。
 
-**修复**：使用与模块仓库属于同一账号的公开仓库，或在该 Star 仓库上安装 KernelSU Modules GitHub App（安装 App 需要该仓库的管理员权限，以此证明你控制该仓库；App 不会在那里报告任何内容）。然后点击 **Sync now**，否则会在一天内重新检查。
+**修复**：使用与模块仓库属于同一账号的公开仓库，或在该 Star 仓库上安装 KernelSU Modules GitHub App（安装 App 需要该仓库的管理员权限，以此证明你控制该仓库；App 不会在那里报告任何内容）。然后点击 **立即同步**（Portal）或 **Sync now**（Check Run），否则会在一天内重新检查。
 
 ## release 选择
 
@@ -252,7 +252,7 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **原因**：KernelSU Modules 无法下载该资源（网络错误、仓库为私有或不可用）。
 
-**修复**：通常是暂时的，使用 **Sync now**。确保仓库和 release 是公开的。
+**修复**：通常是暂时的，使用 **立即同步**（Portal）或 **Sync now**（Check Run）。确保仓库和 release 是公开的。
 
 ### asset-size-mismatch
 

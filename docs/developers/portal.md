@@ -10,7 +10,7 @@ repository admins on GitHub and the Portal follows.
 Lists the repositories where you are an admin and the KernelSU Modules App is installed. If a
 repository is missing:
 
-- install the App on it (**Install the App** button), or add it to an existing installation;
+- install the App on it (**Install / configure App** button), or add it to an existing installation;
 - for organization repositories, an organization owner must approve the installation;
 - you must have the **admin** role on the repository (write/maintain is not enough).
 

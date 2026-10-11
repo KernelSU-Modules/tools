@@ -38,7 +38,7 @@ description: README.md      # 作为详情页展示的 Markdown 文件
 
 ## 4. 安装 KernelSU Modules App
 
-登录 [KernelSU 开发者门户](https://developers.kernelsu.org)并按 **Install the App** 操作，或直接从 GitHub 安装。只选择你要提交的仓库。
+登录 [KernelSU 开发者门户](https://developers.kernelsu.org)并点击 **安装 / 配置 App**，或直接从 GitHub 安装。只选择你要提交的仓库。
 
 该 App 对你的代码是**只读**的（Metadata: read、Contents: read），唯一的写权限是 **Checks**，用于报告验证结果。安装 App 即证明你是该仓库的管理员，但它本身不会提交任何内容。
 
@@ -46,7 +46,7 @@ description: README.md      # 作为详情页展示的 Markdown 文件
 
 ## 5. 预检
 
-在 Portal 中打开 **My repositories → Precheck**。它会验证 `module.yaml`（及其引用的文件是否存在）、模块 ID 以及最新的 release（是否 immutable？是否恰好一个 ZIP？）。预检不会下载 ZIP：提交后以及之后每次发布新 release 时，KernelSU Modules 的同步任务（GitHub Actions）都会检查 ZIP 及其中的 `module.prop`，并把结果作为 **KernelSU Modules** Check Run 报告在你的仓库上，同时显示在 Portal 中。提交处理期间，只要分支最新 commit 或最新 release 发生变化（或你点击 **Sync now**），每次同步都会重新验证该仓库。请修复所有标记为错误的项目；各代码的含义见[检查](checks.md)。
+在 Portal 中打开 **我的仓库 → 预检**。它会验证 `module.yaml`（及其引用的文件是否存在）、模块 ID 以及最新的 release（是否 immutable？是否恰好一个 ZIP？）。预检不会下载 ZIP：提交后以及之后每次发布新 release 时，KernelSU Modules 的同步任务（GitHub Actions）都会检查 ZIP 及其中的 `module.prop`，并把结果作为 **KernelSU Modules** Check Run 报告在你的仓库上，同时显示在 Portal 中。提交处理期间，只要分支最新 commit 或最新 release 发生变化（或你点击 **立即同步**），每次同步都会重新验证该仓库。请修复所有标记为错误的项目；各代码的含义见[检查](checks.md)。
 
 ## 6. 发布 immutable release
 
@@ -60,6 +60,6 @@ description: README.md      # 作为详情页展示的 Markdown 文件
 
 ## 7. 提交
 
-在 Portal 中：**My repositories → Submit**，确认 ID。模块进入 **pending** 状态，由维护者审核，通常需要几天。审核只检查模块是否遵守规则（无垃圾内容、无滥用、ID 合适、没有抢注他人名称），不是代码审计。
+在 Portal 中：**我的仓库 → 提交收录**，确认 ID 后点击 **提交审核**。模块进入 **待审核** 状态，由维护者审核，通常需要几天。审核只检查模块是否遵守规则（无垃圾内容、无滥用、ID 合适、没有抢注他人名称），不是代码审计。
 
-通过后状态变为 **listed**，模块会在下一次同步（几分钟）后出现在站点上。首次同步只检查你最新的合格 release（及其后发布的 release）；更早的 release 只做记录，不会生成 Check Run。此后每个 versionCode 更高的新 immutable release 都会自动发布。
+通过后状态变为 **已收录**，模块会在下一次同步（几分钟）后出现在站点上。首次同步只检查你最新的合格 release（及其后发布的 release）；更早的 release 只做记录，不会生成 Check Run。此后每个 versionCode 更高的新 immutable release 都会自动发布。

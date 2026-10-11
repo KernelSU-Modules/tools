@@ -48,7 +48,7 @@ description in the language you want users to see.
 
 ## 4. Install the KernelSU Modules App
 
-Sign in to the [KernelSU Developer Portal](https://developers.kernelsu.org) and follow **Install the App**,
+Sign in to the [KernelSU Developer Portal](https://developers.kernelsu.org) and use **Install / configure App**,
 or install it from GitHub directly. Select only the repositories you want to submit.
 
 The App is **read-only** on your code (Metadata: read, Contents: read). Its only write permission is
