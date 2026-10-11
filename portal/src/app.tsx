@@ -236,7 +236,7 @@ function Shell() {
     <div class={`layout${open ? ' nav-open' : ''}`}>
       <aside class="sidebar" id="sidebar">
         <Link href="/" class="brand">
-          <img class="logo" src="/favicon.svg" alt="" width="30" height="30" />
+          <img class="logo" src="/kernelsu-logo.svg" alt="" width="30" height="30" />
           <span class="brand-text">
             <span class="brand-name">KernelSU</span>
             <span class="brand-sub">{t('brand.sub')}</span>

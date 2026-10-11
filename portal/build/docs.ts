@@ -182,14 +182,15 @@ function layout(page: DocPage, siblings: DocPage[], counterpart: DocPage | undef
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>${escapeHtml(page.title)} · KernelSU Developer Portal</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/kernelsu-logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/docs/docs.css">
 ${counterpart ? `<link rel="alternate" hreflang="${counterpart.lang}" href="${counterpart.route}">` : ''}
 </head>
 <body>
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="top"><div class="wrap">
-<a class="brand" href="/"><img src="/favicon.svg" alt="" width="24" height="24"> KernelSU Developer Portal <span>${ui.docs}</span></a>
+<a class="brand" href="/"><img src="/kernelsu-logo.svg" alt="" width="24" height="24"> KernelSU Developer Portal <span>${ui.docs}</span></a>
 <nav class="top-nav"><a href="/">${ui.portal}</a><a href="https://modules.kernelsu.org/">${ui.site}</a>${other}</nav>
 </div></header>
 <div class="wrap layout">

@@ -12,7 +12,7 @@ export function Landing({ required = false }: { required?: boolean }) {
     <div class="center">
       <main id="main" class="auth-stack">
         <section class="auth-card" aria-labelledby="landing-title">
-          <img class="logo" src="/favicon.svg" alt="" width="52" height="52" />
+          <img class="logo" src="/kernelsu-logo.svg" alt="" width="52" height="52" />
           <p class="kicker">{t('brand.name')}</p>
           <h1 id="landing-title" tabIndex={-1}>
             {t('landing.title')}
