@@ -155,7 +155,7 @@ function headerSearch(): void {
         const title = el('div', 'flex items-baseline justify-between gap-2');
         title.append(
           el('span', 'font-medium text-gray-900 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate', item.name),
-          el('span', 'text-xs text-gray-400 dark:text-slate-500 flex-none', `v${item.version}`),
+          el('span', 'text-xs text-gray-400 dark:text-slate-500 flex-none', item.version),
         );
         a.append(title, el('div', 'text-xs text-gray-500 dark:text-slate-500 line-clamp-1 mt-0.5', item.summary || item.id));
         return a;

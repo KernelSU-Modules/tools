@@ -11,8 +11,13 @@ import type { SubmitResponse } from '../api/types.ts';
 export function Submit({ repositoryId, initialId }: { repositoryId: number; initialId?: string | null }) {
   const { api, t } = useApp();
   const repo = useAsync(() => getRepo(api, repositoryId), [repositoryId]);
+  // Without an explicit ?id=, suggest the id declared in the repository's module.yaml (precheck), else the repo name.
+  const declared = useAsync(
+    () => (initialId ? Promise.resolve(null) : api.precheck(repositoryId).then((r) => r.manifest?.id ?? null, () => null)),
+    [repositoryId, initialId],
+  );
   const [id, setId] = useState<string | null>(initialId ?? null);
-  const effectiveId = id ?? (repo.data ? suggestId(repo.data.fullName) : '');
+  const effectiveId = id ?? declared.data ?? (repo.data ? suggestId(repo.data.fullName) : '');
   const check = useIdCheck(effectiveId);
   const [immutable, setImmutable] = useState(false);
   const [manifest, setManifest] = useState(false);
@@ -22,7 +27,7 @@ export function Submit({ repositoryId, initialId }: { repositoryId: number; init
   const name = repo.data?.fullName ?? `#${repositoryId}`;
   useDocumentTitle(`${t('action.submit')} · ${name}`);
 
-  if (repo.loading) return <Loading />;
+  if (repo.loading || declared.loading) return <Loading />;
   if (repo.error) return <ErrorBox error={repo.error} onRetry={repo.reload} />;
   if (!repo.data) return <Alert tone="danger">{t('repos.notFound')}</Alert>;
 
