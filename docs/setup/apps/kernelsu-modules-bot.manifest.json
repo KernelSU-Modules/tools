@@ -1,0 +1,13 @@
+{
+  "name": "KernelSU Modules Bot",
+  "url": "https://github.com/KernelSU-Modules/tools",
+  "description": "Private bot: the only writer of KernelSU-Modules/repo; dispatches the sync-build-deploy workflow in KernelSU-Modules/tools.",
+  "public": false,
+  "redirect_url": "http://localhost:8976/created",
+  "default_permissions": {
+    "metadata": "read",
+    "contents": "write",
+    "actions": "write"
+  },
+  "default_events": []
+}

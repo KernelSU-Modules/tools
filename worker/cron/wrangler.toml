@@ -1,0 +1,32 @@
+# Cloudflare Worker `kernelsu-developer-portal-cron` (Workers Free): Cron Triggers for KernelSU Modules. No routes, no fetch handler,
+# no workers.dev URL. Shares the business code in ../src with the Portal (Pages project `kernelsu-developer-portal`).
+#   */15 * * * *  dispatch sync (lost-webhook fallback), stale-sync alert, expire <=1 request, hourly pruning
+#   17 3 * * *    expire <=2 requests, prune Pages deployments, health
+# Deploy: pnpm --filter @kernelsu-modules/worker exec wrangler deploy --config cron/wrangler.toml
+name = "kernelsu-developer-portal-cron"
+main = "../src/entry/cron.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+preview_urls = false
+minify = true
+
+[triggers]
+crons = ["*/15 * * * *", "17 3 * * *"]
+
+[observability]
+enabled = true
+
+[vars]
+DATA_REPO = "KernelSU-Modules/repo"
+TOOLS_REPO = "KernelSU-Modules/tools"
+SYNC_WORKFLOW = "sync-build-deploy.yml"
+# Only used for links in Telegram messages (expired requests).
+PORTAL_URL = "https://developers.kernelsu.org"
+# Pages projects to prune (keep newest 5 production + everything < 30 days + the current production deployment).
+PAGES_PROJECTS = "kernelsu-modules-repo,kernelsu-developer-portal"
+# Maintainers group chat id (negative for supergroups). Placeholder only: portal-deploy.yml deploys with
+# `--var TELEGRAM_CHAT_ID:<GitHub Environment variable production/TELEGRAM_CHAT_ID>` (same value as the Portal's).
+TELEGRAM_CHAT_ID = ""
+
+# Secrets (pnpm --filter @kernelsu-modules/worker exec wrangler secret put <NAME> --config cron/wrangler.toml):
+#   BOT_APP_ID BOT_APP_PRIVATE_KEY TELEGRAM_BOT_TOKEN CF_API_TOKEN CF_ACCOUNT_ID

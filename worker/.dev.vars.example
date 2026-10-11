@@ -1,0 +1,21 @@
+# Copy to .dev.vars (git-ignored) for `pnpm --filter @kernelsu-modules/worker dev`.
+# Use a separate *development* GitHub App pair and a test Telegram chat — never the production ones.
+MODULES_APP_ID=
+MODULES_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+MODULES_APP_CLIENT_ID=
+MODULES_APP_CLIENT_SECRET=
+MODULES_APP_WEBHOOK_SECRET=
+BOT_APP_ID=
+BOT_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+# openssl rand -base64 32
+SESSION_KEY=
+TELEGRAM_BOT_TOKEN=
+TG_FORWARD_SECRET=
+TELEGRAM_WEBHOOK_SECRET=
+CF_API_TOKEN=
+CF_ACCOUNT_ID=
+# Overrides for local dev (vars from wrangler.toml can be overridden here too)
+PORTAL_URL=http://localhost:8787
+DATA_REPO=your-test-org/repo
+TOOLS_REPO=your-test-org/tools
+TELEGRAM_CHAT_ID=

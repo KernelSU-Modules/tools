@@ -1,0 +1,97 @@
+# Deploy the Developer Portal and the cron Worker:
+#   - Cloudflare Pages project `kernelsu-developer-portal` (Direct Upload): portal/dist (SPA + docs) + Pages Functions in
+#     advanced mode (`_worker.js` bundled from worker/src/entry/pages.ts, `_routes.json` -> only /api, /auth,
+#     /webhooks, /internal invoke Functions). Config + vars: worker/wrangler.toml.
+#   - Cloudflare Worker `kernelsu-developer-portal-cron` (Cron Triggers only): worker/cron/wrangler.toml.
+# Runtime secrets are NOT managed here: set them once with `wrangler pages secret put` / `wrangler secret put`
+# (docs/setup/README.md, section 5). The job runs in the GitHub Environment `production` (deployment branches: main
+# only), which holds the Cloudflare deploy secrets and the deploy-time variable TELEGRAM_CHAT_ID.
+name: portal-deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - worker/**
+      - portal/**
+      - packages/**
+      - docs/developers/**
+      - pnpm-lock.yaml
+      - .github/workflows/portal-deploy.yml
+
+concurrency:
+  group: portal-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy kernelsu-developer-portal (Pages) + kernelsu-developer-portal-cron (Worker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Typecheck & test (worker, portal)
+        run: |
+          pnpm --filter @kernelsu-modules/worker --filter @kernelsu-modules/portal run --if-present typecheck
+          pnpm --filter @kernelsu-modules/worker --filter @kernelsu-modules/portal run --if-present test
+
+      - name: Build portal + Functions bundle
+        run: |
+          pnpm --filter @kernelsu-modules/portal build
+          pnpm --filter @kernelsu-modules/worker build
+          test -f portal/dist/_worker.js && test -f portal/dist/_routes.json && test -f portal/dist/_headers
+
+      - name: Inject deploy-time vars
+        # TELEGRAM_CHAT_ID is an Environment variable (vars.TELEGRAM_CHAT_ID on `production`), not committed:
+        # worker/wrangler.toml and worker/cron/wrangler.toml only carry an empty placeholder. Pages has no
+        # `--var`, so the Pages config is patched in the runner; the cron Worker gets `--var` below.
+        env:
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+        run: |
+          if ! [[ "$TELEGRAM_CHAT_ID" =~ ^-?[0-9]+$ ]] || [ "$TELEGRAM_CHAT_ID" = "0" ]; then
+            echo "::error::Environment variable TELEGRAM_CHAT_ID (environment 'production') is missing or not a numeric chat id"
+            exit 1
+          fi
+          sed -i -E "s/^TELEGRAM_CHAT_ID = \".*\"\$/TELEGRAM_CHAT_ID = \"$TELEGRAM_CHAT_ID\"/" worker/wrangler.toml
+          grep -qx "TELEGRAM_CHAT_ID = \"$TELEGRAM_CHAT_ID\"" worker/wrangler.toml ||
+            { echo "::error::could not set TELEGRAM_CHAT_ID in worker/wrangler.toml"; exit 1; }
+
+      - name: Deploy Pages project kernelsu-developer-portal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # Run from worker/ so wrangler picks up the Pages config (worker/wrangler.toml: vars, compatibility date).
+        # _worker.js is already self-contained; wrangler's default bundling pass (same as `wrangler pages dev`)
+        # only wraps it.
+        working-directory: worker
+        run: |
+          pnpm exec wrangler pages deploy ../portal/dist \
+            --project-name kernelsu-developer-portal \
+            --branch main \
+            --commit-hash "$GITHUB_SHA" \
+            --commit-message "${GITHUB_SHA::12} ($GITHUB_EVENT_NAME, run $GITHUB_RUN_ID)" \
+            --commit-dirty=false
+          echo "- Pages \`kernelsu-developer-portal\` deployed at ${GITHUB_SHA::12}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy cron Worker kernelsu-developer-portal-cron
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+        working-directory: worker
+        run: |
+          pnpm exec wrangler deploy --config cron/wrangler.toml \
+            --var "TELEGRAM_CHAT_ID:$TELEGRAM_CHAT_ID" \
+            --message "${GITHUB_SHA::12} ($GITHUB_EVENT_NAME, run $GITHUB_RUN_ID)"
+          echo "- Worker \`kernelsu-developer-portal-cron\` deployed at ${GITHUB_SHA::12}" >> "$GITHUB_STEP_SUMMARY"

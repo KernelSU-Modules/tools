@@ -1,0 +1,3 @@
+// tgcloud project config (Telegram Serverless). This bot has no Mini App, so there is no "static" block.
+// Deploy: see README.md (CI: .github/workflows/tgcloud-deploy.yml).
+{}

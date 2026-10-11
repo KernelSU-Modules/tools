@@ -1,0 +1,28 @@
+{
+  "name": "@kernelsu-modules/module-release",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Author-side GitHub Action: precheck a KernelSU module ZIP and publish it as an immutable GitHub release",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check-dist": "node scripts/build.mjs --check",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kernelsu-modules/github": "workspace:*",
+    "@kernelsu-modules/schema": "workspace:*",
+    "@kernelsu-modules/validator": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "esbuild": "0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

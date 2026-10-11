@@ -1,0 +1,76 @@
+name: KernelSU Module Release
+description: Precheck a KernelSU module ZIP with the KernelSU Modules validator and publish it as an immutable GitHub release
+author: KernelSU-Modules
+
+branding:
+  icon: package
+  color: green
+
+inputs:
+  zip:
+    description: Path to a prebuilt module ZIP. Set exactly one of `zip` and `module-dir`.
+    required: false
+  module-dir:
+    description: Directory to zip (its contents become the ZIP root; .git, .github and similar VCS files are skipped). Set exactly one of `zip` and `module-dir`.
+    required: false
+  manifest:
+    description: Path to module.yaml, relative to the workspace.
+    required: false
+    default: module.yaml
+  tag:
+    description: Tag to release. Defaults to the tag that triggered the workflow (refs/tags/*).
+    required: false
+  name:
+    description: Release title. Defaults to the tag.
+    required: false
+  token:
+    description: Token with contents:write on this repository.
+    required: false
+    default: ${{ github.token }}
+  prerelease:
+    description: Publish as a prerelease (recorded by KernelSU Modules but not offered as the stable version).
+    required: false
+    default: 'false'
+  release-notes:
+    description: Release notes (Markdown). Shown as the changelog on KernelSU Modules.
+    required: false
+  release-notes-file:
+    description: Path to a file with the release notes.
+    required: false
+  generate-release-notes:
+    description: Let GitHub generate release notes when none are given.
+    required: false
+    default: 'false'
+  asset-pattern:
+    description: Glob the asset name must match. Defaults to `release.assetPattern` from module.yaml.
+    required: false
+  require-immutable:
+    description: Fail the step if the published release is not immutable.
+    required: false
+    default: 'true'
+  dry-run:
+    description: Only run the prechecks (and read-only release checks); publish nothing.
+    required: false
+    default: 'false'
+
+outputs:
+  release-id:
+    description: ID of the published release (empty on dry run)
+  release-url:
+    description: HTML URL of the published release (empty on dry run)
+  asset-name:
+    description: Normalized asset name `{id}-{versionCode}-{version}.zip`
+  sha256:
+    description: SHA-256 (hex) of the uploaded ZIP
+  zip-path:
+    description: Path of the ZIP (the generated one when `module-dir` is used)
+  module-id:
+    description: Module id from module.prop
+  version:
+    description: version from module.prop
+  version-code:
+    description: versionCode from module.prop
+
+runs:
+  using: node24
+  main: dist/index.js

@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-zA-Z][a-zA-Z0-9._-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metamodule": {
+      "type": "boolean"
+    },
+    "icon": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._\\-/]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stable": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "versionCode": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "version",
+        "versionCode",
+        "publishedAt"
+      ]
+    },
+    "detail": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._\\-/]+$"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "buildId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16,64}$"
+    },
+    "license": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "homepage": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "support": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compatibility": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "androidMinApi": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "androidMaxApi": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "architectures": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "arm64-v8a",
+                  "armeabi-v7a",
+                  "x86_64",
+                  "x86",
+                  "riscv64"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "const": "github"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "host",
+        "fullName",
+        "url",
+        "commit"
+      ]
+    },
+    "readme": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._\\-/]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "releases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "versionCode": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "prerelease": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "changelogHtml": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              "name": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "url",
+              "name",
+              "size",
+              "sha256"
+            ]
+          },
+          "tagCommit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "releaseUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "attestationUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "immutable": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "tag",
+          "name",
+          "version",
+          "versionCode",
+          "prerelease",
+          "publishedAt",
+          "changelogHtml",
+          "zip",
+          "tagCommit",
+          "releaseUrl",
+          "attestationUrl",
+          "immutable"
+        ]
+      }
+    },
+    "health": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "stale"
+          ]
+        },
+        "lastSuccessAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "lastSuccessAt"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "summary",
+    "authors",
+    "tags",
+    "metamodule",
+    "icon",
+    "stable",
+    "detail",
+    "updatedAt",
+    "schemaVersion",
+    "buildId",
+    "license",
+    "homepage",
+    "support",
+    "compatibility",
+    "source",
+    "readme",
+    "releases",
+    "health"
+  ]
+}

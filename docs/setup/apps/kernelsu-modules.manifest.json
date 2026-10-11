@@ -1,0 +1,25 @@
+{
+  "name": "KernelSU Modules",
+  "url": "https://modules.kernelsu.org",
+  "description": "Lists your KernelSU module on KernelSU Modules (https://modules.kernelsu.org). Read-only access to the selected repositories; reports validation results as Check Runs. Manage submissions at https://developers.kernelsu.org",
+  "public": true,
+  "hook_attributes": {
+    "url": "https://developers.kernelsu.org/webhooks/github",
+    "active": true
+  },
+  "redirect_url": "http://localhost:8976/created",
+  "callback_urls": [
+    "https://developers.kernelsu.org/auth/callback"
+  ],
+  "request_oauth_on_install": true,
+  "setup_on_update": false,
+  "default_permissions": {
+    "metadata": "read",
+    "contents": "read",
+    "checks": "write"
+  },
+  "default_events": [
+    "release",
+    "check_run"
+  ]
+}

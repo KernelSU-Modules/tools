@@ -1,0 +1,20 @@
+/* Stylesheet for the sandboxed module description preview (iframe srcdoc). */
+:root { color-scheme: light dark; }
+html { font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; }
+html.light { color: #1f2328; background: #fff; }
+html.dark { color: #e6edf3; background: #0d1117; }
+body { margin: 0; padding: 16px 20px; overflow-wrap: anywhere; }
+main { max-width: 860px; margin: 0 auto; }
+a { color: #0969da; }
+html.dark a { color: #4493f8; }
+img { max-width: 100%; height: auto; }
+pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+pre { padding: 12px; overflow: auto; border-radius: 6px; background: rgba(127,127,127,.12); }
+code { padding: .1em .3em; border-radius: 4px; background: rgba(127,127,127,.12); }
+pre code { padding: 0; background: none; }
+blockquote { margin: 0 0 1em; padding: 0 1em; border-left: 4px solid rgba(127,127,127,.35); color: inherit; opacity: .85; }
+table { border-collapse: collapse; display: block; overflow: auto; }
+th, td { border: 1px solid rgba(127,127,127,.35); padding: 6px 12px; }
+h1, h2 { border-bottom: 1px solid rgba(127,127,127,.25); padding-bottom: .3em; }
+hr { border: 0; border-top: 1px solid rgba(127,127,127,.3); }
+details { margin: 0 0 1em; }

@@ -1,0 +1,25 @@
+---
+import type { ApiModuleSummary } from '@kernelsu-modules/schema';
+
+interface Props {
+  module: Pick<ApiModuleSummary, 'id' | 'icon'>;
+  name: string;
+  size?: 'md' | 'lg';
+}
+const { module: d, name, size = 'md' } = Astro.props;
+const box = size === 'lg' ? 'h-20 w-20 rounded-2xl text-3xl' : 'h-12 w-12 rounded-xl text-xl';
+const letter = (name.trim()[0] ?? d.id[0] ?? '?').toUpperCase();
+---
+
+{
+  d.icon ? (
+    <img src={`/${d.icon}`} alt="" width="64" height="64" loading="lazy" decoding="async" class={`${box} flex-none object-cover bg-gray-100 dark:bg-slate-800`} />
+  ) : (
+    <span
+      aria-hidden="true"
+      class={`${box} flex-none inline-flex items-center justify-center font-bold text-white bg-gradient-to-br from-blue-600 to-violet-600 shadow-lg shadow-blue-500/20`}
+    >
+      {letter}
+    </span>
+  )
+}

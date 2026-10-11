@@ -1,0 +1,5 @@
+schemaVersion: 1
+id: demo.toolbox.json
+name: Colliding Module
+summary: Its ID ends with .json, so its directory clashes with demo.toolbox.json (the API file of demo.toolbox)
+description: README.md

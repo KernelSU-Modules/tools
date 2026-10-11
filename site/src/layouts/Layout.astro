@@ -1,0 +1,204 @@
+---
+// Page shell. CSP (script-src/style-src 'self'): the stylesheet and the client scripts are external,
+// content-hashed files; nothing inline, no third-party subresources.
+import '../styles/global.css';
+import logoUrl from '../assets/logo.svg?url';
+// Emitted verbatim as a hashed asset; loaded render-blocking from <head> to apply a stored theme choice.
+import themeInitUrl from '../scripts/theme-init.js?url';
+import { DEFAULT_UI_LOCALE, MESSAGES, UI_LOCALES, type UiLocale } from '../lib/i18n.ts';
+import { searchPath } from '../lib/data.ts';
+import { date, safeHref } from '../lib/format.ts';
+import { siteData } from '../lib/load.ts';
+
+interface Props {
+  ui: UiLocale;
+  title: string;
+  description: string;
+  /** Site-root-relative directory path of the canonical page (e.g. "en/"). Omit for 404. */
+  path?: string;
+  /** Equivalent page per UI locale (site-root-relative); x-default points to the default locale's page. */
+  alternates?: Record<UiLocale, string>;
+  /** Home page: redirect once to the visitor's preferred UI locale. */
+  autoLocale?: boolean;
+}
+
+const { ui, title, description, path, alternates, autoLocale = false } = Astro.props;
+const data = siteData();
+const m = MESSAGES[ui];
+const base = data.baseUrl.replace(/\/+$/, '');
+const portal = data.portalUrl;
+const bodyData: Record<string, string> = {
+  'data-locale': ui,
+  'data-search': `/${searchPath(ui)}`,
+  'data-no-match': m.searchNoMatch('{q}'),
+};
+if (autoLocale) bodyData['data-auto-locale'] = UI_LOCALES.join(' ');
+const navLink = 'text-gray-600 dark:text-slate-400 transition-colors hover:text-blue-600 dark:hover:text-blue-400';
+const langHref = (l: UiLocale) => `/${alternates ? alternates[l] : `${l}/`}`;
+---
+
+<!doctype html>
+<html lang={ui}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline src={themeInitUrl}></script>
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.ico" />
+    {path !== undefined && <link rel="canonical" href={safeHref(`${base}/${path}`)} />}
+    {path === undefined && <meta name="robots" content="noindex" />}
+    {alternates && UI_LOCALES.map((l) => <link rel="alternate" hreflang={l} href={safeHref(`${base}/${alternates[l]}`)} />)}
+    {alternates && <link rel="alternate" hreflang="x-default" href={safeHref(`${base}/${alternates[DEFAULT_UI_LOCALE]}`)} />}
+  </head>
+  <body
+    class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-50 min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-600 dark:selection:text-blue-200"
+    {...bodyData}
+  >
+    <header
+      class="sticky top-0 z-50 w-full border-b border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-950/60"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between gap-3">
+          <div class="flex items-center gap-8">
+            <a href={`/${ui}/`} class="flex items-center gap-2">
+              <img src={logoUrl} alt="" width="32" height="32" class="h-8 w-8 rounded-lg select-none shadow-lg shadow-blue-500/20" />
+              <span class="hidden font-bold sm:inline-block text-lg tracking-tight text-gray-900 dark:text-slate-100">
+                KernelSU <span class="text-blue-600 dark:text-blue-400">{ui === 'zh-CN' ? '模块' : 'Modules'}</span>
+              </span>
+            </a>
+            <nav class="hidden md:block text-sm font-medium" aria-label={m.mainNav}>
+              <ul class="flex items-center gap-6">
+                <li><a href={`/${ui}/`} class={navLink}>{m.navModules}</a></li>
+                <li><a href={safeHref(portal)} class={navLink}>{m.navDevelopers}</a></li>
+              </ul>
+            </nav>
+          </div>
+          <div class="flex items-center gap-2 sm:gap-4">
+            <div class="relative w-full max-w-sm md:w-64">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg class="h-4 w-4 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <input
+                type="search"
+                id="site-search"
+                role="combobox"
+                autocomplete="off"
+                aria-label={m.searchLabel}
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="site-search-listbox"
+                class="block w-full rounded-full border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-900/50 py-1.5 pl-10 pr-3 text-sm text-gray-900 dark:text-slate-200 placeholder:text-gray-500 dark:placeholder:text-slate-500 focus:border-blue-500 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                placeholder={m.searchPlaceholder}
+              />
+              <div
+                id="site-search-results"
+                hidden
+                class="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-2xl shadow-black/10 dark:shadow-black/50 z-50 max-h-[80vh] overflow-y-auto"
+              >
+                <div id="site-search-listbox" role="listbox" aria-label={m.searchResults}></div>
+                <p id="site-search-empty" hidden class="p-4 text-center text-sm text-gray-500 dark:text-slate-500"></p>
+              </div>
+              <p id="site-search-status" class="sr-only" role="status" aria-live="polite"></p>
+            </div>
+            <nav class="hidden md:block text-sm whitespace-nowrap" aria-label={m.language}>
+              <ul class="flex items-center gap-2">
+                {
+                  UI_LOCALES.map((l) => (
+                    <li>
+                      {l === ui ? (
+                        <span aria-current="true" lang={l} class="font-semibold text-gray-900 dark:text-slate-100">
+                          {MESSAGES[l].langName}
+                        </span>
+                      ) : (
+                        <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class="text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
+                          {MESSAGES[l].langName}
+                        </a>
+                      )}
+                    </li>
+                  ))
+                }
+              </ul>
+            </nav>
+            <button
+              type="button"
+              id="theme-toggle"
+              hidden
+              aria-label={m.toggleTheme}
+              title={m.toggleTheme}
+              class="flex-none rounded-lg p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+              </svg>
+              <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+              </svg>
+            </button>
+            <a href="https://github.com/KernelSU-Modules" class="hidden sm:block flex-none text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+              <span class="sr-only">GitHub</span>
+              <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  clip-rule="evenodd"></path>
+              </svg>
+            </a>
+            <details class="mobile-menu relative md:hidden">
+              <summary class="flex cursor-pointer list-none items-center rounded-lg p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800">
+                <span class="sr-only">{m.menu}</span>
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+              </summary>
+              <div class="absolute right-0 top-full mt-2 w-56 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-2xl shadow-black/10 dark:shadow-black/50 z-50 text-sm">
+                <nav aria-label={m.mainNav}>
+                  <ul>
+                    <li><a href={`/${ui}/`} class={`block rounded-lg px-3 py-2 ${navLink}`}>{m.navModules}</a></li>
+                    <li><a href={safeHref(portal)} class={`block rounded-lg px-3 py-2 ${navLink}`}>{m.navDevelopers}</a></li>
+                    <li><a href="https://github.com/KernelSU-Modules" class={`block rounded-lg px-3 py-2 ${navLink}`}>GitHub</a></li>
+                  </ul>
+                </nav>
+                <nav aria-label={m.language} class="mt-2 border-t border-gray-100 dark:border-slate-800 pt-2">
+                  <ul>
+                    {
+                      UI_LOCALES.map((l) => (
+                        <li>
+                          {l === ui ? (
+                            <span aria-current="true" lang={l} class="block px-3 py-2 font-semibold text-gray-900 dark:text-slate-100">
+                              {MESSAGES[l].langName}
+                            </span>
+                          ) : (
+                            <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class={`block rounded-lg px-3 py-2 ${navLink}`}>
+                              {MESSAGES[l].langName}
+                            </a>
+                          )}
+                        </li>
+                      ))
+                    }
+                  </ul>
+                </nav>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="flex-1 relative">
+      <slot />
+    </main>
+    <footer class="border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-8 mt-auto relative z-10">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500 dark:text-slate-500 space-y-1">
+        <p>{m.footer}</p>
+        <p class="font-mono text-xs">build {data.buildId} · {date(data.generatedAt)}</p>
+      </div>
+    </footer>
+    <script>
+      import '../scripts/app.ts';
+    </script>
+  </body>
+</html>

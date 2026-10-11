@@ -1,0 +1,20 @@
+id: demo.toolbox
+status: listed
+source:
+  host: github
+  repositoryId: 1001
+  ownerId: 501
+  fullName: demo/toolbox
+  manifestPath: module.yaml
+review:
+  submissionId: abcde12345
+  kind: submit
+  submittedBy: 501
+  submittedAt: 2026-09-01T00:00:00Z
+  decision: approved
+  decidedBy: 9
+  decidedVia: telegram
+  decidedAt: 2026-09-01T01:00:00Z
+  reason: null
+createdAt: 2026-09-01T00:00:00Z
+updatedAt: 2026-09-01T01:00:00Z

@@ -1,0 +1,28 @@
+{
+  "name": "@kernelsu-modules/sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "check-data": "tsx src/check-data-cli.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kernelsu-modules/github": "workspace:*",
+    "@kernelsu-modules/render": "workspace:*",
+    "@kernelsu-modules/schema": "workspace:*",
+    "@kernelsu-modules/validator": "workspace:*",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

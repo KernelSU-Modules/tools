@@ -1,0 +1,78 @@
+---
+import { MESSAGES, type UiLocale } from '../lib/i18n.ts';
+import { listOrder } from '../lib/data.ts';
+import { siteData } from '../lib/load.ts';
+import ModuleCard from './ModuleCard.astro';
+
+interface Props {
+  ui: UiLocale;
+}
+const { ui } = Astro.props;
+const m = MESSAGES[ui];
+const mods = listOrder(siteData().modules);
+---
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <section class="text-center mb-12">
+    <h1 class="text-4xl md:text-6xl font-bold mb-6 tracking-tight">
+      <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600 dark:from-blue-400 dark:via-violet-400 dark:to-indigo-400">
+        {m.heroTitle}
+      </span>
+      <br />
+      <span class="text-gray-900 dark:text-white">{m.heroAccent}</span>
+    </h1>
+    <p class="text-lg text-gray-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">{m.heroTagline}</p>
+  </section>
+
+  {
+    mods.length > 0 ? (
+      <>
+        <section class="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6 text-sm" aria-label={m.searchLabel}>
+          <input
+            id="filter"
+            type="search"
+            autocomplete="off"
+            placeholder={m.searchPlaceholder}
+            aria-label={m.searchLabel}
+            class="flex-[1_1_18rem] rounded-full border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 px-4 py-2 text-gray-900 dark:text-slate-200 placeholder:text-gray-500 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <label class="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400">
+            <input id="filter-meta" type="checkbox" class="accent-blue-600" />
+            {m.metamodulesOnly}
+          </label>
+          <label class="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400">
+            {m.sortLabel}
+            <select id="sort" class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1 text-gray-900 dark:text-slate-200">
+              <option value="updated">{m.sortUpdated}</option>
+              <option value="name">{m.sortName}</option>
+            </select>
+          </label>
+          <span id="count" class="text-gray-500 dark:text-slate-500" data-one={m.modulesCount(1)} data-many={m.modulesCount(2).replace('2', '{n}')}>
+            {m.modulesCount(mods.length)}
+          </span>
+        </section>
+        <ul id="modules" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+          {mods.map((mod) => <ModuleCard module={mod.detail} ui={ui} />)}
+        </ul>
+        <p id="no-results" hidden class="text-center py-12 text-gray-500 dark:text-slate-400">
+          {m.noResults}
+        </p>
+      </>
+    ) : (
+      <div class="text-center py-20">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-900 mb-4">
+          <svg class="w-8 h-8 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+            />
+          </svg>
+        </div>
+        <h2 class="text-lg font-medium text-gray-900 dark:text-white">{m.noModulesTitle}</h2>
+        <p class="text-gray-500 dark:text-slate-400 mt-1">{m.noModulesText}</p>
+      </div>
+    )
+  }
+</div>

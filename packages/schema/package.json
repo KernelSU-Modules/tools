@@ -1,0 +1,14 @@
+{
+  "name": "@kernelsu-modules/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "gen": "tsx scripts/gen-json-schema.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": { "zod": "^4.6.5" },
+  "devDependencies": { "tsx": "^4.23.15", "typescript": "^7.0.2", "vitest": "^5.0.3" }
+}

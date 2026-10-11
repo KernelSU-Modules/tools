@@ -1,0 +1,11 @@
+{
+  "repositoryId": 1002,
+  "fullName": "demo/meta",
+  "commit": "2222222222222222222222222222222222222222",
+  "manifestPath": "module.yaml",
+  "files": {
+    "module.yaml": "5262b2099a08752f0ac728b0a7982913dacff64eac09b7219c1be95bdb616cea",
+    "README.md": "488de3ca27f577c3d2b6152ff91cfa274642f87cc254060de2051b5590734535",
+    "icon.svg": "75f72d7a5618a378a8dfbe717e137386456e3b0bd8ec09f8bc07532a26b5428d"
+  }
+}

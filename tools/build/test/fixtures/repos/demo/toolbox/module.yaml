@@ -1,0 +1,19 @@
+schemaVersion: 1
+id: demo.toolbox
+name: Demo Toolbox
+summary: Utilities for rooted Android devices
+description: README.md
+license: MIT
+homepage: http://example.org/demo-toolbox
+support: https://github.com/demo/toolbox/issues
+tags: [system, tools]
+icon: assets/icon.png
+metamodule: false
+authors:
+  - name: Demo Author
+    url: https://github.com/demo
+compatibility:
+  androidMinApi: 28
+  architectures: [arm64-v8a]
+release:
+  assetPattern: "demo.toolbox-*.zip"

@@ -1,0 +1,100 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test tgcloud forwarder
+        working-directory: tgcloud
+        run: node --import ./test/register.mjs --test "test/*.test.mjs"
+
+      - name: JSON Schemas are up to date
+        run: |
+          pnpm schemas
+          git diff --exit-code -- schemas/ || { echo "::error::schemas/ is stale; run 'pnpm schemas' and commit"; exit 1; }
+
+      - name: module-release action dist is up to date
+        # Rebuilds into a temp dir and compares with the committed dist/index.js (authors pin this action by SHA).
+        run: pnpm --filter @kernelsu-modules/module-release check-dist
+
+      - name: Issue codes documented and in sync
+        # checks.md (en + zh-CN) vs validator ISSUE_CODES, and codes emitted by worker / sync / module-release.
+        run: node docs/developers/check-codes.mjs
+
+      - name: Build Portal + Pages Functions bundle
+        # Same build as portal-deploy.yml: `vite build` + check-dist, then `_worker.js` + `_routes.json`.
+        # check-dist runs again over the final directory (incl. _worker.js) exactly as it will be uploaded.
+        run: |
+          pnpm --filter @kernelsu-modules/portal build
+          pnpm --filter @kernelsu-modules/worker build
+          node portal/scripts/check-dist.mjs
+          test -f portal/dist/_worker.js && test -f portal/dist/_routes.json && test -f portal/dist/_headers
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint (pinned, checksum verified)
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          # sha256 of actionlint_1.7.12_linux_amd64.tar.gz (as listed in the release's actionlint_1.7.12_checksums.txt)
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          f="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$f" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$f"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" actionlint
+      - name: Lint workflows
+        # shellcheck is preinstalled on ubuntu-latest; actionlint runs it over every `run:` script.
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
+  data:
+    name: Validate the data repo against current schemas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: KernelSU-Modules/repo
+          ref: main
+          path: data
+          persist-credentials: false
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Check
+        run: pnpm --filter @kernelsu-modules/sync check-data -- --data-dir "$GITHUB_WORKSPACE/data"

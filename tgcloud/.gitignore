@@ -1,0 +1,5 @@
+# tgcloud CLI state and credentials (never commit)
+.tgcloud/
+# Generated at deploy time from the TG_FORWARD_SECRET GitHub secret (see README.md)
+tgcloud/lib/env.js
+node_modules/

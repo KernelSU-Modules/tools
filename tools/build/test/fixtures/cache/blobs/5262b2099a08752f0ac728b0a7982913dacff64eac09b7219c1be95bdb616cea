@@ -1,0 +1,9 @@
+schemaVersion: 1
+id: demo.meta
+name: Demo Metamodule
+summary: A metamodule that provides mounting
+description: README.md
+icon: icon.svg
+metamodule: true
+authors:
+  - name: Meta Dev

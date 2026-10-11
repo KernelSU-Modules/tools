@@ -1,0 +1,4 @@
+# Local-only smoke/benchmark worker: pnpm smoke (wrangler dev on workerd). Never deployed.
+name = "kernelsu-developer-portal-smoke"
+main = "smoke-worker.ts"
+compatibility_date = "2026-10-01"

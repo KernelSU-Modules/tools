@@ -1,0 +1,15 @@
+id: demo.suspended
+status: suspended
+source:
+  host: github
+  repositoryId: 1004
+  ownerId: 504
+  fullName: demo/suspended
+moderation:
+  action: suspend
+  by: 9
+  via: portal
+  at: 2026-09-20T00:00:00Z
+  reason: malware report
+createdAt: 2026-08-01T00:00:00Z
+updatedAt: 2026-09-20T00:00:00Z

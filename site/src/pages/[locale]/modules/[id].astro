@@ -1,0 +1,307 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Layout from '../../../layouts/Layout.astro';
+import Badges from '../../../components/Badges.astro';
+import ModuleIcon from '../../../components/ModuleIcon.astro';
+import { MESSAGES, UI_LOCALES, type UiLocale } from '../../../lib/i18n.ts';
+import { detailUrl, listUrl, stableRelease, type SiteModule } from '../../../lib/data.ts';
+import { bytes, date, displayUrl, safeHref, safeWebHref, shortSha } from '../../../lib/format.ts';
+import { siteData } from '../../../lib/load.ts';
+
+export const getStaticPaths = (() =>
+  UI_LOCALES.flatMap((locale) => siteData().modules.map((mod) => ({ params: { locale, id: mod.detail.id }, props: { mod } })))) satisfies GetStaticPaths;
+
+interface Props {
+  mod: SiteModule;
+}
+
+const ui = Astro.params.locale as UiLocale;
+const { mod } = Astro.props;
+const d = mod.detail;
+const m = MESSAGES[ui];
+// Module content is single-language: the same name / summary / README on every UI locale.
+// The README was sanitized by @kernelsu-modules/render (tag / attribute whitelist) before it reaches the site.
+const readmeHtml = mod.readme;
+const st = stableRelease(d);
+const shown = d.releases.filter((r) => !r.prerelease);
+const c = d.compatibility;
+const api = c && (c.androidMinApi || c.androidMaxApi) ? `${c.androidMinApi ?? '?'} – ${c.androidMaxApi ?? '∞'}` : m.any;
+const archs = c?.architectures?.length ? c.architectures.join(', ') : m.any;
+const repo = d.source.fullName;
+const alternates = Object.fromEntries(UI_LOCALES.map((x) => [x, detailUrl(x, d.id)])) as Record<UiLocale, string>;
+// External links: never pass referrer/opener, never vouch for the target.
+const ext = { rel: 'nofollow noopener noreferrer' };
+const card = 'bg-white dark:bg-slate-900/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm';
+const cardTitle = 'text-sm font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-4';
+const dt = 'text-xs text-gray-500 dark:text-slate-500 mb-1';
+const link = 'text-blue-600 dark:text-blue-400 hover:underline break-all';
+---
+
+<Layout ui={ui} title={`${d.name} · ${m.siteTitle}`} description={d.summary || d.name} path={detailUrl(ui, d.id)} alternates={alternates}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="mb-8">
+      <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mb-4" aria-label="breadcrumb">
+        <a href={`/${listUrl(ui)}`} class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{m.breadcrumbModules}</a>
+        <span>/</span>
+        <span class="text-gray-900 dark:text-slate-200 truncate">{d.id}</span>
+      </nav>
+      <div class="flex flex-wrap items-center gap-5">
+        <ModuleIcon module={d} name={d.name} size="lg" />
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-3 mb-2">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white tracking-tight break-words">{d.name}</h1>
+            <Badges module={d} m={m} full />
+          </div>
+          <p class="font-mono text-sm text-gray-500 dark:text-slate-500 mb-2">{d.id}</p>
+          {d.summary && <p class="text-lg text-gray-600 dark:text-slate-400 max-w-3xl leading-relaxed">{d.summary}</p>}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div class="lg:col-span-3 space-y-12 min-w-0">
+        <section class={`${card} p-8`}>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            {m.readme}
+          </h2>
+          {
+            readmeHtml !== null ? (
+              <article class="markdown-body">
+                <Fragment set:html={readmeHtml} />
+              </article>
+            ) : (
+              <p class="text-gray-500 dark:text-slate-400">{m.noReadme}</p>
+            )
+          }
+        </section>
+
+        <section class="space-y-6">
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            {m.releases}
+          </h2>
+          <div class="grid gap-4">
+            {
+              shown.map((r) => (
+                <article class="release bg-white dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 p-6 transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5">
+                  <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-3 mb-1">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">{r.version}</h3>
+                        <span class="text-sm text-gray-500 dark:text-slate-400">({r.versionCode})</span>
+                        <a href={safeHref(r.releaseUrl)} {...ext} class="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                          {r.tag}
+                        </a>
+                      </div>
+                      <div class="text-sm text-gray-500 dark:text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <time datetime={r.publishedAt}>{date(r.publishedAt)}</time>
+                        <span>{bytes(r.zip.size)}</span>
+                        {r.attestationUrl && (
+                          <a href={safeHref(r.attestationUrl)} {...ext} class="text-blue-600 dark:text-blue-400 hover:underline">
+                            {m.attestation}
+                          </a>
+                        )}
+                      </div>
+                      <p class="mt-1 text-xs text-gray-500 dark:text-slate-500">
+                        {m.sha256}: <code class="font-mono break-all">{r.zip.sha256}</code>
+                      </p>
+                    </div>
+                    <a
+                      href={safeHref(r.zip.url)}
+                      {...ext}
+                      class="inline-flex flex-none items-center justify-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
+                    >
+                      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      {m.download}
+                    </a>
+                  </div>
+                  {r.changelogHtml ? (
+                    <div class="markdown-body markdown-body-sm bg-gray-50 dark:bg-slate-950/50 rounded-lg p-4 border border-gray-100 dark:border-slate-800/50">
+                      <Fragment set:html={r.changelogHtml} />
+                    </div>
+                  ) : (
+                    <p class="text-sm text-gray-500 dark:text-slate-400">{m.noChangelog}</p>
+                  )}
+                </article>
+              ))
+            }
+          </div>
+        </section>
+      </div>
+
+      <aside class="lg:col-span-1 order-first lg:order-none">
+        <div class="lg:sticky lg:top-24 space-y-6">
+          {
+            st && (
+              <section class="bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-900/20 dark:to-violet-900/20 rounded-2xl border border-blue-100 dark:border-blue-500/20 p-6 shadow-sm">
+                <h2 class="text-sm font-semibold text-blue-800 dark:text-blue-200 uppercase tracking-wider mb-2">{m.latestVersion}</h2>
+                <div class="text-3xl font-bold text-gray-900 dark:text-white mb-1 break-words">{st.version}</div>
+                <div class="text-sm text-gray-500 dark:text-slate-400 mb-4">
+                  {m.published} {date(st.publishedAt)} · {bytes(st.zip.size)}
+                </div>
+                <a
+                  href={safeHref(st.zip.url)}
+                  {...ext}
+                  class="block w-full text-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  {m.download} v{st.version}
+                </a>
+              </section>
+            )
+          }
+
+          <section class={card}>
+            <h2 class={cardTitle}>{m.moduleDetails}</h2>
+            <dl class="space-y-4 text-sm">
+              <div>
+                <dt class={dt}>{m.moduleId}</dt>
+                <dd class="font-mono text-gray-900 dark:text-slate-200 bg-gray-100 dark:bg-slate-950/50 px-2 py-1 rounded border border-gray-200 dark:border-slate-800 inline-block break-all">{d.id}</dd>
+              </div>
+              <div>
+                <dt class={dt}>{m.version}</dt>
+                <dd>{d.stable.version} <span class="text-gray-500 dark:text-slate-500">({d.stable.versionCode})</span></dd>
+              </div>
+              {
+                d.license && (
+                  <div>
+                    <dt class={dt}>{m.license}</dt>
+                    <dd>{d.license}</dd>
+                  </div>
+                )
+              }
+              {
+                d.authors.length > 0 && (
+                  <div>
+                    <dt class={dt}>{m.authors}</dt>
+                    <dd class="flex flex-wrap gap-2">
+                      {d.authors.map((a) =>
+                        a.url ? (
+                          <a href={safeHref(a.url)} {...ext} class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            {a.name}
+                          </a>
+                        ) : (
+                          <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">{a.name}</span>
+                        ),
+                      )}
+                    </dd>
+                  </div>
+                )
+              }
+              {
+                d.homepage && (
+                  <div>
+                    <dt class={dt}>{m.homepage}</dt>
+                    <dd><a href={safeWebHref(d.homepage)} {...ext} class={link}>{displayUrl(d.homepage)}</a></dd>
+                  </div>
+                )
+              }
+              {
+                d.support && (
+                  <div>
+                    <dt class={dt}>{m.support}</dt>
+                    <dd><a href={safeWebHref(d.support)} {...ext} class={link}>{displayUrl(d.support)}</a></dd>
+                  </div>
+                )
+              }
+              {
+                d.tags.length > 0 && (
+                  <div>
+                    <dt class={dt}>{m.tags}</dt>
+                    <dd class="flex flex-wrap gap-1">
+                      {d.tags.map((t) => (
+                        <span class="px-2 py-0.5 rounded-md text-xs bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">{t}</span>
+                      ))}
+                    </dd>
+                  </div>
+                )
+              }
+            </dl>
+            <a
+              href={safeHref(d.source.url)}
+              {...ext}
+              class="mt-6 flex items-center justify-center w-full px-4 py-2.5 rounded-lg text-sm font-medium text-white dark:text-slate-200 bg-gray-900 dark:bg-slate-800 border border-transparent dark:border-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 transition-all"
+            >
+              {m.sourceCode}
+            </a>
+          </section>
+
+          <section class={card}>
+            <h2 class={cardTitle}>{m.compatibility}</h2>
+            <dl class="space-y-3 text-sm">
+              <div><dt class={dt}>{m.androidApi}</dt><dd>{api}</dd></div>
+              <div><dt class={dt}>{m.architectures}</dt><dd>{archs}</dd></div>
+            </dl>
+          </section>
+
+          <section class={`${card} transparency`}>
+            <h2 class={cardTitle}>{m.transparency}</h2>
+            <dl class="space-y-3 text-sm">
+              <div>
+                <dt class={dt}>{m.repository}</dt>
+                <dd><a href={safeHref(d.source.url)} {...ext} class={link}>{repo}</a></dd>
+              </div>
+              {
+                st && (
+                  <>
+                    <div>
+                      <dt class={dt}>{m.tag}</dt>
+                      <dd class="flex flex-wrap items-center gap-2">
+                        <a href={safeHref(st.releaseUrl)} {...ext} class={`${link} font-mono`}>{st.tag}</a>
+                        {st.immutable && <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" title={m.immutableTitle}>{m.immutable}</span>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class={dt}>{m.commit}</dt>
+                      <dd><a href={safeHref(`https://github.com/${repo}/commit/${st.tagCommit}`)} {...ext} class={`${link} font-mono`} title={st.tagCommit}>{shortSha(st.tagCommit)}</a></dd>
+                    </div>
+                  </>
+                )
+              }
+              <div>
+                <dt class={dt}>{m.contentCommit}</dt>
+                <dd><a href={safeHref(`https://github.com/${repo}/tree/${d.source.commit}`)} {...ext} class={`${link} font-mono`} title={d.source.commit}>{shortSha(d.source.commit)}</a></dd>
+              </div>
+              {
+                st && (
+                  <>
+                    <div>
+                      <dt class={dt}>{m.sha256}</dt>
+                      <dd><code class="font-mono text-xs break-all">{st.zip.sha256}</code></dd>
+                    </div>
+                    {st.attestationUrl && (
+                      <div>
+                        <dt class={dt}>{m.attestation}</dt>
+                        <dd><a href={safeHref(st.attestationUrl)} {...ext} class={link}>{displayUrl(st.attestationUrl)}</a></dd>
+                      </div>
+                    )}
+                  </>
+                )
+              }
+              <div>
+                <dt class={dt} title={m.lastSyncTitle}>{m.lastSync}</dt>
+                <dd><time datetime={d.health.lastSuccessAt ?? undefined}>{date(d.health.lastSuccessAt) || m.never}</time></dd>
+              </div>
+            </dl>
+            {
+              st && (
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
+                  <h3 class="text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">{m.verifyTitle}</h3>
+                  <p class="text-xs text-gray-500 dark:text-slate-400 mb-2">{m.transparencyNote}</p>
+                  <pre class="text-[11px] leading-relaxed overflow-x-auto bg-gray-100 dark:bg-slate-950/60 rounded-lg p-2"><code>gh release verify {st.tag} -R {repo}
+gh release verify-asset {st.tag} {st.zip.name} -R {repo}</code></pre>
+                </div>
+              )
+            }
+          </section>
+        </div>
+      </aside>
+    </div>
+  </div>
+</Layout>

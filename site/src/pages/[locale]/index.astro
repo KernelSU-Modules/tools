@@ -1,0 +1,17 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Layout from '../../layouts/Layout.astro';
+import ModuleList from '../../components/ModuleList.astro';
+import { MESSAGES, UI_LOCALES, type UiLocale } from '../../lib/i18n.ts';
+import { listUrl } from '../../lib/data.ts';
+
+export const getStaticPaths = (() => UI_LOCALES.map((locale) => ({ params: { locale } }))) satisfies GetStaticPaths;
+
+const ui = Astro.params.locale as UiLocale;
+const m = MESSAGES[ui];
+const alternates = Object.fromEntries(UI_LOCALES.map((l) => [l, listUrl(l)])) as Record<UiLocale, string>;
+---
+
+<Layout ui={ui} title={m.siteTitle} description={m.siteDescription} path={listUrl(ui)} alternates={alternates}>
+  <ModuleList ui={ui} />
+</Layout>

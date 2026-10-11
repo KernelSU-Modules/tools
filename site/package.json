@@ -1,0 +1,30 @@
+{
+  "name": "@kernelsu-modules/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/lib/index.ts",
+    "./build": "./src/lib/build.ts"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "typecheck": "ASTRO_TELEMETRY_DISABLED=1 astro check --minimumSeverity warning && tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kernelsu-modules/render": "workspace:*",
+    "@kernelsu-modules/schema": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.8",
+    "fuse.js": "^7.5.0",
+    "github-markdown-css": "^5.9.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@types/node": "^26.6.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

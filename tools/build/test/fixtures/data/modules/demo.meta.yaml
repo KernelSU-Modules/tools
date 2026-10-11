@@ -1,0 +1,9 @@
+id: demo.meta
+status: listed
+source:
+  host: github
+  repositoryId: 1002
+  ownerId: 502
+  fullName: demo/meta
+createdAt: 2026-08-01T00:00:00Z
+updatedAt: 2026-08-01T00:00:00Z

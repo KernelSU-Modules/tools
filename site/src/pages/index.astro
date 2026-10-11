@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ModuleList from '../components/ModuleList.astro';
+import { DEFAULT_UI_LOCALE, MESSAGES, UI_LOCALES, type UiLocale } from '../lib/i18n.ts';
+import { listUrl } from '../lib/data.ts';
+
+const ui = DEFAULT_UI_LOCALE;
+const m = MESSAGES[ui];
+const alternates = Object.fromEntries(UI_LOCALES.map((l) => [l, listUrl(l)])) as Record<UiLocale, string>;
+// "/" shows the default-locale list (and sends JS visitors to their preferred locale once); it is not a page of
+// its own for search engines: canonical = /en/, and it is left out of the sitemap.
+---
+
+<Layout ui={ui} title={m.siteTitle} description={m.siteDescription} path={listUrl(ui)} alternates={alternates} autoLocale>
+  <ModuleList ui={ui} />
+</Layout>

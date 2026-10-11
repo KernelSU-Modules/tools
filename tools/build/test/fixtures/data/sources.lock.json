@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "modules": {
+    "demo.meta": {
+      "id": "demo.meta",
+      "repositoryId": 1002,
+      "fullName": "demo/meta",
+      "installationId": 7002,
+      "content": {
+        "ref": "main",
+        "commit": "3333333333333333333333333333333333333333",
+        "fetchedAt": "2026-10-08T00:00:00Z",
+        "manifestPath": "module.yaml",
+        "files": {
+          "module.yaml": "5262b2099a08752f0ac728b0a7982913dacff64eac09b7219c1be95bdb616cea",
+          "README.md": "ee1af4a282109320b4275ea4d87c0ec4397293263af91ab39b448c5e1aff698a",
+          "icon.svg": "75f72d7a5618a378a8dfbe717e137386456e3b0bd8ec09f8bc07532a26b5428d"
+        }
+      },
+      "stable": {
+        "releaseId": 210,
+        "tag": "v2.0",
+        "tagCommit": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "name": "v2.0",
+        "body": "Meta release",
+        "prerelease": false,
+        "publishedAt": "2026-09-15T00:00:00Z",
+        "htmlUrl": "https://github.com/demo/meta/releases/tag/v2.0",
+        "immutable": true,
+        "asset": {
+          "id": 310,
+          "name": "meta-2.0.zip",
+          "url": "https://github.com/demo/meta/releases/download/v2.0/meta-2.0.zip",
+          "size": 12655,
+          "sha256": "24bee75bae65fe7c9c84b2349bbcfce4043de928e93455fd49155c3e7577ac7d",
+          "digest": "sha256:24bee75bae65fe7c9c84b2349bbcfce4043de928e93455fd49155c3e7577ac7d"
+        },
+        "version": "2.0",
+        "versionCode": 200,
+        "prop": {
+          "id": "demo/meta",
+          "version": "2.0",
+          "versionCode": "200"
+        }
+      },
+      "prerelease": null,
+      "maxVersionCode": 200,
+      "maxStableVersionCode": 200,
+      "releases": [
+        {
+          "releaseId": 210,
+          "tag": "v2.0",
+          "tagCommit": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "name": "v2.0",
+          "body": "Meta release",
+          "prerelease": false,
+          "publishedAt": "2026-09-15T00:00:00Z",
+          "htmlUrl": "https://github.com/demo/meta/releases/tag/v2.0",
+          "immutable": true,
+          "asset": {
+            "id": 310,
+            "name": "meta-2.0.zip",
+            "url": "https://github.com/demo/meta/releases/download/v2.0/meta-2.0.zip",
+            "size": 12655,
+            "sha256": "24bee75bae65fe7c9c84b2349bbcfce4043de928e93455fd49155c3e7577ac7d",
+            "digest": "sha256:24bee75bae65fe7c9c84b2349bbcfce4043de928e93455fd49155c3e7577ac7d"
+          },
+          "version": "2.0",
+          "versionCode": 200,
+          "prop": {
+            "id": "demo/meta",
+            "version": "2.0",
+            "versionCode": "200"
+          }
+        }
+      ],
+      "seen": {
+        "210": {
+          "ok": true,
+          "checkedAt": "2026-09-15T00:10:00Z"
+        }
+      },
+      "health": {
+        "status": "ok",
+        "installation": "present",
+        "lastAttemptAt": "2026-10-09T12:00:00Z",
+        "lastSuccessAt": "2026-10-09T12:00:00Z",
+        "message": null
+      }
+    },
+    "demo.nostable": {
+      "id": "demo.nostable",
+      "repositoryId": 1003,
+      "fullName": "demo/nostable",
+      "installationId": 7003,
+      "content": null,
+      "stable": null,
+      "prerelease": null,
+      "maxVersionCode": 50,
+      "maxStableVersionCode": 50,
+      "releases": [],
+      "seen": {},
+      "health": {
+        "status": "error",
+        "installation": "present",
+        "lastAttemptAt": "2026-10-09T12:00:00Z",
+        "lastSuccessAt": null,
+        "message": null
+      }
+    },
+    "demo.suspended": {
+      "id": "demo.suspended",
+      "repositoryId": 1004,
+      "fullName": "demo/suspended",
+      "installationId": 7004,
+      "content": {
+        "ref": "main",
+        "commit": "4444444444444444444444444444444444444444",
+        "fetchedAt": "2026-08-15T00:00:00Z",
+        "manifestPath": "module.yaml",
+        "files": {}
+      },
+      "stable": {
+        "releaseId": 310,
+        "tag": "v1",
+        "tagCommit": "4444444444444444444444444444444444444444",
+        "name": "v1",
+        "body": null,
+        "prerelease": false,
+        "publishedAt": "2026-08-15T00:00:00Z",
+        "htmlUrl": "https://github.com/demo/suspended/releases/tag/v1",
+        "immutable": true,
+        "asset": {
+          "id": 410,
+          "name": "suspended-1.zip",
+          "url": "https://github.com/demo/suspended/releases/download/v1/suspended-1.zip",
+          "size": 12755,
+          "sha256": "3506cea121c615a2400680cc542cc5bea94b0f992bf6ec739b0cb679f7d3e990",
+          "digest": "sha256:3506cea121c615a2400680cc542cc5bea94b0f992bf6ec739b0cb679f7d3e990"
+        },
+        "version": "1",
+        "versionCode": 1,
+        "prop": {
+          "id": "demo/suspended",
+          "version": "1",
+          "versionCode": "1"
+        }
+      },
+      "prerelease": null,
+      "maxVersionCode": 1,
+      "maxStableVersionCode": 1,
+      "releases": [
+        {
+          "releaseId": 310,
+          "tag": "v1",
+          "tagCommit": "4444444444444444444444444444444444444444",
+          "name": "v1",
+          "body": null,
+          "prerelease": false,
+          "publishedAt": "2026-08-15T00:00:00Z",
+          "htmlUrl": "https://github.com/demo/suspended/releases/tag/v1",
+          "immutable": true,
+          "asset": {
+            "id": 410,
+            "name": "suspended-1.zip",
+            "url": "https://github.com/demo/suspended/releases/download/v1/suspended-1.zip",
+            "size": 12755,
+            "sha256": "3506cea121c615a2400680cc542cc5bea94b0f992bf6ec739b0cb679f7d3e990",
+            "digest": "sha256:3506cea121c615a2400680cc542cc5bea94b0f992bf6ec739b0cb679f7d3e990"
+          },
+          "version": "1",
+          "versionCode": 1,
+          "prop": {
+            "id": "demo/suspended",
+            "version": "1",
+            "versionCode": "1"
+          }
+        }
+      ],
+      "seen": {},
+      "health": {
+        "status": "ok",
+        "installation": "present",
+        "lastAttemptAt": "2026-09-19T00:00:00Z",
+        "lastSuccessAt": "2026-09-19T00:00:00Z",
+        "message": null
+      }
+    },
+    "demo.toolbox": {
+      "id": "demo.toolbox",
+      "repositoryId": 1001,
+      "fullName": "demo/toolbox",
+      "installationId": 7001,
+      "content": {
+        "ref": "main",
+        "commit": "1111111111111111111111111111111111111111",
+        "fetchedAt": "2026-10-02T00:00:00Z",
+        "manifestPath": "module.yaml",
+        "files": {
+          "module.yaml": "4dc0a57f1de7a8e3e366552c234a0f084e19157c6f3ec9322a73f3bf6477dfb5",
+          "README.md": "4bf37636b976e8c1e7176de315dbceee8710a5b1fb6f601b1be44685174b63d0",
+          "assets/icon.png": "6b7fa434f92a8b80aab02d9bf1a12e49ffcae424e4013a1c4f68b67e3d2bbcd0",
+          "assets/shot.png": "7f482d0b18cb1ce65c21d82b7d114c4f4f10ba0c4ef256cd3e697b181bf21526"
+        }
+      },
+      "stable": {
+        "releaseId": 120,
+        "tag": "v1.2.0",
+        "tagCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "v1.2.0",
+        "body": "### Changes\n- Fixed <img src=x onerror=alert(1)>\n- New [docs](docs/zh-CN.md)\n\n![shot](https://img.example.com/photo.jpg)\n![gone](https://gone.example.com/x.png)",
+        "prerelease": false,
+        "publishedAt": "2026-10-01T10:00:00Z",
+        "htmlUrl": "https://github.com/demo/toolbox/releases/tag/v1.2.0",
+        "immutable": true,
+        "asset": {
+          "id": 220,
+          "name": "toolbox-1.2.0.zip",
+          "url": "https://github.com/demo/toolbox/releases/download/v1.2.0/toolbox-1.2.0.zip",
+          "size": 12565,
+          "sha256": "80e52e6ea3cb9dd03da0611a86b6de3ead40c34833eac78dfd7f9bd1e08d03d4",
+          "digest": "sha256:80e52e6ea3cb9dd03da0611a86b6de3ead40c34833eac78dfd7f9bd1e08d03d4"
+        },
+        "version": "1.2.0",
+        "versionCode": 120,
+        "prop": {
+          "id": "demo/toolbox",
+          "version": "1.2.0",
+          "versionCode": "120"
+        }
+      },
+      "prerelease": {
+        "releaseId": 130,
+        "tag": "v1.3.0-beta",
+        "tagCommit": "cccccccccccccccccccccccccccccccccccccccc",
+        "name": "v1.3.0-beta",
+        "body": "Beta notes",
+        "prerelease": true,
+        "publishedAt": "2026-10-05T10:00:00Z",
+        "htmlUrl": "https://github.com/demo/toolbox/releases/tag/v1.3.0-beta",
+        "immutable": true,
+        "asset": {
+          "id": 230,
+          "name": "toolbox-1.3.0-beta.zip",
+          "url": "https://github.com/demo/toolbox/releases/download/v1.3.0-beta/toolbox-1.3.0-beta.zip",
+          "size": 12575,
+          "sha256": "553c2ab20a91cc6f54b4bf4409efd939871c7453a7052a5c59eae59cc4c23956",
+          "digest": "sha256:553c2ab20a91cc6f54b4bf4409efd939871c7453a7052a5c59eae59cc4c23956"
+        },
+        "version": "1.3.0-beta",
+        "versionCode": 130,
+        "prop": {
+          "id": "demo/toolbox",
+          "version": "1.3.0-beta",
+          "versionCode": "130"
+        }
+      },
+      "maxVersionCode": 130,
+      "maxStableVersionCode": 120,
+      "releases": [
+        {
+          "releaseId": 130,
+          "tag": "v1.3.0-beta",
+          "tagCommit": "cccccccccccccccccccccccccccccccccccccccc",
+          "name": "v1.3.0-beta",
+          "body": "Beta notes",
+          "prerelease": true,
+          "publishedAt": "2026-10-05T10:00:00Z",
+          "htmlUrl": "https://github.com/demo/toolbox/releases/tag/v1.3.0-beta",
+          "immutable": true,
+          "asset": {
+            "id": 230,
+            "name": "toolbox-1.3.0-beta.zip",
+            "url": "https://github.com/demo/toolbox/releases/download/v1.3.0-beta/toolbox-1.3.0-beta.zip",
+            "size": 12575,
+            "sha256": "553c2ab20a91cc6f54b4bf4409efd939871c7453a7052a5c59eae59cc4c23956",
+            "digest": "sha256:553c2ab20a91cc6f54b4bf4409efd939871c7453a7052a5c59eae59cc4c23956"
+          },
+          "version": "1.3.0-beta",
+          "versionCode": 130,
+          "prop": {
+            "id": "demo/toolbox",
+            "version": "1.3.0-beta",
+            "versionCode": "130"
+          }
+        },
+        {
+          "releaseId": 120,
+          "tag": "v1.2.0",
+          "tagCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "name": "v1.2.0",
+          "body": "### Changes\n- Fixed <img src=x onerror=alert(1)>\n- New [docs](docs/zh-CN.md)\n\n![shot](https://img.example.com/photo.jpg)\n![gone](https://gone.example.com/x.png)",
+          "prerelease": false,
+          "publishedAt": "2026-10-01T10:00:00Z",
+          "htmlUrl": "https://github.com/demo/toolbox/releases/tag/v1.2.0",
+          "immutable": true,
+          "asset": {
+            "id": 220,
+            "name": "toolbox-1.2.0.zip",
+            "url": "https://github.com/demo/toolbox/releases/download/v1.2.0/toolbox-1.2.0.zip",
+            "size": 12565,
+            "sha256": "80e52e6ea3cb9dd03da0611a86b6de3ead40c34833eac78dfd7f9bd1e08d03d4",
+            "digest": "sha256:80e52e6ea3cb9dd03da0611a86b6de3ead40c34833eac78dfd7f9bd1e08d03d4"
+          },
+          "version": "1.2.0",
+          "versionCode": 120,
+          "prop": {
+            "id": "demo/toolbox",
+            "version": "1.2.0",
+            "versionCode": "120"
+          }
+        },
+        {
+          "releaseId": 110,
+          "tag": "v1.1.0",
+          "tagCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "name": "v1.1.0",
+          "body": null,
+          "prerelease": false,
+          "publishedAt": "2026-09-01T10:00:00Z",
+          "htmlUrl": "https://github.com/demo/toolbox/releases/tag/v1.1.0",
+          "immutable": true,
+          "asset": {
+            "id": 210,
+            "name": "toolbox-1.1.0.zip",
+            "url": "https://github.com/demo/toolbox/releases/download/v1.1.0/toolbox-1.1.0.zip",
+            "size": 12555,
+            "sha256": "5e3d142a96e3c10b89083817326c6e41df1622d0e28f1feddfe26a0bd615e618",
+            "digest": "sha256:5e3d142a96e3c10b89083817326c6e41df1622d0e28f1feddfe26a0bd615e618"
+          },
+          "version": "1.1.0",
+          "versionCode": 110,
+          "prop": {
+            "id": "demo/toolbox",
+            "version": "1.1.0",
+            "versionCode": "110"
+          }
+        }
+      ],
+      "seen": {
+        "110": {
+          "ok": true,
+          "checkedAt": "2026-09-01T10:05:00Z"
+        },
+        "120": {
+          "ok": true,
+          "checkedAt": "2026-10-01T10:05:00Z"
+        },
+        "130": {
+          "ok": true,
+          "checkedAt": "2026-10-05T10:05:00Z"
+        }
+      },
+      "health": {
+        "status": "ok",
+        "installation": "present",
+        "lastAttemptAt": "2026-10-09T12:00:00Z",
+        "lastSuccessAt": "2026-10-09T12:00:00Z",
+        "message": null
+      }
+    }
+  }
+}

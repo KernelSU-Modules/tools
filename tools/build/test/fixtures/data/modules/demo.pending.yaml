@@ -1,0 +1,14 @@
+id: demo.pending
+status: pending
+request:
+  submissionId: zzzzz99999
+  kind: submit
+  source:
+    host: github
+    repositoryId: 1005
+    ownerId: 505
+    fullName: demo/pending
+  submittedBy: 505
+  submittedAt: 2026-10-01T00:00:00Z
+createdAt: 2026-10-01T00:00:00Z
+updatedAt: 2026-10-01T00:00:00Z

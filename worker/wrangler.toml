@@ -1,0 +1,30 @@
+# Cloudflare Pages project `kernelsu-developer-portal` (Direct Upload) = Developer Portal: static SPA + docs from
+# ../portal/dist, plus Pages Functions in advanced mode (`_worker.js`, bundled by `pnpm build` from
+# src/entry/pages.ts) for /api/*, /auth/*, /webhooks/*, /internal/* only (`_routes.json`).
+# Custom domain developers.kernelsu.org: CNAME `developers` -> kernelsu-developer-portal.pages.dev on Google Cloud DNS.
+# Workers Free limits apply to Functions invocations: 10 ms CPU, 50 subrequests, 100k requests/day (shared).
+#
+# This is a *Pages* config: `wrangler pages deploy` / `wrangler pages dev` read it from this directory
+# (Pages commands have no --config flag). It is the source of truth for vars; secrets are separate.
+# Scheduled work runs in the `kernelsu-developer-portal-cron` Worker (cron/wrangler.toml) because Pages has no Cron Triggers.
+name = "kernelsu-developer-portal"
+pages_build_output_dir = "../portal/dist"
+compatibility_date = "2026-10-01"
+# No compatibility_flags: the code uses only Web APIs (no nodejs_compat needed).
+
+[vars]
+DATA_REPO = "KernelSU-Modules/repo"
+TOOLS_REPO = "KernelSU-Modules/tools"
+SYNC_WORKFLOW = "sync-build-deploy.yml"
+PORTAL_URL = "https://developers.kernelsu.org"
+SITE_URL = "https://modules.kernelsu.org"
+MODULES_APP_SLUG = "kernelsu-modules"
+# Maintainers group chat id (negative for supergroups). Placeholder only — do NOT commit the real id here:
+# portal-deploy.yml replaces this exact line with the GitHub Environment variable `production` ->
+# TELEGRAM_CHAT_ID (and fails if it is unset). For local `wrangler pages dev`, set it in .dev.vars.
+TELEGRAM_CHAT_ID = ""
+
+# Secrets (pnpm --filter @kernelsu-modules/worker exec wrangler pages secret put <NAME> --project-name kernelsu-developer-portal):
+#   MODULES_APP_ID MODULES_APP_PRIVATE_KEY MODULES_APP_CLIENT_ID MODULES_APP_CLIENT_SECRET MODULES_APP_WEBHOOK_SECRET
+#   BOT_APP_ID BOT_APP_PRIVATE_KEY SESSION_KEY TELEGRAM_BOT_TOKEN TG_FORWARD_SECRET
+#   TELEGRAM_WEBHOOK_SECRET (optional)

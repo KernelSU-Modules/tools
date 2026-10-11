@@ -1,0 +1,65 @@
+# Deploy the Telegram Serverless forwarder (tgcloud/) with the official CLI (@tgcloud/cli, pinned in
+# tgcloud/package-lock.json). NOTE: the unscoped npm package "tgcloud" is unrelated — never `npx tgcloud@x`.
+name: tgcloud-deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tgcloud/**
+      - .github/workflows/tgcloud-deploy.yml
+
+concurrency:
+  group: tgcloud-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: tgcloud push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # TGCLOUD_TOKEN + TG_FORWARD_SECRET are Environment secrets (deployment branches: main only).
+    environment: production
+    defaults:
+      run:
+        working-directory: tgcloud
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install CLI (lockfile, no scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Test forwarder
+        run: node --import ./test/register.mjs --test "test/*.test.mjs"
+
+      - name: Generate lib/env.js (forward secret)
+        env:
+          TG_FORWARD_SECRET: ${{ secrets.TG_FORWARD_SECRET }}
+          PORTAL_URL: https://developers.kernelsu.org
+        run: node scripts/gen-env.mjs
+
+      - name: Push
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        # --force: CI has no .tgcloud/ state (revision), and git is the source of truth for the bot's code.
+        run: npx --no-install tgcloud push --force
+
+      - name: Webhook status
+        if: always()
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx --no-install tgcloud --no-pager webhook || true
+
+      - name: Remove generated secret file
+        if: always()
+        run: rm -f tgcloud/lib/env.js

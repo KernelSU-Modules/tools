@@ -1,0 +1,196 @@
+# Sync author releases -> commit sources.lock.json -> build the static site -> deploy to Cloudflare Pages.
+#
+# Triggered ONLY by workflow_dispatch: by the Worker (release webhooks, Check Run "Sync now",
+# Portal "sync now", and the */15 cron), or manually by a maintainer. No `schedule:` on purpose —
+# GitHub disables scheduled workflows in public repos after 60 days without activity.
+# Dispatches collapse: at most one run executes and one waits in the `publish` group.
+#
+# Secrets live in the GitHub Environment `production` (deployment branches: main only), so a workflow run
+# on any other ref cannot read them. Repository variable DEPLOY_PAUSED=true (rollback / incident mode,
+# docs/setup/README.md, section 14) keeps the sync (+ lock commit + Check Runs) running but skips build and deploy.
+name: sync-build-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this run was requested (webhook, cron, portal, manual...)
+        type: string
+        required: false
+        default: manual
+      module:
+        description: Only sync/check this module id (optional; also checks pending records)
+        type: string
+        required: false
+        default: ''
+      force_deploy:
+        description: Deploy even if the live site already has the same buildId
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DATA_REPO: KernelSU-Modules/repo
+  PAGES_PROJECT: kernelsu-modules-repo
+  SITE_URL: https://modules.kernelsu.org
+  # Production deployment of the Pages project (works before the custom domain is switched).
+  LIVE_MANIFEST_URL: https://kernelsu-modules-repo.pages.dev/build-manifest.json
+
+jobs:
+  publish:
+    name: Sync, build, deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      DEPLOY_PAUSED: ${{ vars.DEPLOY_PAUSED == 'true' }}
+    steps:
+      - name: Checkout tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout data repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.DATA_REPO }}
+          ref: main
+          path: data
+          persist-credentials: false
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Validate inputs
+        env:
+          MODULE: ${{ inputs.module }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          if [ -n "$MODULE" ] && ! [[ "$MODULE" =~ ^[a-zA-Z][a-zA-Z0-9._-]{1,63}$ ]]; then
+            echo "::error::invalid module id: $MODULE"; exit 1
+          fi
+          {
+            echo "## Publish"
+            echo ""
+            echo "- Reason: \`${REASON//\`/}\`"
+            [ -n "$MODULE" ] && echo "- Module: \`$MODULE\`"
+            echo "- Data commit (before sync): \`$(git -C data rev-parse HEAD)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync
+        id: sync
+        env:
+          MODULES_APP_ID: ${{ secrets.MODULES_APP_ID }}
+          MODULES_APP_PRIVATE_KEY: ${{ secrets.MODULES_APP_PRIVATE_KEY }}
+          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          MODULE: ${{ inputs.module }}
+        run: |
+          args=(--data-dir "$GITHUB_WORKSPACE/data" --commit --report "$RUNNER_TEMP/sync-report.json")
+          if [ -n "$MODULE" ]; then args+=(--module "$MODULE"); fi
+          pnpm --filter @kernelsu-modules/sync start -- "${args[@]}"
+
+      - name: Upload sync report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sync-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sync-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Deploy paused
+        if: env.DEPLOY_PAUSED == 'true'
+        run: |
+          echo "::warning::DEPLOY_PAUSED=true: sync ran, build and deploy are skipped"
+          echo "- **Deploy paused** (repository variable \`DEPLOY_PAUSED=true\`): sync ran; build and deploy skipped." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Refresh the data repo checkout to the post-sync commit
+        if: env.DEPLOY_PAUSED != 'true'
+        env:
+          SYNC_COMMIT: ${{ steps.sync.outputs.commit }}
+        run: |
+          # Sync commits the lock through the API, so the local checkout is behind. Build from the
+          # remote head so buildId / registryCommit match the data actually published.
+          git -C data fetch --depth=1 origin main
+          git -C data reset --hard FETCH_HEAD
+          head=$(git -C data rev-parse HEAD)
+          if [ -n "$SYNC_COMMIT" ] && [ "$head" != "$SYNC_COMMIT" ]; then
+            echo "::notice::data repo moved past the sync commit ($SYNC_COMMIT -> $head); building from $head"
+          fi
+          echo "- Data commit (build): \`$head\`${SYNC_COMMIT:+ (sync committed \`$SYNC_COMMIT\`)}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore build cache
+        if: env.DEPLOY_PAUSED != 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/build
+          # Rolling cache: every run saves a new entry, restores the newest previous one.
+          key: build-cache-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            build-cache-v1-
+
+      - name: Build
+        id: build
+        if: env.DEPLOY_PAUSED != 'true'
+        run: |
+          pnpm --filter @kernelsu-modules/build start -- \
+            --data-dir "$GITHUB_WORKSPACE/data" \
+            --out "$GITHUB_WORKSPACE/dist" \
+            --cache-dir "$GITHUB_WORKSPACE/.cache/build" \
+            --base-url "$SITE_URL"
+          build_id=$(jq -r '.buildId // empty' dist/build-manifest.json)
+          if ! [[ "$build_id" =~ ^[0-9a-f]{16}$ ]]; then
+            echo "::error::dist/build-manifest.json has no valid buildId (got '$build_id')"; exit 1
+          fi
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+          # Cloudflare Pages limits: 20,000 files per deployment, 25 MiB per file.
+          files=$(find dist -type f | wc -l)
+          big=$(find dist -type f -size +25M | head -5)
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          if [ -n "$big" ]; then echo "::error::files over 25 MiB: $big"; exit 1; fi
+          if [ "$files" -gt 20000 ]; then echo "::error::$files files > Pages limit 20000"; exit 1; fi
+          if [ "$files" -gt 16000 ]; then echo "::warning::$files files in dist (Pages limit 20000) — plan moving images out"; fi
+          {
+            echo "- buildId: \`$build_id\` · files: $files · size: $(du -sh dist | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare with live site
+        id: live
+        if: env.DEPLOY_PAUSED != 'true'
+        env:
+          BUILD_ID: ${{ steps.build.outputs.build_id }}
+          FORCE: ${{ inputs.force_deploy }}
+        run: |
+          live=$(curl -fsSL --max-time 20 "$LIVE_MANIFEST_URL" 2>/dev/null | jq -r '.buildId // empty' 2>/dev/null || true)
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          if [ "$live" = "$BUILD_ID" ] && [ "$FORCE" != "true" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "- Deploy: skipped (live site already serves \`$live\`)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        if: env.DEPLOY_PAUSED != 'true' && steps.live.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BUILD_ID: ${{ steps.build.outputs.build_id }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          pnpm --filter @kernelsu-modules/build exec wrangler pages deploy "$GITHUB_WORKSPACE/dist" \
+            --project-name "$PAGES_PROJECT" \
+            --branch main \
+            --commit-hash "$BUILD_ID" \
+            --commit-message "build $BUILD_ID (${REASON:-manual}, run $GITHUB_RUN_ID)" \
+            --commit-dirty=true
+          echo "- Deploy: \`$BUILD_ID\` → $PAGES_PROJECT (production, branch main)" >> "$GITHUB_STEP_SUMMARY"

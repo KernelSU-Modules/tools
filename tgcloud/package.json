@@ -1,0 +1,18 @@
+{
+  "name": "@kernelsu-modules/tgcloud",
+  "private": true,
+  "type": "module",
+  "description": "Telegram Serverless thin forwarder (not a pnpm workspace member: the platform forbids npm deps)",
+  "scripts": {
+    "test": "node --import ./test/register.mjs --test \"test/*.test.mjs\"",
+    "gen-env": "node scripts/gen-env.mjs",
+    "simulate": "node --import ./test/register.mjs test/simulate.mjs",
+    "push": "tgcloud push"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "0.2.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
