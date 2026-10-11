@@ -37,7 +37,9 @@ Immutable release 和 GitHub App 使得"作者自托管、自动更新"的模块
 
 ## 可以把仓库设为私有吗？
 
-不可以：KernelSU Modules 及其用户必须能够读取你的文档并下载 release。私有仓库会停止同步（最后一个版本保持在线，并标记为 stale）。
+你提交的仓库不可以：KernelSU Modules 及其用户必须能够匿名读取你的文档并下载 release。私有仓库会停止同步（最后一个版本保持在线，并标记为 stale）。
+
+不过你可以让**源代码**保持私有：在私有仓库中构建，再用 module-release action 把 release 发布到一个公开的分发仓库。见[闭源模块](closed-source.md)。
 
 ## 我卸载了 App，会怎样？
 

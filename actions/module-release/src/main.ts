@@ -8,6 +8,22 @@ import { DEFAULT_POLICY } from '@kernelsu-modules/schema';
 import type { ModuleManifest } from '@kernelsu-modules/schema';
 import { GitHubClient, GitHubError } from '@kernelsu-modules/github';
 import { appendSummary, getBooleanInput, getInput, setOutput, type Env, type Logger } from './actions.ts';
+import { ActionFailed } from './errors.ts';
+import {
+  CLOSED_SOURCE_DOCS,
+  REPOSITORY_RE,
+  collectMetadata,
+  commitMetadata,
+  diffAgainstTarget,
+  ensureTag,
+  fullName,
+  preflight,
+  readTagMessage,
+  tagCollision,
+  tagCommit,
+  type MetadataPlan,
+  type TargetState,
+} from './external.ts';
 import { collectDir, createZip } from './zip.ts';
 import type { Issue, ModuleProp, ReleaseLike, Validator, ZipLimits } from './validator-api.ts';
 
@@ -19,15 +35,7 @@ export const LOCAL_CODES = new Set(['release-exists', 'previous-release-unreadab
 /** Download the previous release asset completely only when it is at most this big. */
 const FULL_DOWNLOAD_MAX = 32 * 1024 * 1024;
 
-export class ActionFailed extends Error {
-  constructor(
-    message: string,
-    readonly issues: Issue[] = [],
-  ) {
-    super(message);
-    this.name = 'ActionFailed';
-  }
-}
+export { ActionFailed };
 
 export interface RunContext {
   env: Env;
@@ -36,6 +44,8 @@ export interface RunContext {
   fetch?: typeof fetch;
   cwd?: string;
   sleep?: (ms: number) => Promise<void>;
+  /** Clock for the token expiry warning (tests). */
+  now?: () => number;
 }
 
 export interface RunResult {
@@ -50,6 +60,14 @@ export interface RunResult {
   releaseId?: number;
   releaseUrl?: string;
   immutable?: boolean;
+  /** Repository the release is published in ("owner/name"; empty when unknown). */
+  repository: string;
+  /** Published to another repository than GITHUB_REPOSITORY (`repository` input). */
+  external: boolean;
+  /** External mode: the metadata commit created in the distribution repository (empty when none). */
+  metadataCommit: string;
+  /** External mode: files that were (or, on a dry run, would be) synced. */
+  syncedFiles: string[];
   issues: Issue[];
 }
 
@@ -67,7 +85,13 @@ interface Config {
   assetPattern?: string;
   dryRun: boolean;
   requireImmutable: boolean;
+  /** Release repository: GITHUB_REPOSITORY, or the `repository` input in external mode. */
   repo?: { owner: string; repo: string };
+  /** `repository` is set and differs from GITHUB_REPOSITORY. */
+  external: boolean;
+  syncFiles: boolean;
+  /** The workflow's GITHUB_TOKEN (internal input), only to detect a `token` left at its default. */
+  workflowToken?: string;
   apiUrl: string;
   sha?: string;
   tempDir: string;
@@ -96,6 +120,10 @@ export function parseConfig(env: Env, cwd: string): Config {
     notes = readFileSync(p, 'utf8');
   }
   const [owner, repo] = (env.GITHUB_REPOSITORY ?? '').split('/');
+  const target = getInput(env, 'repository');
+  if (target && !REPOSITORY_RE.test(target)) throw new ActionFailed(`Input "repository" must be "owner/name", got "${target}".`);
+  const external = !!target && target.toLowerCase() !== (env.GITHUB_REPOSITORY ?? '').toLowerCase();
+  const [tOwner, tRepo] = target.split('/');
   return {
     workspace,
     zip: zip ? abs(zip) : undefined,
@@ -110,7 +138,10 @@ export function parseConfig(env: Env, cwd: string): Config {
     assetPattern: getInput(env, 'asset-pattern') || undefined,
     dryRun: getBooleanInput(env, 'dry-run'),
     requireImmutable: getBooleanInput(env, 'require-immutable', true),
-    repo: owner && repo ? { owner, repo } : undefined,
+    repo: external ? { owner: tOwner!, repo: tRepo! } : owner && repo ? { owner, repo } : undefined,
+    external,
+    syncFiles: getBooleanInput(env, 'sync-files', true),
+    workflowToken: getInput(env, 'workflow-token') || undefined,
     apiUrl: (env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, ''),
     sha: env.GITHUB_SHA || undefined,
     tempDir: env.RUNNER_TEMP || tmpdir(),
@@ -171,8 +202,9 @@ async function precheckZip(v: Validator, bytes: Uint8Array): Promise<{ issues: I
 function precheckManifest(v: Validator, cfg: Config, log: Logger): { issues: Issue[]; manifest?: ModuleManifest } {
   const p = resolve(cfg.workspace, cfg.manifestPath);
   if (!existsSync(p)) {
+    if (cfg.external && cfg.syncFiles) return { issues: [] }; // reported as an error by collectMetadata
     log.warning(
-      `${cfg.manifestPath} not found. The release can still be published, but KernelSU Modules needs a module.yaml on your default branch before the module can be listed. See ${DOCS_BASE}/module-yaml`,
+      `${cfg.manifestPath} not found. The release can still be published, but KernelSU Modules needs a module.yaml on ${cfg.external ? `the default branch of ${fullName(cfg.repo!)}` : 'your default branch'} before the module can be listed. See ${DOCS_BASE}/module-yaml`,
       { title: 'manifest-missing' },
     );
     return { issues: [] };
@@ -193,11 +225,40 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   const doFetch = ctx.fetch ?? fetch;
   const sleep = ctx.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const cfg = parseConfig(env, ctx.cwd ?? process.cwd());
+  const now = ctx.now ?? Date.now;
+
+  if (cfg.external) {
+    const target = fullName(cfg.repo!);
+    if (!cfg.token)
+      throw new ActionFailed(
+        `Publishing to ${target} needs a token with Contents: Read and write on it: set the "token" input (e.g. token: \${{ secrets.DIST_REPO_TOKEN }}). See ${CLOSED_SOURCE_DOCS}`,
+      );
+    if (cfg.workflowToken && cfg.token === cfg.workflowToken)
+      throw new ActionFailed(
+        `"token" is the workflow's GITHUB_TOKEN, which cannot write to another repository (${target}). Pass a fine-grained personal access token or GitHub App token for ${target} (e.g. token: \${{ secrets.DIST_REPO_TOKEN }}). See ${CLOSED_SOURCE_DOCS}`,
+      );
+    log.info(`External mode: publishing to ${target}${cfg.syncFiles ? ' (metadata synced from this workspace)' : ''}.`);
+  } else if (getInput(env, 'repository')) {
+    log.info('"repository" is the current repository; publishing here as usual.');
+  }
 
   if (!cfg.dryRun) {
     if (!cfg.tag) throw new ActionFailed('No tag: run on a tag push or set the "tag" input.');
     if (!cfg.token) throw new ActionFailed('No token: set the "token" input (defaults to github.token).');
     if (!cfg.repo) throw new ActionFailed('GITHUB_REPOSITORY is not set.');
+  }
+
+  const gh = cfg.token && cfg.repo ? new GitHubClient(cfg.token, { baseUrl: cfg.apiUrl, fetch: doFetch, userAgent: 'kernelsu-module-release' }) : null;
+  const repoPath = cfg.repo ? `/repos/${cfg.repo.owner}/${cfg.repo.repo}` : '';
+
+  // 0. External mode: read-only checks of the distribution repository (dry runs too).
+  let targetState: TargetState | undefined;
+  if (cfg.external) {
+    targetState = await log.group(`Preflight checks for ${fullName(cfg.repo!)}`, () => preflight(gh!, cfg.repo!, log, now()));
+    if (cfg.generateNotes) {
+      log.warning('generate-release-notes is ignored when publishing to another repository (it has no source history there); without release-notes / release-notes-file the annotated tag message is used.');
+      cfg.generateNotes = false;
+    }
   }
 
   // 1. Obtain ZIP bytes.
@@ -221,6 +282,11 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   issues.push(...zipIssues);
   const { issues: manIssues, manifest } = precheckManifest(v, cfg, log);
   issues.push(...manIssues);
+  let meta: MetadataPlan | undefined;
+  if (cfg.external && cfg.syncFiles) {
+    meta = collectMetadata(cfg.workspace, cfg.manifestPath, manifest, DEFAULT_POLICY.limits, cfg.repo!, log);
+    issues.push(...meta.issues);
+  }
 
   if (prop) {
     if (manifest && manifest.id !== prop.id) {
@@ -252,9 +318,9 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   }
 
   // 3. Remote checks against existing releases (read-only).
-  const gh = cfg.token && cfg.repo ? new GitHubClient(cfg.token, { baseUrl: cfg.apiUrl, fetch: doFetch, userAgent: 'kernelsu-module-release' }) : null;
-  const repoPath = cfg.repo ? `/repos/${cfg.repo.owner}/${cfg.repo.repo}` : '';
+  const blockers: string[] = [];
   let leftoverDrafts: ApiRelease[] = [];
+  let pendingSync: string[] = [];
   if (gh && cfg.tag && prop) {
     await log.group('Check existing releases', async () => {
       const byTag = await gh.get<ApiRelease>(`${repoPath}/releases/tags/${encodeURIComponent(cfg.tag!)}`, { allow: [404] });
@@ -272,17 +338,42 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   } else if (prop) {
     log.info('No token, tag or repository: skipping checks against existing releases.');
   }
+  if (cfg.external && gh && targetState) {
+    await log.group(`Compare metadata and tag with ${fullName(cfg.repo!)}`, async () => {
+      if (meta && manifest && !hasErrors(meta.issues)) {
+        const diff = await diffAgainstTarget(gh, cfg.repo!, targetState!.head, meta.files, meta.skipped, log);
+        pendingSync = diff.changed.map((f) => f.path);
+        log.info(
+          pendingSync.length
+            ? `Metadata to sync to ${targetState!.defaultBranch}: ${pendingSync.join(', ')}`
+            : `Metadata on ${targetState!.defaultBranch} is up to date (${meta.files.map((f) => f.path).join(', ')}).`,
+        );
+      }
+      if (cfg.tag) {
+        const existing = await tagCommit(gh, cfg.repo!, cfg.tag);
+        // An existing tag is only reusable when nothing has to be committed and it already points at HEAD
+        // (e.g. a re-run after a failed upload).
+        if (existing && (pendingSync.length > 0 || existing !== targetState!.head))
+          blockers.push(tagCollision(cfg.repo!, cfg.tag, existing, pendingSync.length ? null : targetState!.head));
+      }
+    });
+  }
 
   report(log, issues);
+  for (const b of blockers) log.error(b);
   const base: Omit<RunResult, 'published' | 'sha256' | 'zipPath'> = {
     dryRun: cfg.dryRun,
     id: prop?.id ?? '',
     version: prop?.version ?? '',
     versionCode: prop?.versionCode ?? 0,
     assetName,
+    repository: cfg.repo ? fullName(cfg.repo) : '',
+    external: cfg.external,
+    metadataCommit: '',
+    syncedFiles: pendingSync,
     issues,
   };
-  if (hasErrors(issues) || !prop) {
+  if (hasErrors(issues) || blockers.length || !prop) {
     throw new ActionFailed(
       'Precheck failed; nothing was published. Fix the errors above. Each published release is immutable, so failing here saves your version number.',
       issues,
@@ -298,19 +389,55 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   }
   log.info(`Asset: ${assetName}\nsha256: ${sha256}\nid=${prop.id} version=${prop.version} versionCode=${prop.versionCode}`);
 
+  if (cfg.external && cfg.notes === undefined && cfg.tag) {
+    // GitHub's generated notes are useless in the distribution repository (no source history): use the tag message.
+    const tm = readTagMessage(cfg.workspace, cfg.tag);
+    if (tm.ok) {
+      cfg.notes = tm.message;
+      log.info(`Release notes: message of the annotated tag ${cfg.tag} (${tm.message.length} characters).`);
+    } else {
+      log.warning(
+        `No release notes: ${tm.reason}. Push an annotated tag (git tag -a) and check out with fetch-depth: 0, or set release-notes / release-notes-file.`,
+        { title: 'release-notes' },
+      );
+    }
+  }
+
   if (cfg.dryRun) {
-    log.notice(`Dry run: precheck passed for ${assetName}; nothing was published.`);
+    log.notice(`Dry run: precheck passed for ${assetName}; nothing was published${cfg.external ? ` and nothing was written to ${fullName(cfg.repo!)}` : ''}.`);
     const res: RunResult = { ...base, published: false, sha256, zipPath };
     writeOutputs(env, res, log);
     return res;
   }
 
   log.notice(
-    `KernelSU Modules only accepts immutable releases. Make sure "Enable release immutability" is on in Settings → General → Releases (${IMMUTABILITY_DOCS}).`,
+    `KernelSU Modules only accepts immutable releases. Make sure "Enable release immutability" is on in ${cfg.external ? `${fullName(cfg.repo!)}: ` : ''}Settings → General → Releases (${IMMUTABILITY_DOCS}).`,
   );
 
-  // 4. Publish: (delete leftover drafts) -> draft -> upload -> verify -> publish.
   const client = gh!;
+  // 4a. External mode: sync metadata to the default branch (one commit), then tag that commit.
+  let targetCommitish = cfg.sha;
+  if (cfg.external) {
+    const target = cfg.repo!;
+    const branch = targetState!.defaultBranch;
+    let tagAt: string;
+    if (meta) {
+      const out = await log.group(`Sync metadata to ${fullName(target)}@${branch}`, () =>
+        commitMetadata(client, target, branch, meta!.files, `Sync module metadata for ${cfg.tag}`, log),
+      );
+      if (out.commit) log.info(`Committed ${out.changed.join(', ')} as ${out.commit}`);
+      else log.info('Metadata already up to date; no commit.');
+      base.metadataCommit = out.commit ?? '';
+      base.syncedFiles = out.changed;
+      tagAt = out.head;
+    } else {
+      tagAt = (await client.get<{ object: { sha: string } }>(`${repoPath}/git/ref/heads/${branch.split('/').map(encodeURIComponent).join('/')}`)).data.object.sha;
+    }
+    await ensureTag(client, target, cfg.tag!, tagAt, log);
+    targetCommitish = tagAt;
+  }
+
+  // 4b. Publish: (delete leftover drafts) -> draft -> upload -> verify -> publish.
   for (const d of leftoverDrafts) {
     log.warning(`Deleting leftover draft release ${d.id} for tag ${cfg.tag} (probably from an earlier failed run).`);
     await client.delete(`${repoPath}/releases/${d.id}`, { allow: [404] });
@@ -319,7 +446,7 @@ export async function run(ctx: RunContext): Promise<RunResult> {
   const draft = (
     await client.post<ApiRelease>(`${repoPath}/releases`, {
       tag_name: cfg.tag,
-      target_commitish: cfg.sha,
+      target_commitish: targetCommitish,
       name: cfg.releaseName ?? cfg.tag,
       body: cfg.notes ?? '',
       draft: true,
@@ -516,6 +643,8 @@ function writeOutputs(env: Env, r: RunResult, log: Logger): void {
   out('module-id', r.id);
   out('version', r.version);
   out('version-code', String(r.versionCode));
+  out('repository', r.repository);
+  out('metadata-commit', r.metadataCommit);
   appendSummary(
     env,
     [
@@ -524,9 +653,12 @@ function writeOutputs(env: Env, r: RunResult, log: Logger): void {
       '| | |',
       '| --- | --- |',
       `| Module | \`${r.id}\` |`,
+      ...(r.external ? [`| Repository | ${r.repository} |`] : []),
       `| Version | ${r.version} (${r.versionCode}) |`,
       `| Asset | \`${r.assetName}\` |`,
       `| sha256 | \`${r.sha256}\` |`,
+      ...(r.metadataCommit ? [`| Metadata commit | \`${r.metadataCommit}\` (${r.syncedFiles.join(', ')}) |`] : []),
+      ...(r.dryRun && r.syncedFiles.length ? [`| Metadata to sync | ${r.syncedFiles.join(', ')} |`] : []),
       ...(r.releaseUrl ? [`| Release | ${r.releaseUrl} |`, `| Immutable | ${r.immutable ? 'yes' : '**no**'} |`] : []),
       '',
       ...(r.issues.length ? ['Warnings:', '', ...r.issues.map((i) => `- \`${i.code}\`: ${i.message}`), ''] : []),

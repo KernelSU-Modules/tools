@@ -97,6 +97,32 @@ export function renderMarkdown(md: string, ctx: RenderContext): { html: string; 
   return render(docMd, md, ctx);
 }
 
+/**
+ * Repository-relative paths of the images a Markdown document at `docPath` references (relative or root-relative
+ * image URLs, resolved like renderMarkdown does; absolute URLs to other hosts are ignored). Deduplicated, in
+ * document order. Used by sync (tracked images) and by the release action (metadata sync to a distribution repo).
+ */
+export function referencedImagePaths(md: string, o: { fullName: string; commit: string; docPath: string }): string[] {
+  const prefix = `https://raw.githubusercontent.com/${o.fullName}/${o.commit}/`;
+  const out: string[] = [];
+  let images: string[];
+  try {
+    images = renderMarkdown(md, o).images;
+  } catch {
+    return out;
+  }
+  for (const url of images) {
+    if (!url.startsWith(prefix)) continue;
+    try {
+      const p = url.slice(prefix.length).split(/[?#]/)[0]!.split('/').map(decodeURIComponent).join('/');
+      if (p && !out.includes(p)) out.push(p);
+    } catch {
+      /* undecodable path: the build cannot fetch it either */
+    }
+  }
+  return out;
+}
+
 /** Render GitHub release notes (soft line breaks preserved, links resolved against the repo root). */
 export function renderChangelog(md: string, ctx: Omit<RenderContext, 'docPath'>): string {
   return renderNotes(md, ctx).html;

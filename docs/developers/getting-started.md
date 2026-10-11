@@ -4,7 +4,9 @@ This page takes a module from "lives in my GitHub repository" to "listed on
 modules.kernelsu.org". Budget about 15 minutes plus review time.
 
 **Requirements:** a **public** GitHub repository you administer, containing a KernelSU module whose
-`module.prop` has `id`, `name`, `version`, `versionCode`, `author` and `description`.
+`module.prop` has `id`, `name`, `version`, `versionCode`, `author` and `description`. Closed-source
+module? Keep the source private and publish to a public distribution repository — see
+[Closed-source modules](closed-source.md); the steps below then apply to the distribution repository.
 
 ## 1. Enable release immutability
 

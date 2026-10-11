@@ -87,7 +87,9 @@ jobs:
 | `asset-pattern` | `release.assetPattern` | 用于匹配生成的资源名。 |
 | `dry-run` | `false` | 运行全部检查但不发布（适合在 pull request 中使用）。 |
 
-输出：`release-id`、`release-url`、`asset-name`、`sha256`（另有 `zip-path`、`module-id`、`version`、`version-code`）。完整列表见 action 的 README。
+输出：`release-id`、`release-url`、`asset-name`、`sha256`（另有 `zip-path`、`module-id`、`version`、`version-code`、`repository`、`metadata-commit`）。完整列表见 action 的 README。
+
+如需从私有源码仓库发布到公开的分发仓库，请设置 `repository` 和 `token`，见[闭源模块](closed-source.md)。
 
 action 的检查只是为了方便；KernelSU Modules 仍会在自己一侧再次验证每个 release。
 

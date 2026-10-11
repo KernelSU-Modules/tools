@@ -129,7 +129,10 @@ Pin actions to a full commit SHA. Main inputs:
 | `dry-run` | `false` | Run all checks, publish nothing (useful on pull requests). |
 
 Outputs: `release-id`, `release-url`, `asset-name`, `sha256` (plus `zip-path`, `module-id`,
-`version`, `version-code`). The full list is in the action's README.
+`version`, `version-code`, `repository`, `metadata-commit`). The full list is in the action's README.
+
+To publish from a private source repository to a public distribution repository, set `repository`
+and `token` — see [Closed-source modules](closed-source.md).
 
 The action's checks are a convenience; KernelSU Modules validates every release again on its side.
 

@@ -26,6 +26,9 @@ importers:
       '@kernelsu-modules/github':
         specifier: workspace:*
         version: link:../../packages/github
+      '@kernelsu-modules/render':
+        specifier: workspace:*
+        version: link:../../packages/render
       '@kernelsu-modules/schema':
         specifier: workspace:*
         version: link:../../packages/schema

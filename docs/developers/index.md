@@ -41,6 +41,7 @@ tag → immutable release + ZIP      ──►  ZIP checked (module.prop, size, 
 - [Getting started](getting-started.md) – from zero to listed
 - [module.yaml reference](module-yaml.md)
 - [Releasing](releasing.md) – immutable releases, versionCode, the release action
+- [Closed-source modules](closed-source.md) – private source, public distribution repository
 - [Checks](checks.md) – every check result code and how to fix it
 - [KernelSU Developer Portal](portal.md) – submit, transfer, sync, statuses
 - [FAQ](faq.md) – guarantees, signing, privacy

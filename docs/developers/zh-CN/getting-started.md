@@ -2,7 +2,7 @@
 
 本页带你把模块从"放在我的 GitHub 仓库里"变成"上架 modules.kernelsu.org"。预计耗时约 15 分钟，另加审核时间。
 
-**前提**： 一个你拥有管理员权限的**公开** GitHub 仓库，其中包含一个 KernelSU 模块，且其 `module.prop` 含有 `id`、`name`、`version`、`versionCode`、`author` 和 `description`。
+**前提**： 一个你拥有管理员权限的**公开** GitHub 仓库，其中包含一个 KernelSU 模块，且其 `module.prop` 含有 `id`、`name`、`version`、`versionCode`、`author` 和 `description`。闭源模块可以把源码放在私有仓库，发布到公开的分发仓库，见[闭源模块](closed-source.md)；此时下面的步骤都针对分发仓库。
 
 ## 1. 启用 release 不可变性
 

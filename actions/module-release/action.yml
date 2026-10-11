@@ -24,7 +24,18 @@ inputs:
     description: Release title. Defaults to the tag.
     required: false
   token:
-    description: Token with contents:write on this repository.
+    description: Token with contents:write on the release repository. The default github.token only works for this repository; with `repository` pass a fine-grained PAT or GitHub App token for that repository.
+    required: false
+    default: ${{ github.token }}
+  repository:
+    description: Publish to this repository (`owner/name`) instead of the current one, e.g. a public distribution repository for a closed-source module. Requires `token`.
+    required: false
+  sync-files:
+    description: With `repository` only. Before releasing, commit module.yaml, the description document, the icon and the repository images the description references from this workspace to the default branch of `repository` (one commit, changed files only).
+    required: false
+    default: 'true'
+  workflow-token:
+    description: Internal, do not set. The workflow's GITHUB_TOKEN, only compared with `token` to detect a token left at its default when `repository` is set; never used for API calls.
     required: false
     default: ${{ github.token }}
   prerelease:
@@ -32,13 +43,13 @@ inputs:
     required: false
     default: 'false'
   release-notes:
-    description: Release notes (Markdown). Shown as the changelog on KernelSU Modules.
+    description: Release notes (Markdown). Shown as the changelog on KernelSU Modules. With `repository`, defaults to the message of the annotated tag (needs actions/checkout with fetch-depth 0).
     required: false
   release-notes-file:
     description: Path to a file with the release notes.
     required: false
   generate-release-notes:
-    description: Let GitHub generate release notes when none are given.
+    description: Let GitHub generate release notes when none are given. Ignored with `repository`.
     required: false
     default: 'false'
   asset-pattern:
@@ -70,6 +81,10 @@ outputs:
     description: version from module.prop
   version-code:
     description: versionCode from module.prop
+  repository:
+    description: Repository the release was published in (`owner/name`)
+  metadata-commit:
+    description: With `repository` and `sync-files`, the metadata commit created on its default branch (empty if nothing changed or on dry run)
 
 runs:
   using: node24

@@ -33,6 +33,7 @@ tag → immutable release + ZIP      ──►  检查 ZIP（module.prop、大�
 - [快速开始](getting-started.md)：从零到上架
 - [module.yaml 参考](module-yaml.md)
 - [发布](releasing.md)：immutable release、versionCode、release action
+- [闭源模块](closed-source.md)：私有源码仓库 + 公开分发仓库
 - [检查](checks.md)：所有检查结果代码及修复方法
 - [KernelSU 开发者门户](portal.md)：提交、转移、同步、状态
 - [FAQ](faq.md)：保证范围、签名、隐私

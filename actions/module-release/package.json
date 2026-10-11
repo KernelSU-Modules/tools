@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@kernelsu-modules/github": "workspace:*",
+    "@kernelsu-modules/render": "workspace:*",
     "@kernelsu-modules/schema": "workspace:*",
     "@kernelsu-modules/validator": "workspace:*"
   },

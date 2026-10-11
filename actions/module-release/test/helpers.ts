@@ -2,10 +2,12 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { ModuleManifest } from '@kernelsu-modules/schema';
 import type { Logger } from '../src/actions.ts';
 import type { Issue, ReleaseLike, Validator } from '../src/validator-api.ts';
 import { createZip } from '../src/zip.ts';
+import { gitBlobSha } from '../src/external.ts';
 
 export function tempDir(prefix = 'kernelsu-mr-'): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -132,10 +134,141 @@ export class FakeGitHub {
   /** Answer GET /releases/{id} with this HTTP status. */
   releaseGetStatus: number | null = null;
 
+  /* ---- repository metadata + Git Data (external mode) ---- */
+  /** GET /repos/{repo}; null -> 404. */
+  repoInfo: Record<string, unknown> | null;
+  /** GET /immutable-releases: 200 answers { enabled: immutableEnabled }. */
+  immutableStatus = 200;
+  immutableEnabled = true;
+  /** Extra headers on every JSON response (e.g. github-authentication-token-expiration). */
+  responseHeaders: Record<string, string> = {};
+  blobs = new Map<string, Uint8Array>();
+  /** tree sha -> flat path -> entry */
+  trees = new Map<string, Map<string, { sha: string; mode: string; type: 'blob' | 'commit' }>>();
+  commits = new Map<string, { tree: string; parents: string[]; message: string }>();
+  /** "heads/main" / "tags/v1.0" -> commit sha */
+  refs = new Map<string, string>();
+  /** Before answering the next PATCH of a branch ref, move the branch (simulates a concurrent push). */
+  raceNextRefUpdate = false;
+  private seq = 0;
+
+  private gitSha(kind: string, data: string): string {
+    return createHash('sha1').update(`${kind}:${this.seq++}:${data}`).digest('hex');
+  }
+
+  /** Create a commit on `branch` with these files on top of its current tree. Returns the commit sha. */
+  commitFiles(files: Record<string, string | Uint8Array>, branch = 'main', message = 'seed'): string {
+    const parent = this.refs.get(`heads/${branch}`);
+    const base = parent ? new Map(this.trees.get(this.commits.get(parent)!.tree)!) : new Map();
+    for (const [path, c] of Object.entries(files)) {
+      const bytes = typeof c === 'string' ? new TextEncoder().encode(c) : c;
+      const sha = gitBlobSha(bytes);
+      this.blobs.set(sha, bytes);
+      base.set(path, { sha, mode: '100644', type: 'blob' });
+    }
+    const tree = this.gitSha('tree', JSON.stringify([...base]));
+    this.trees.set(tree, base);
+    const commit = this.gitSha('commit', tree);
+    this.commits.set(commit, { tree, parents: parent ? [parent] : [], message });
+    this.refs.set(`heads/${branch}`, commit);
+    return commit;
+  }
+
+  /** File content at the tip of `branch` (null if absent). */
+  fileAt(path: string, branch = 'main'): string | null {
+    const head = this.refs.get(`heads/${branch}`);
+    const e = head ? this.trees.get(this.commits.get(head)!.tree)!.get(path) : undefined;
+    return e ? new TextDecoder().decode(this.blobs.get(e.sha)!) : null;
+  }
+
+  private gitData(method: string, path: string, url: URL, body: any, json: (s: number, d: unknown) => Response): Response | null {
+    const base = `/repos/${this.repo}`;
+    if (method === 'GET' && path === base) return this.repoInfo ? json(200, this.repoInfo) : json(404, { message: 'Not Found' });
+    if (method === 'GET' && path === `${base}/immutable-releases`)
+      return this.immutableStatus === 200 ? json(200, { enabled: this.immutableEnabled, enforced_by_owner: false }) : json(this.immutableStatus, { message: 'x' });
+    if (!path.startsWith(`${base}/git/`)) return null;
+    const rest = path.slice(`${base}/git/`.length);
+    let m: RegExpMatchArray | null;
+    if (method === 'GET' && (m = rest.match(/^ref\/(heads|tags)\/(.+)$/))) {
+      const name = `${m[1]}/${m[2]!.split('/').map(decodeURIComponent).join('/')}`;
+      const sha = this.refs.get(name);
+      if (!sha && m[1] === 'heads' && this.refs.size === 0) return json(409, { message: 'Git Repository is empty.' });
+      return sha ? json(200, { ref: `refs/${name}`, object: { type: 'commit', sha } }) : json(404, { message: 'Not Found' });
+    }
+    if (method === 'GET' && (m = rest.match(/^commits\/([0-9a-f]+)$/))) {
+      const c = this.commits.get(m[1]!);
+      return c ? json(200, { sha: m[1], tree: { sha: c.tree }, parents: c.parents.map((sha) => ({ sha })), message: c.message }) : json(404, { message: 'Not Found' });
+    }
+    if (method === 'GET' && (m = rest.match(/^trees\/([0-9a-f]+)$/))) {
+      const t = this.trees.get(m[1]!);
+      if (!t) return json(404, { message: 'Not Found' });
+      const entries: { path: string; mode: string; type: string; sha: string }[] = [];
+      const dirs = new Set<string>();
+      for (const [p, e] of t) {
+        const segs = p.split('/');
+        for (let i = 1; i < segs.length; i++) dirs.add(segs.slice(0, i).join('/'));
+        entries.push({ path: p, mode: e.mode, type: e.type, sha: e.sha });
+      }
+      for (const d of dirs) entries.push({ path: d, mode: '040000', type: 'tree', sha: createHash('sha1').update(d).digest('hex') });
+      return json(200, { sha: m[1], tree: entries, truncated: false });
+    }
+    if (method === 'POST' && rest === 'blobs') {
+      const bytes = new Uint8Array(Buffer.from(body.content, body.encoding === 'base64' ? 'base64' : 'utf8'));
+      const sha = gitBlobSha(bytes);
+      this.blobs.set(sha, bytes);
+      return json(201, { sha });
+    }
+    if (method === 'POST' && rest === 'trees') {
+      const t = new Map(body.base_tree ? this.trees.get(body.base_tree)! : []);
+      for (const it of body.tree as { path: string; mode: string; type: 'blob'; sha: string }[]) {
+        if (!this.blobs.has(it.sha)) return json(422, { message: 'tree.sha not found' });
+        t.set(it.path, { sha: it.sha, mode: it.mode, type: it.type });
+      }
+      const sha = this.gitSha('tree', JSON.stringify([...t]));
+      this.trees.set(sha, t);
+      return json(201, { sha });
+    }
+    if (method === 'POST' && rest === 'commits') {
+      const sha = this.gitSha('commit', body.tree);
+      this.commits.set(sha, { tree: body.tree, parents: body.parents, message: body.message });
+      return json(201, { sha });
+    }
+    if (method === 'PATCH' && (m = rest.match(/^refs\/heads\/(.+)$/))) {
+      const name = `heads/${decodeURIComponent(m[1]!)}`;
+      if (this.raceNextRefUpdate) {
+        this.raceNextRefUpdate = false;
+        this.commitFiles({ 'CONCURRENT.md': 'someone else' }, name.slice('heads/'.length), 'concurrent');
+      }
+      const cur = this.refs.get(name);
+      const c = this.commits.get(body.sha);
+      if (!c) return json(422, { message: 'Object does not exist' });
+      if (!body.force && cur && !c.parents.includes(cur)) return json(422, { message: 'Update is not a fast forward' });
+      this.refs.set(name, body.sha);
+      return json(200, { ref: `refs/${name}`, object: { type: 'commit', sha: body.sha } });
+    }
+    if (method === 'POST' && rest === 'refs') {
+      const name = String(body.ref).replace(/^refs\//, '');
+      if (this.refs.has(name)) return json(422, { message: 'Reference already exists' });
+      if (!this.commits.has(body.sha)) return json(422, { message: 'Object does not exist' });
+      this.refs.set(name, body.sha);
+      return json(201, { ref: body.ref, object: { type: 'commit', sha: body.sha } });
+    }
+    return null;
+  }
+
   constructor(
     readonly repo = 'demo/mod',
     readonly uploadBase = 'https://uploads.github.com',
-  ) {}
+  ) {
+    this.repoInfo = {
+      full_name: repo,
+      private: false,
+      visibility: 'public',
+      archived: false,
+      default_branch: 'main',
+      permissions: { admin: true, push: true, pull: true },
+    };
+  }
 
   addRelease(r: { tag: string; prerelease?: boolean; draft?: boolean; immutable?: boolean; publishedAt?: string; assets?: Record<string, Uint8Array> }) {
     const id = this.nextId++;
@@ -165,9 +298,12 @@ export class FakeGitHub {
     let body: unknown = init?.body;
     if (typeof body === 'string') body = JSON.parse(body);
     this.calls.push({ method, url, headers, body });
-    const json = (status: number, data: unknown) => new Response(data === null ? null : JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+    const json = (status: number, data: unknown) =>
+      new Response(data === null ? null : JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...this.responseHeaders } });
     const base = `/repos/${this.repo}`;
     const path = url.pathname;
+    const git = this.gitData(method, path, url, body, json);
+    if (git) return git;
     const up = method === 'POST' ? path.match(new RegExp(`^${base}/releases/(\\d+)/assets$`)) : null;
     if (up) {
       const id = Number(up[1]);

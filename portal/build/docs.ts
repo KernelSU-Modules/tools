@@ -16,7 +16,7 @@ import MarkdownIt from 'markdown-it';
 export const DOC_LOCALES = ['zh-CN'] as const; // non-default locales (top-level directories)
 export type DocLang = 'en' | (typeof DOC_LOCALES)[number];
 
-const PREFERRED_ORDER = ['index', 'getting-started', 'module-yaml', 'releasing', 'checks', 'portal', 'faq'];
+const PREFERRED_ORDER = ['index', 'getting-started', 'module-yaml', 'releasing', 'closed-source', 'checks', 'portal', 'faq'];
 const ASSET_EXT = /\.(png|jpe?g|gif|svg|webp|avif)$/i;
 
 /** Common validator issue codes, used only for the placeholder checks page (when checks.md is missing). */

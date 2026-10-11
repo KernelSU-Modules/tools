@@ -2,7 +2,7 @@
 // referenced by the description) with sha256 per path and git blob shas for cheap change detection.
 import { createHash } from 'node:crypto';
 import type { GitHubClient } from '@kernelsu-modules/github';
-import { renderMarkdown } from '@kernelsu-modules/render';
+import { referencedImagePaths } from '@kernelsu-modules/render';
 import type { ModuleManifest, Policy } from '@kernelsu-modules/schema';
 import { manifestReferencedPaths, parseManifest, type Issue } from '@kernelsu-modules/validator';
 import { TreeLookup, getBlob, resolveCommit } from './repo-api.ts';
@@ -36,26 +36,7 @@ export interface ContentAtCommit {
 }
 
 /** Repository paths of images a Markdown document references (same resolution as the build). */
-export function referencedImagePaths(md: string, o: { fullName: string; commit: string; docPath: string }): string[] {
-  const prefix = `https://raw.githubusercontent.com/${o.fullName}/${o.commit}/`;
-  const out: string[] = [];
-  let images: string[];
-  try {
-    images = renderMarkdown(md, o).images;
-  } catch {
-    return out;
-  }
-  for (const url of images) {
-    if (!url.startsWith(prefix)) continue;
-    try {
-      const p = url.slice(prefix.length).split(/[?#]/)[0]!.split('/').map(decodeURIComponent).join('/');
-      if (p && !out.includes(p)) out.push(p);
-    } catch {
-      /* undecodable path: the build cannot fetch it either */
-    }
-  }
-  return out;
-}
+export { referencedImagePaths };
 
 /**
  * True when every tracked path still has the same git blob sha at the commit behind `tree`

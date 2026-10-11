@@ -52,8 +52,13 @@ submissions and reviews (visible in the history of the public data repo, `Kernel
 
 ## Can I make the repository private?
 
-No — KernelSU Modules and its users must be able to read your documents and download releases. A
-private repository stops syncing (the last version stays online, marked stale).
+Not the repository you submit — KernelSU Modules and its users must be able to read your documents
+and download releases anonymously. A private repository stops syncing (the last version stays
+online, marked stale).
+
+You can keep your **source code** private, though: build in a private repository and publish
+releases to a public distribution repository with the module-release action. See
+[Closed-source modules](closed-source.md).
 
 ## I uninstalled the App. What happens?
 

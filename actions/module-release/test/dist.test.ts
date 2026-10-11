@@ -12,7 +12,7 @@ const dist = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 let server: Server | undefined;
 afterEach(() => server?.close());
 
-async function serve(): Promise<{ gh: FakeGitHub; base: string }> {
+async function serve(repo = 'demo/mod'): Promise<{ gh: FakeGitHub; base: string }> {
   let gh!: FakeGitHub;
   server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
@@ -29,7 +29,7 @@ async function serve(): Promise<{ gh: FakeGitHub; base: string }> {
   });
   await new Promise<void>((ok) => server!.listen(0, '127.0.0.1', ok));
   const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
-  gh = new FakeGitHub('demo/mod', base);
+  gh = new FakeGitHub(repo, base);
   return { gh, base };
 }
 
@@ -81,5 +81,30 @@ describe.skipIf(!existsSync(dist))('dist/index.js', () => {
     expect(code).toBe(1);
     expect(out).toMatch(/::error title=prop-id-mismatch::/);
     expect(gh.writes()).toEqual([]);
+  });
+
+  it('publishes to a distribution repository with a metadata commit (external mode)', async () => {
+    const { gh, base } = await serve('dist/mod');
+    const seed = gh.commitFiles({ 'README.md': 'old' });
+    const ws = workspace({ ...MANIFEST, icon: 'icon.png' }, { 'README.md': '# Demo\n\n![s](shot.png)\n', 'icon.png': 'ICON', 'shot.png': 'SHOT' });
+    writeFileSync(join(ws, 'module.zip'), moduleZip());
+    const env = {
+      GITHUB_WORKSPACE: ws,
+      GITHUB_REPOSITORY: 'demo/private',
+      GITHUB_REF: 'refs/tags/v1.0',
+      GITHUB_API_URL: base,
+      GITHUB_OUTPUT: join(ws, 'out'),
+      INPUT_TOKEN: 'pat',
+      'INPUT_WORKFLOW-TOKEN': 'ghs_x',
+      INPUT_REPOSITORY: 'dist/mod',
+      INPUT_ZIP: 'module.zip',
+    };
+    const { code, out } = await runDist(env);
+    expect(code, out).toBe(0);
+    const head = gh.refs.get('heads/main')!;
+    expect(head).not.toBe(seed);
+    expect(gh.refs.get('tags/v1.0')).toBe(head);
+    expect(gh.fileAt('shot.png')).toBe('SHOT');
+    expect(readOutputs(env.GITHUB_OUTPUT)).toMatchObject({ repository: 'dist/mod', 'metadata-commit': head });
   });
 });
