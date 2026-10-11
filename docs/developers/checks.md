@@ -214,6 +214,19 @@ KernelSU treats a module as a metamodule only when `module.prop` has `metamodule
 **Fix:** set `metamodule: true` in `module.yaml` exactly when `module.prop` has `metamodule=1` (or
 `true`). Fixing `module.yaml` only needs a push; fixing `module.prop` needs a new release.
 
+### stars-repo-unverified
+
+**Cause (warning):** `starsRepository` in `module.yaml` names a repository whose stars cannot be
+shown: it does not exist, is private, or belongs to another account and the KernelSU Modules App is
+not installed on it. The module page shows the stars of the module's own repository instead. This
+never blocks releases or the listing; it is reported in the content Check Run and as a note in the
+Developer Portal.
+
+**Fix:** use a public repository owned by the same account as the module repository, or install the
+KernelSU Modules GitHub App on the stars repository (installing an App requires admin access, which
+proves you control it; the App does not report anything there). Then click **Sync now**; otherwise
+the stars are re-checked within a day.
+
 ## Release selection
 
 ### release-none

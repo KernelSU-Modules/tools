@@ -3,9 +3,10 @@ import type { GetStaticPaths } from 'astro';
 import Layout from '../../../layouts/Layout.astro';
 import Badges from '../../../components/Badges.astro';
 import ModuleIcon from '../../../components/ModuleIcon.astro';
+import StarIcon from '../../../components/StarIcon.astro';
 import { MESSAGES, UI_LOCALES, type UiLocale } from '../../../lib/i18n.ts';
 import { detailUrl, listUrl, stableRelease, type SiteModule } from '../../../lib/data.ts';
-import { bytes, date, displayUrl, safeHref, safeWebHref, shortSha } from '../../../lib/format.ts';
+import { bytes, compactCount, date, displayUrl, safeHref, safeWebHref, shortSha } from '../../../lib/format.ts';
 import { siteData } from '../../../lib/load.ts';
 
 export const getStaticPaths = (() =>
@@ -28,6 +29,7 @@ const c = d.compatibility;
 const api = c && (c.androidMinApi || c.androidMaxApi) ? `${c.androidMinApi ?? '?'} – ${c.androidMaxApi ?? '∞'}` : m.any;
 const archs = c?.architectures?.length ? c.architectures.join(', ') : m.any;
 const repo = d.source.fullName;
+const starsRepo = d.starsRepository ?? repo;
 const alternates = Object.fromEntries(UI_LOCALES.map((x) => [x, detailUrl(x, d.id)])) as Record<UiLocale, string>;
 // External links: never pass referrer/opener, never vouch for the target.
 const ext = { rel: 'nofollow noopener noreferrer' };
@@ -291,6 +293,20 @@ const ghRelease = (r: { tag: string; zip: { name: string } }) =>
                 <dt class={dt}>{m.authors}</dt>
                 <dd class={`${dd} flex flex-wrap gap-x-3 gap-y-1`}>
                   {d.authors.map((a) => (a.url ? <a href={safeHref(a.url)} {...ext} class="link">{a.name}</a> : <span>{a.name}</span>))}
+                </dd>
+              </div>
+            )
+          }
+          {
+            d.stars != null && (
+              <div>
+                <dt class={dt}>{m.stars}</dt>
+                <dd class={dd}>
+                  <a href={safeHref(`https://github.com/${starsRepo}/stargazers`)} {...ext} class="stars link inline-flex items-center gap-1" title={m.starsTitle(d.stars)}>
+                    <StarIcon class="h-4 w-4 flex-none" />
+                    {compactCount(d.stars)}
+                  </a>
+                  {starsRepo !== repo && <span class="block text-xs break-all text-muted">{m.starsFrom(starsRepo)}</span>}
                 </dd>
               </div>
             )

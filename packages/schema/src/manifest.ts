@@ -43,6 +43,13 @@ export const ReleaseConfig = z.object({
   assetPattern: z.string().min(1).max(128).regex(/^[^/\\]+$/).optional(),
 });
 
+/** GitHub repository "owner/name" (owner: GitHub login rules; name: letters, digits, ".", "_", "-"). */
+export const GitHubFullName = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/, 'must be "owner/name" of a GitHub repository')
+  .refine((v) => !/\/\.{1,2}$/.test(v), 'must be "owner/name" of a GitHub repository');
+
 export const MANIFEST_NAME_MAX = 100;
 export const MANIFEST_SUMMARY_MAX = 500;
 
@@ -60,7 +67,14 @@ export const ModuleManifest = z.object({
   tags: z.array(Tag).max(10).optional(),
   icon: ManifestPath.optional(),
   metamodule: z.boolean().default(false),
+  /** Complete author list; when omitted the site shows the owner of the bound repository. */
   authors: z.array(Author).min(1).max(20).optional(),
+  /**
+   * Show the GitHub stars of this repository ("owner/name") instead of the bound repository's, e.g. the former
+   * open-source repository of a module now published from a closed-source release repository. Used only when
+   * verified by sync: public, and the same owner as the bound repository or the KernelSU Modules App installed on it.
+   */
+  starsRepository: GitHubFullName.optional(),
   compatibility: Compatibility.optional(),
   release: ReleaseConfig.optional(),
 });

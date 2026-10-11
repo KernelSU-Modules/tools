@@ -64,9 +64,16 @@ values that YAML could read as numbers or booleans.
 | `tags` | no | Up to 10 tags of letters, digits and `-` (max 32 chars, starting with a letter or digit). Tags are case-insensitive and stored in lower case (`Root` → `root`). |
 | `icon` | no | Repository-relative path to the icon. |
 | `metamodule` | no | `true` if this is a KernelSU metamodule. Default `false`. Must agree with `metamodule=1`/`true` in `module.prop`, which is what KernelSU actually uses ([`manifest-metamodule-mismatch`](checks.md#manifest-metamodule-mismatch)). |
-| `authors` | no | 1–20 entries of `{name, url?}`; `name` 1–64 chars, `url` must be `https://`. Display only — permissions come from GitHub repository admin rights, not from this list. |
+| `authors` | no | 1–20 entries of `{name, url?}`; `name` 1–64 chars, `url` must be `https://`. The list is the **complete** author list: add or remove people by editing it. When omitted, the site and the API show the **owner of the module repository** (its GitHub login, linked to the profile). Display only — permissions come from GitHub repository admin rights, not from this list. |
+| `starsRepository` | no | `owner/name` of a GitHub repository whose stars are shown instead of the module repository's, e.g. the former open-source repository of a module now published from a [closed-source release repository](closed-source.md). Used only when it is public **and** has the same owner as the module repository **or** the KernelSU Modules GitHub App is installed on it (proves you control it); otherwise the module repository's own stars are shown and a warning is reported ([`stars-repo-unverified`](checks.md#stars-repo-unverified)). |
 | `compatibility` | no | Author-declared hints used for filtering; not a guarantee. See below. |
 | `release` | no | See below. |
+
+### Stars
+
+The module list and page show the GitHub star count of the module repository (for closed-source
+modules: the public release repository), or of a verified `starsRepository`. Stars are display-only,
+refreshed about once a day, and never affect checks, releases or the listing.
 
 ### `compatibility`
 

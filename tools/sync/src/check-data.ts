@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import YAML from 'yaml';
-import { Banned, Maintainers, Policy, RegistryRecord, RegistryStatus, SourcesLock, canonicalJson, foldId } from '@kernelsu-modules/schema';
+import { Banned, Maintainers, Policy, RegistryRecord, RegistryStatus, SourcesLock, canonicalJson, foldId, stripLegacyMaintainerFields } from '@kernelsu-modules/schema';
 
 export interface CheckIssue {
   severity: 'error' | 'warning';
@@ -33,7 +33,8 @@ export function checkDataDir(dataDir: string, opts: { now?: Date } = {}): { issu
   const warn = (file: string, message: string) => issues.push({ severity: 'warning', file, message });
   const stats: Record<string, number> = {};
 
-  function loadYaml<T>(file: string, schema: Schema<T>, required = true): T | undefined {
+  /** `migrate` rewrites the raw document before the schema check (pre-release legacy fields; see the schema docs). */
+  function loadYaml<T>(file: string, schema: Schema<T>, required = true, migrate?: (raw: unknown) => unknown): T | undefined {
     const p = join(dataDir, file);
     if (!existsSync(p)) {
       if (required) err(file, 'missing');
@@ -49,7 +50,7 @@ export function checkDataDir(dataDir: string, opts: { now?: Date } = {}): { issu
       err(file, `parse error: ${(e as Error).message}`);
       return undefined;
     }
-    const r = schema.safeParse(raw);
+    const r = schema.safeParse(migrate ? migrate(raw) : raw);
     if (!r.success) {
       for (const m of zodMessages(r.error)) err(file, m);
       return undefined;
@@ -60,7 +61,11 @@ export function checkDataDir(dataDir: string, opts: { now?: Date } = {}): { issu
   for (const name of readdirSync(dataDir)) if (!KNOWN_TOP.has(name)) warn(name, 'unexpected top-level entry');
 
   const policy = loadYaml('policy.yaml', Policy);
-  const maintainers = loadYaml('maintainers.yaml', Maintainers);
+  const maintainers = loadYaml('maintainers.yaml', Maintainers, true, (raw) => {
+    const { value, dropped } = stripLegacyMaintainerFields(raw);
+    for (const p of dropped) warn('maintainers.yaml', `${p}: Telegram usernames are no longer used (ignored; dropped on the next Portal save)`);
+    return value;
+  });
   if (maintainers) {
     stats.maintainers = maintainers.maintainers.length;
     if (!maintainers.maintainers.length) warn('maintainers.yaml', 'no maintainers: nobody can approve anything');

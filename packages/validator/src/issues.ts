@@ -66,6 +66,10 @@ export const ISSUE_DEFS = {
     summary: '(caller) A path referenced by KernelSU Modules (module.yaml, icon or description) is a directory, symlink or submodule, not a regular file.',
     fix: 'Point the path at a regular file committed in the repository.',
   },
+  'stars-repo-unverified': {
+    summary: '(caller, sync; warning) module.yaml starsRepository could not be verified (not found, private, or owned by another account without the KernelSU Modules App installed); the stars of the bound repository are shown instead.',
+    fix: 'Use a public repository with the same owner as the module repository, or install the KernelSU Modules GitHub App on the stars repository (proves you control it), then run Sync now.',
+  },
   'content-too-large': {
     summary: '(caller) A repository file used by KernelSU Modules (manifest, document or image) exceeds its size limit from policy.yaml.',
     fix: 'Shrink the file (compress images, split long documents).',

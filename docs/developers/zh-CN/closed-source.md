@@ -43,6 +43,8 @@ module.yaml、README.md、图标、图片          tag v1.2.0 → immutable rele
 
 9. 在 [KernelSU 开发者门户](https://developers.kernelsu.org)中**提交分发仓库**（不是私有仓库），见[快速开始](getting-started.md#7-提交)。你需要拥有分发仓库的 admin 角色。
 
+模块页面显示分发仓库的 Star 数。如果模块以前是开源的，可以在 `module.yaml` 中用 [`starsRepository`](module-yaml.md#字段) 改为显示原公开仓库的 Star 数（需同一所有者，或在该仓库上安装 KernelSU Modules App）。
+
 ## 工作流
 
 在**私有**仓库中创建 `.github/workflows/release.yml`：

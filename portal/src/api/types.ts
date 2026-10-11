@@ -218,8 +218,22 @@ export interface WorkflowRun {
   displayTitle?: string;
 }
 
-/** GET/PUT /api/admin/maintainers */
-export type MaintainersDoc = Maintainers;
+/**
+ * Row of GET /api/admin/maintainers ({maintainers: MaintainerView[]}); also the response of
+ * POST /api/admin/maintainers {login} and PATCH /api/admin/maintainers/:githubId {telegramId}.
+ * name / avatarUrl / login come from the GitHub profile (cached by the Worker), falling back to stored data.
+ */
+export interface MaintainerView {
+  githubId: number;
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  /** Numeric Telegram user id that authorizes review buttons and bot commands; null = not bound. */
+  telegramId: number | null;
+}
+export interface MaintainersResponse {
+  maintainers: MaintainerView[];
+}
 /** GET /api/admin/banned */
 export type BannedDoc = Banned;
 export interface BanRequest {

@@ -1,4 +1,4 @@
-import type { Maintainer, ReasonCode } from '../api/types.ts';
+import type { MaintainerView, ReasonCode } from '../api/types.ts';
 
 export const REASON_CODES: readonly ReasonCode[] = ['spam', 'violation', 'bad-id', 'squatting', 'other'];
 
@@ -7,52 +7,35 @@ export function rejectNeedsText(code: ReasonCode | undefined): boolean {
   return code === 'other';
 }
 
-/** Editable row in the maintainers editor (strings, as typed). */
-export interface MaintainerRow {
-  githubId: string;
-  login: string;
-  telegramId: string;
-  telegramUsername: string;
-}
+/** Telegram review bot (privacy mode: group commands must be addressed to it). */
+export const BOT_USERNAME = 'ksudevbot';
+/** Bot command that replies with the sender's numeric Telegram user id (see worker/src/domain/tgupdate.ts). */
+export const WHOAMI_COMMAND = `/whoami@${BOT_USERNAME}`;
 
-export function toRows(ms: readonly Maintainer[]): MaintainerRow[] {
-  return ms.map((m) => ({
-    githubId: String(m.github.id),
-    login: m.github.login,
-    telegramId: m.telegram ? String(m.telegram.id) : '',
-    telegramUsername: m.telegram?.username ?? '',
-  }));
-}
-
-export type RowError = 'githubId' | 'login' | 'telegramId' | 'duplicate';
-
-const posInt = (s: string) => /^[1-9][0-9]{0,15}$/.test(s.trim()) && Number.isSafeInteger(Number(s.trim()));
+/** GitHub login rules (as the Worker checks them): alphanumerics and hyphens, 1-39 chars, no leading hyphen. */
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
-/** Validates rows; returns per-row errors and the parsed document when valid. */
-export function fromRows(rows: readonly MaintainerRow[]): { errors: RowError[][]; value: Maintainer[] | null; empty: boolean } {
-  const errors: RowError[][] = rows.map(() => []);
-  const seen = new Map<string, number>();
-  rows.forEach((r, i) => {
-    const e = errors[i]!;
-    if (!posInt(r.githubId)) e.push('githubId');
-    if (!LOGIN.test(r.login.trim())) e.push('login');
-    if (r.telegramId.trim() && !posInt(r.telegramId)) e.push('telegramId');
-    const key = r.githubId.trim();
-    if (seen.has(key)) e.push('duplicate');
-    else seen.set(key, i);
-  });
-  const ok = errors.every((e) => e.length === 0) && rows.length > 0;
-  const value = ok
-    ? rows.map((r): Maintainer => {
-        const m: Maintainer = { github: { id: Number(r.githubId.trim()), login: r.login.trim() } };
-        if (r.telegramId.trim()) {
-          m.telegram = r.telegramUsername.trim()
-            ? { id: Number(r.telegramId.trim()), username: r.telegramUsername.trim().replace(/^@/, '') }
-            : { id: Number(r.telegramId.trim()) };
-        }
-        return m;
-      })
-    : null;
-  return { errors, value, empty: rows.length === 0 };
+/**
+ * Input of the "add maintainer" form: `octocat`, `@octocat` or a github.com profile URL -> login, else null.
+ */
+export function parseLogin(input: string): string | null {
+  let s = input.trim();
+  const url = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/?#\s]+)\/?(?:[?#].*)?$/i.exec(s);
+  if (url) s = url[1]!;
+  s = s.replace(/^@/, '');
+  return LOGIN.test(s) ? s : null;
+}
+
+/** Telegram user id field: '' -> null (not bound), a positive safe integer -> number, anything else -> 'invalid'. */
+export function parseTelegramId(input: string): number | null | 'invalid' {
+  const s = input.trim();
+  if (!s) return null;
+  if (!/^[1-9][0-9]{0,15}$/.test(s) || !Number.isSafeInteger(Number(s))) return 'invalid';
+  return Number(s);
+}
+
+/** Another maintainer already bound to `telegramId` (the Worker re-checks this at commit time). */
+export function telegramOwner(list: readonly MaintainerView[], githubId: number, telegramId: number | null): MaintainerView | null {
+  if (telegramId === null) return null;
+  return list.find((m) => m.githubId !== githubId && m.telegramId === telegramId) ?? null;
 }

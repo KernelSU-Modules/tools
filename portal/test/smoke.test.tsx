@@ -112,3 +112,81 @@ describe('smoke: every page renders against the mock API', () => {
     expect(root.textContent).toContain('Sync now');
   });
 });
+
+describe('maintainers page', () => {
+  const input = (el: HTMLInputElement, value: string) => {
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const button = (root: ParentNode, text: string) => [...root.querySelectorAll('button')].find((b) => b.textContent?.includes(text)) as HTMLButtonElement;
+
+  it('lists avatar, name, @login, the current user and Telegram bindings; edits in a dialog', async () => {
+    let state!: ReturnType<typeof createState>;
+    const root = mount('maintainer', '/admin/maintainers', (s) => (state = s));
+    await settle(root);
+    const rows = root.querySelectorAll('tbody tr');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('KernelSU Maintainer');
+    expect(rows[0]!.querySelector('a[href="https://github.com/kernelsu-maintainer"]')?.textContent).toBe('@kernelsu-maintainer');
+    expect(rows[0]!.textContent).toContain('you');
+    expect(rows[0]!.textContent).toContain('555000111');
+    expect(rows[1]!.textContent).toContain('Not bound');
+    expect(root.textContent).not.toMatch(/telegram username/i);
+
+    // click the row -> dialog with the Telegram id field focused and the /whoami hint
+    (rows[1] as HTMLElement).click();
+    await settle(root);
+    const dialog = root.querySelector('dialog')!;
+    expect(dialog).not.toBeNull();
+    expect(dialog.textContent).toContain('/whoami@ksudevbot');
+    const field = dialog.querySelector<HTMLInputElement>('#maint-tg')!;
+    expect(document.activeElement).toBe(field);
+    // removing the last-but-one is allowed, yourself is not (see below)
+    expect(button(dialog, 'Remove @second-maintainer').disabled).toBe(false);
+
+    input(field, '@someone');
+    await settle(root);
+    expect(dialog.textContent).toContain('Enter the numeric Telegram user ID');
+    expect(button(dialog, 'Save').disabled).toBe(true);
+    input(field, '555000111');
+    await settle(root);
+    expect(dialog.textContent).toContain('already bound to @kernelsu-maintainer');
+    input(field, '424242');
+    await settle(root);
+    button(dialog, 'Save').click();
+    await settle(root);
+    expect(root.querySelector('dialog')).toBeNull();
+    expect(state.maintainers[1]!.telegram).toEqual({ id: 424242 });
+    expect(root.textContent).toContain('Saved the Telegram user ID of @second-maintainer');
+
+    // Esc closes the dialog
+    (root.querySelector('[data-maint-edit="2001"]') as HTMLButtonElement).click();
+    await settle(root);
+    const d2 = root.querySelector('dialog')!;
+    expect(button(d2, 'Remove @kernelsu-maintainer').disabled).toBe(true);
+    expect(d2.textContent).toContain('You cannot remove yourself');
+    d2.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await settle(root);
+    expect(root.querySelector('dialog')).toBeNull();
+  });
+
+  it('adds a maintainer by GitHub username and shows API errors', async () => {
+    let state!: ReturnType<typeof createState>;
+    const root = mount('maintainer', '/admin/maintainers', (s) => (state = s));
+    await settle(root);
+    const login = root.querySelector<HTMLInputElement>('#maint-login')!;
+    input(login, 'github');
+    await settle(root);
+    login.form!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle(root);
+    expect(root.textContent).toContain('only personal accounts');
+    input(login, 'https://github.com/octocat');
+    await settle(root);
+    login.form!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle(root);
+    expect(state.maintainers.map((m) => m.github.login)).toContain('octocat');
+    expect(root.textContent).toContain('Added @octocat');
+    expect(root.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(root.textContent).toContain('The Octocat');
+  });
+});

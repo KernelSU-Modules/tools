@@ -97,6 +97,15 @@ describe('parseManifest', () => {
     expect(codes(parseManifest(MIN + 'icon: /etc/passwd\n'))).toEqual(['manifest-schema']);
   });
 
+  it('starsRepository: "owner/name" (a known field; verified later by sync)', () => {
+    const r = parseManifest(MIN + 'starsRepository: LSPosed/LSPosed\n');
+    expect(r.ok).toBe(true);
+    expect(r.issues).toEqual([]);
+    expect(r.value!.starsRepository).toBe('LSPosed/LSPosed');
+    const bad = parseManifest(MIN + 'starsRepository: https://github.com/LSPosed/LSPosed\n');
+    expect(bad.issues.map((i) => [i.code, i.severity, i.path])).toEqual([['manifest-schema', 'error', 'starsRepository']]);
+  });
+
   it('normalizes ./ paths and tag case, tolerates http homepage with a warning, raises text limits', () => {
     const r = parseManifest(MIN.replace('README.md', './docs/README.md') + `icon: ./assets/icon.png\ntags: [Root, System-Tools]\nhomepage: http://example.org\n`);
     expect(r.ok).toBe(true);

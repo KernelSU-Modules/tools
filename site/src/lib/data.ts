@@ -37,6 +37,8 @@ export interface SearchEntry {
   metamodule: boolean;
   version: string;
   updatedAt: string;
+  /** GitHub stars of the bound repository; null when not recorded. */
+  stars: number | null;
   /** Relative to the site root, e.g. "en/modules/foo/". */
   url: string;
 }
@@ -82,6 +84,7 @@ export function buildSearchIndex(data: Pick<SiteData, 'buildId' | 'modules'>, ui
         metamodule: d.metamodule,
         version: d.stable.version,
         updatedAt: d.updatedAt,
+        stars: d.stars ?? null,
         url: detailUrl(ui, d.id),
       };
     })

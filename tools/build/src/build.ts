@@ -162,6 +162,7 @@ export function lockSubset(ml: ModuleLock): unknown {
     stable: ml.stable ? rel(ml.stable) : null,
     releases: ml.releases.map(rel),
     health: { status: ml.health.status, lastSuccessAt: ml.health.lastSuccessAt },
+    stars: ml.stars ? { count: ml.stars.count, fullName: ml.stars.fullName } : null,
   };
 }
 
@@ -599,11 +600,13 @@ class Builder {
       id,
       name: m.name,
       summary: m.summary,
-      authors: (m.authors ?? []).map((a) => (a.url ? { name: a.name, url: a.url } : { name: a.name })),
+      authors: moduleAuthors(m.authors, fullName),
       tags: m.tags ?? [],
       metamodule: m.metamodule,
       icon,
       stable: { version: stable.version, versionCode: stable.versionCode, publishedAt: stable.publishedAt },
+      stars: ml.stars?.count ?? null,
+      starsRepository: ml.stars?.fullName ?? null,
       detail: `api/v1/modules/${id}.json`,
       updatedAt: maxIso([stable.publishedAt, ml.content?.commit === content.commit ? ml.content.fetchedAt : null]) ?? stable.publishedAt,
       schemaVersion: API_SCHEMA_VERSION,
@@ -638,6 +641,16 @@ class Builder {
       outcome: { id, status: healthStatus === 'stale' ? 'stale' : 'ok', contentCommit: content.commit },
     };
   }
+}
+
+/**
+ * module.yaml `authors` (the complete list) when non-empty; otherwise the owner of the bound repository
+ * ({fullName} = "owner/repo"), shown by login and linked to the GitHub profile.
+ */
+export function moduleAuthors(authors: { name: string; url?: string }[] | undefined, fullName: string): { name: string; url?: string }[] {
+  if (authors?.length) return authors.map((a) => (a.url ? { name: a.name, url: a.url } : { name: a.name }));
+  const owner = fullName.split('/')[0] ?? '';
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner) ? [{ name: owner, url: `https://github.com/${owner}` }] : [];
 }
 
 /** Every output path of one module, with its owner token (content hash for shared assets). */

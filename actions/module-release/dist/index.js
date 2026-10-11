@@ -7697,6 +7697,10 @@ var ISSUE_DEFS = {
     summary: "(caller) A path referenced by KernelSU Modules (module.yaml, icon or description) is a directory, symlink or submodule, not a regular file.",
     fix: "Point the path at a regular file committed in the repository."
   },
+  "stars-repo-unverified": {
+    summary: "(caller, sync; warning) module.yaml starsRepository could not be verified (not found, private, or owned by another account without the KernelSU Modules App installed); the stars of the bound repository are shown instead.",
+    fix: "Use a public repository with the same owner as the module repository, or install the KernelSU Modules GitHub App on the stars repository (proves you control it), then run Sync now."
+  },
   "content-too-large": {
     summary: "(caller) A repository file used by KernelSU Modules (manifest, document or image) exceeds its size limit from policy.yaml.",
     fix: "Shrink the file (compress images, split long documents)."
@@ -27645,6 +27649,7 @@ var ReleaseConfig = external_exports.object({
   /** Glob (only `*` and `?` wildcards) matched against release asset names. */
   assetPattern: external_exports.string().min(1).max(128).regex(/^[^/\\]+$/).optional()
 });
+var GitHubFullName = external_exports.string().trim().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/, 'must be "owner/name" of a GitHub repository').refine((v) => !/\/\.{1,2}$/.test(v), 'must be "owner/name" of a GitHub repository');
 var MANIFEST_NAME_MAX = 100;
 var MANIFEST_SUMMARY_MAX = 500;
 var ModuleManifest = external_exports.object({
@@ -27661,7 +27666,14 @@ var ModuleManifest = external_exports.object({
   tags: external_exports.array(Tag).max(10).optional(),
   icon: ManifestPath.optional(),
   metamodule: external_exports.boolean().default(false),
+  /** Complete author list; when omitted the site shows the owner of the bound repository. */
   authors: external_exports.array(Author).min(1).max(20).optional(),
+  /**
+   * Show the GitHub stars of this repository ("owner/name") instead of the bound repository's, e.g. the former
+   * open-source repository of a module now published from a closed-source release repository. Used only when
+   * verified by sync: public, and the same owner as the bound repository or the KernelSU Modules App installed on it.
+   */
+  starsRepository: GitHubFullName.optional(),
   compatibility: Compatibility.optional(),
   release: ReleaseConfig.optional()
 });
@@ -27762,8 +27774,10 @@ var Policy = external_exports.object({
   pending: external_exports.object({ expireDays: external_exports.number().int().positive() }).strict()
 }).strict();
 var Maintainer = external_exports.object({
+  /** Identity. `login` is informational (refreshed from GitHub on Portal writes). */
   github: external_exports.object({ id: GitHubId, login: external_exports.string() }).strict(),
-  telegram: external_exports.object({ id: external_exports.number().int().positive(), username: external_exports.string().optional() }).strict().optional()
+  /** Numeric Telegram user id: authorizes the review buttons and bot commands. Usernames are never used. */
+  telegram: external_exports.object({ id: external_exports.number().int().positive() }).strict().optional()
 }).strict();
 var Maintainers = external_exports.object({ maintainers: external_exports.array(Maintainer) }).strict();
 var BannedEntry = external_exports.object({
@@ -27847,6 +27861,20 @@ var LockedContent = external_exports.object({
    */
   blobs: external_exports.record(external_exports.string(), GitSha).optional()
 }).strict();
+var LockedStars = external_exports.object({
+  count: external_exports.number().int().nonnegative(),
+  /** When this entry was recorded (unchanged while nothing but the time would change). */
+  fetchedAt: IsoDateTime,
+  /** Repository the count belongs to (the bound repository unless a verified starsRepository is used). */
+  repositoryId: GitHubId,
+  fullName: external_exports.string(),
+  /** self: the bound repository; owner: same owner as the bound repository; app: KernelSU Modules App installed on it. */
+  verified: external_exports.enum(["self", "owner", "app"]),
+  /** module.yaml `starsRepository` as written, when set. */
+  requested: external_exports.string().optional(),
+  /** Why `requested` is not used (deterministic text); the count is then the bound repository's own. */
+  problem: external_exports.string().max(300).optional()
+}).strict();
 var ModuleLock = external_exports.object({
   id: ModuleId,
   repositoryId: GitHubId,
@@ -27869,7 +27897,9 @@ var ModuleLock = external_exports.object({
   releases: external_exports.array(LockedRelease),
   /** releaseId (string) -> result; each releaseId is downloaded at most once. */
   seen: external_exports.record(external_exports.string(), SeenRelease),
-  health: SyncHealth
+  health: SyncHealth,
+  /** Absent: not recorded yet (e.g. entries written before stars were tracked). */
+  stars: LockedStars.optional()
 }).strict();
 var SourcesLock = external_exports.object({
   schemaVersion: external_exports.literal(1),
@@ -27898,12 +27928,23 @@ var ApiModuleSummary = external_exports.object({
   /** Module content is single-language (module.yaml name / summary). */
   name: external_exports.string(),
   summary: external_exports.string(),
+  /** module.yaml `authors`; when omitted or empty, the repository owner: [{ name: "{owner login}", url: "https://github.com/{owner login}" }]. */
   authors: external_exports.array(external_exports.object({ name: external_exports.string(), url: HttpsUrl.optional() })),
   tags: external_exports.array(external_exports.string()),
   metamodule: external_exports.boolean(),
   /** Content-hashed icon, "assets/{sha256-prefix}.{ext}". */
   icon: ApiPath.nullable(),
   stable: ApiVersionRef,
+  /**
+   * GitHub stargazers count of the bound repository (the public release repository for closed-source modules) or of
+   * the verified module.yaml `starsRepository`; refreshed at most about daily; null when not recorded yet.
+   */
+  stars: external_exports.number().int().nonnegative().nullable().optional(),
+  /**
+   * "owner/name" of the repository the star count belongs to: the bound repository, or the module.yaml
+   * `starsRepository` once verified (same owner, or the KernelSU Modules App installed on it). Null when `stars` is null.
+   */
+  starsRepository: external_exports.string().nullable().optional(),
   /** "api/v1/modules/{id}.json" */
   detail: ApiPath,
   updatedAt: IsoDateTime

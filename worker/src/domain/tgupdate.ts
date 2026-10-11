@@ -18,7 +18,7 @@ interface TgUser {
 export interface TgUpdate {
   update_id?: number;
   callback_query?: { id: string; from: TgUser; data?: string; message?: { message_id: number; chat: { id: number } } };
-  message?: { message_id: number; from?: TgUser; chat: { id: number }; text?: string };
+  message?: { message_id: number; from?: TgUser; sender_chat?: { id: number }; chat: { id: number }; text?: string };
 }
 
 export interface UpdateResult {
@@ -63,6 +63,10 @@ export async function handleUpdate(svc: Services, update: TgUpdate, defer?: Defe
 
   const msg = update.message;
   const text = msg?.text?.trim();
+  if (msg && text && /^\/whoami(@\w+)?(\s|$)/.test(text)) {
+    await whoami(svc, msg);
+    return { answer: null };
+  }
   if (msg && text && /^\/suspend(@\w+)?(\s|$)/.test(text)) {
     const snap = await svc.data.snapshot();
     const m = msg.from ? maintainerByTelegram(snap, msg.from.id) : null;
@@ -85,4 +89,22 @@ export async function handleUpdate(svc: Services, update: TgUpdate, defer?: Defe
     }
   }
   return { answer: null };
+}
+
+/**
+ * `/whoami` (any user, review group only): replies with the sender's numeric Telegram user id and whether it is
+ * bound to a maintainer, so maintainers can copy it into the Portal (Maintainers page). Elsewhere it is ignored.
+ */
+async function whoami(svc: Services, msg: NonNullable<TgUpdate['message']>) {
+  if (svc.telegram.chatId === null || msg.chat.id !== svc.telegram.chatId) return;
+  // Anonymous group admins post as the group (from = @GroupAnonymousBot): there is no personal id to show.
+  if (msg.sender_chat || !msg.from) {
+    await svc.telegram.reply(msg.chat.id, msg.message_id, 'You are posting anonymously as the group. Turn off "Remain anonymous" and send /whoami again.');
+    return;
+  }
+  const m = maintainerByTelegram(await svc.data.snapshot(), msg.from.id);
+  const bound = m
+    ? `Bound to maintainer @${h(m.github.login)} (GitHub #${m.github.id}).`
+    : 'Not bound to a maintainer. A maintainer can bind it on the Portal (Maintainers page).';
+  await svc.telegram.reply(msg.chat.id, msg.message_id, `Your Telegram user id: <code>${msg.from.id}</code>\n${bound}`);
 }

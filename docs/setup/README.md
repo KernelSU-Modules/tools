@@ -171,9 +171,9 @@ locked down the same way as the data repo, but merges go through reviewed PRs:
      expireDays: 30
    YAML
    cat > maintainers.yaml <<'YAML'
-   # Maintainers. Identity = GitHub user id (logins are informational).
-   # telegram.id must be the numeric Telegram user id; only listed ids may approve/reject in the review group.
-   # Edited through the Portal admin page (written by the KernelSU Modules Bot).
+   # KernelSU Modules maintainers. Identity = GitHub user id (logins are informational, refreshed on Portal writes).
+   # telegram.id is the numeric Telegram user id; only listed ids may use the review buttons and bot commands.
+   # Edited through the Portal (Maintainers page), written by the KernelSU Modules Bot.
    maintainers:
      - github:
          id: 583231
@@ -369,7 +369,7 @@ Functions cannot run — live in a tiny separate Worker:
 | --- | --- | --- |
 | Serves | `portal/dist`: SPA (fallback to `index.html`), `/docs/*`, `_headers` CSP; Functions (`_worker.js`, advanced mode) only for `/api/*`, `/auth/*`, `/webhooks/*`, `/internal/*` (`_routes.json`) | nothing (no fetch handler, no routes, no workers.dev) |
 | Config | `worker/wrangler.toml` (`pages_build_output_dir = "../portal/dist"`) | `worker/cron/wrangler.toml` |
-| Schedule | — | `*/15 * * * *` dispatch sync + sync-health check (Actions API) + expiry; hourly/daily pruning of both Pages projects; `17 3 * * *` daily maintenance |
+| Schedule | — | `17 3 * * *` once a day: dispatch sync (lost-webhook fallback) + sync-health check (Actions API) + expiry + pruning of both Pages projects |
 
 Static asset requests never invoke Functions (free, unmetered). Functions invocations count against the Workers
 Free quota (100k/day, 10 ms CPU, 50 subrequests) like a Worker.
@@ -409,10 +409,9 @@ Pages Functions caveats this setup relies on:
 - **Cache API** (`caches.default`) only stores on the custom domain; on `*.pages.dev` (and in `kernelsu-developer-portal-cron`) it is a
   no-op. All caches (data snapshot, installation tokens, repo lists) and the per-module "Sync now" rate limit
   fall back to per-isolate memory there — correct, just less effective.
-- Cron alerts can't be de-duplicated through the cache, so they are gated by schedule: dispatch failures alert
-  at most hourly, sync-health alerts at most every 6 h (+ the daily run).
+- The cron runs once a day, so it sends at most one alert of each kind per day.
 - **Sync health** comes from the Actions API, not from the data repo (the sync writes no timestamp-only
-  heartbeat commits): if the last **successful** run of `SYNC_WORKFLOW` on `TOOLS_REPO` is older than 60 min,
+  heartbeat commits): if the last **successful** run of `SYNC_WORKFLOW` on `TOOLS_REPO` is older than 26 h,
   `kernelsu-developer-portal-cron` alerts the maintainers chat.
 - **Fail closed on missing secrets**: `/webhooks/github` answers 503 when `MODULES_APP_WEBHOOK_SECRET` is not
   set (GitHub retries/redelivers), `/internal/telegram` 503 without `TG_FORWARD_SECRET`.
@@ -450,8 +449,12 @@ later use BotFather → Bot Settings → **Transfer Ownership** to the org accou
 1. **Create**: BotFather → `/newbot` → name "KernelSU Developer Bot", username `ksudevbot`. Save the token
    as `TELEGRAM_BOT_TOKEN`.
 2. **Privacy mode on**: `/setprivacy` → select the bot → **Enable** (the default). The bot then only receives
-   commands addressed to it and its own button callbacks — use `/suspend@ksudevbot <id> <reason>`.
-3. `/setcommands` → `suspend - Suspend a module: /suspend <id> <reason>`.
+   commands addressed to it and its own button callbacks — use `/suspend@ksudevbot <id> <reason>` and `/whoami@ksudevbot`.
+3. `/setcommands` → select the bot → send:
+   ```
+   suspend - Suspend a module: /suspend <id> <reason>
+   whoami - Show your Telegram user id
+   ```
 4. **Group**: create a private group "KernelSU Modules Review", add the maintainers and the bot. Make it a
    supergroup before reading its id (e.g. Group settings → Chat history for new members → Visible), because the
    id changes on upgrade. Then `/setjoingroups` → **Disable** so nobody can add the bot elsewhere.
@@ -462,12 +465,14 @@ later use BotFather → Bot Settings → **Transfer Ownership** to the org accou
    curl -s "https://api.telegram.org/bot$T/getWebhookInfo" | jq .result.url      # must be "" for getUpdates
    # in the group, every maintainer sends: /start@ksudevbot
    curl -s "https://api.telegram.org/bot$T/getUpdates" |
-     jq '.result[].message | {chat_id: .chat.id, chat_type: .chat.type, from_id: .from.id, username: .from.username}'
+     jq '.result[].message | {chat_id: .chat.id, chat_type: .chat.type, from_id: .from.id, who: (.from.username // .from.first_name)}'
    ```
    The supergroup id looks like `-100…`. Store it as the GitHub Environment variable `TELEGRAM_CHAT_ID`
    (`production`, section 5); portal-deploy injects it into both the Portal and `kernelsu-developer-portal-cron`. Put each maintainer's
-   `from_id` into `maintainers.yaml` (`telegram.id`) via the Portal admin page (or, before launch, in the
-   initial data commit).
+   numeric `from_id` into `maintainers.yaml` (`telegram.id`) via the Portal (Maintainers page → click the maintainer), or,
+   before launch, in the initial data commit. Telegram usernames are not used. Once the bot is live (section 10),
+   maintainers get their id without `getUpdates`: send `/whoami@ksudevbot` in the review group and the bot replies
+   with the numeric id and whether it is bound.
 6. Test that the bot can post: `curl -s "https://api.telegram.org/bot$T/sendMessage" -d chat_id=$CHAT -d text=hello`.
 
 ## 10. Telegram Serverless (tgcloud)
@@ -481,7 +486,8 @@ Details and all assumptions: [`tgcloud/README.md`](../../tgcloud/README.md).
    `callback_query, message`.
 4. End-to-end: submit the example module in the Portal → a review message with buttons appears in the group →
    press **Approve** as a maintainer → toast text from the Portal, message edited, record `listed`. Press a
-   button from a non-maintainer account → "Not authorized", no commit in the data repo.
+   button from a non-maintainer account → "Not authorized", no commit in the data repo. Send `/whoami@ksudevbot`
+   in the group → the bot replies with your numeric Telegram user id and "Bound to maintainer @…".
 5. Fallback to direct Worker webhook: see `tgcloud/README.md` → "Fallback".
 
 ## 11. First-run checklist
@@ -631,7 +637,7 @@ After a suspected leak of an App key: delete the key first (stops the attacker),
 - **Portal down**: public site and clients are unaffected; dispatch syncs manually as above; review in the Portal once back.
 - **Telegram bot down**: review in the Portal (`/admin`).
 - **Rollback the site** (bad build, broken builder, malicious content that slipped through):
-  1. **Pause deploys** so the next dispatched run (every webhook and the */15 cron dispatch one) does not
+  1. **Pause deploys** so the next dispatched run (every webhook and the daily cron dispatch one) does not
      redeploy over the rollback: `gh variable set DEPLOY_PAUSED -R KernelSU-Modules/tools --body true`.
      Sync keeps running (lock/status commits, Check Runs, author feedback); build + deploy are skipped and each
      run's summary says "Deploy paused".

@@ -54,9 +54,14 @@ release:
 | `tags` | 否 | 最多 10 个由字母、数字和 `-` 组成的标签（最长 32 个字符，以字母或数字开头）。标签不区分大小写，统一保存为小写（`Root` → `root`）。 |
 | `icon` | 否 | 图标相对于仓库的路径。 |
 | `metamodule` | 否 | 若为 KernelSU metamodule 则设为 `true`。默认 `false`。须与 `module.prop` 中的 `metamodule=1`/`true` 一致，KernelSU 实际依据的是后者（[`manifest-metamodule-mismatch`](checks.md#manifest-metamodule-mismatch)）。 |
-| `authors` | 否 | 1–20 个 `{name, url?}` 条目；`name` 1–64 个字符，`url` 必须是 `https://`。仅用于展示，权限来自 GitHub 仓库管理员身份，而非此列表。 |
+| `authors` | 否 | 1–20 个 `{name, url?}` 条目；`name` 1–64 个字符，`url` 必须是 `https://`。该列表就是**完整的**作者列表：增删作者直接编辑它即可。省略时，站点和 API 显示**模块仓库的所有者**（其 GitHub 用户名，链接到个人主页）。仅用于展示，权限来自 GitHub 仓库管理员身份，而非此列表。 |
+| `starsRepository` | 否 | 一个 GitHub 仓库的 `owner/name`，显示它的 Star 数而不是模块仓库的，例如模块改为从[闭源 release 仓库](closed-source.md)发布之前的开源仓库。只有当该仓库是公开仓库，**并且**与模块仓库属于同一所有者，**或**安装了 KernelSU Modules GitHub App（以此证明你控制该仓库）时才会使用；否则显示模块仓库自身的 Star 数，并报告警告（[`stars-repo-unverified`](checks.md#stars-repo-unverified)）。 |
 | `compatibility` | 否 | 作者声明的兼容性提示，用于筛选，不构成保证。见下文。 |
 | `release` | 否 | 见下文。 |
+
+### Star 数
+
+模块列表和模块页面显示模块仓库（闭源模块为公开的 release 仓库）或已验证的 `starsRepository` 的 GitHub Star 数。Star 数仅用于展示，大约每天刷新一次，不会影响检查、release 或上架。
 
 ### `compatibility`
 

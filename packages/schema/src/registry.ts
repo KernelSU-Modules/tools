@@ -142,12 +142,33 @@ export type Policy = z.infer<typeof Policy>;
 
 export const Maintainer = z
   .object({
+    /** Identity. `login` is informational (refreshed from GitHub on Portal writes). */
     github: z.object({ id: GitHubId, login: z.string() }).strict(),
-    telegram: z.object({ id: z.number().int().positive(), username: z.string().optional() }).strict().optional(),
+    /** Numeric Telegram user id: authorizes the review buttons and bot commands. Usernames are never used. */
+    telegram: z.object({ id: z.number().int().positive() }).strict().optional(),
   })
   .strict();
 export const Maintainers = z.object({ maintainers: z.array(Maintainer) }).strict();
 export type Maintainers = z.infer<typeof Maintainers>;
+
+/**
+ * Pre-release migration for maintainers.yaml: files written before Telegram usernames were dropped may still carry
+ * `maintainers[].telegram.username`. Readers (Portal Worker, check-data) call this before `Maintainers.parse` so such a
+ * file keeps parsing under the strict schema; the next Bot write omits the key. Returns a copy without the legacy key
+ * and the dotted paths that were dropped. Anything else is passed through untouched (the strict schema judges it).
+ */
+export function stripLegacyMaintainerFields(raw: unknown): { value: unknown; dropped: string[] } {
+  const dropped: string[] = [];
+  if (!raw || typeof raw !== 'object' || !Array.isArray((raw as { maintainers?: unknown }).maintainers)) return { value: raw, dropped };
+  const list = (raw as { maintainers: unknown[] }).maintainers.map((m, i) => {
+    const tg = m && typeof m === 'object' ? (m as { telegram?: unknown }).telegram : undefined;
+    if (!tg || typeof tg !== 'object' || !('username' in tg)) return m;
+    const { username: _legacy, ...rest } = tg as Record<string, unknown>;
+    dropped.push(`maintainers.${i}.telegram.username`);
+    return { ...(m as object), telegram: rest };
+  });
+  return { value: dropped.length ? { ...(raw as object), maintainers: list } : raw, dropped };
+}
 
 export const BannedEntry = z
   .object({

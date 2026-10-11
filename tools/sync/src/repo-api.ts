@@ -9,13 +9,31 @@ export interface RepoInfo {
   ownerId: number;
   private: boolean;
   archived: boolean;
+  /** stargazers_count (display only); null when the response has none. */
+  stars: number | null;
+}
+
+function repoInfo(d: any): RepoInfo {
+  return {
+    id: d.id,
+    fullName: d.full_name,
+    defaultBranch: d.default_branch,
+    ownerId: d.owner?.id,
+    private: !!d.private,
+    archived: !!d.archived,
+    stars: Number.isSafeInteger(d.stargazers_count) && d.stargazers_count >= 0 ? d.stargazers_count : null,
+  };
 }
 
 export async function getRepo(gh: GitHubClient, repositoryId: number): Promise<RepoInfo | null> {
   const r = await gh.get<any>(`/repositories/${repositoryId}`, { allow: [404] });
-  if (r.status === 404) return null;
-  const d = r.data;
-  return { id: d.id, fullName: d.full_name, defaultBranch: d.default_branch, ownerId: d.owner?.id, private: !!d.private, archived: !!d.archived };
+  return r.status === 404 ? null : repoInfo(r.data);
+}
+
+/** GET /repos/{owner}/{name} (GitHub redirects renamed repositories); null when missing or not visible. */
+export async function getRepoByName(gh: GitHubClient, fullName: string): Promise<RepoInfo | null> {
+  const r = await gh.get<any>(`/repos/${fullName.split('/').map(encodeURIComponent).join('/')}`, { allow: [404] });
+  return r.status === 404 ? null : repoInfo(r.data);
 }
 
 const encPath = (p: string) => p.split('/').map(encodeURIComponent).join('/');

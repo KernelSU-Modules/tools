@@ -14,6 +14,8 @@ export interface FakeUser {
   id: number;
   login: string;
   created_at: string;
+  name?: string | null;
+  type?: 'User' | 'Organization' | 'Bot';
 }
 export interface FakeRelease {
   id: number;
@@ -153,6 +155,16 @@ export class FakeWorld {
     const u = { id, login, created_at };
     this.users.set(id, u);
     return u;
+  }
+  userJson(u: FakeUser) {
+    return {
+      id: u.id,
+      login: u.login,
+      name: u.name ?? null,
+      type: u.type ?? 'User',
+      avatar_url: `https://avatars.githubusercontent.com/u/${u.id}?v=4`,
+      created_at: u.created_at,
+    };
   }
   userToken(u: FakeUser) {
     return `ghu_${u.id}`;
@@ -443,7 +455,12 @@ export class FakeWorld {
     }
     if ((m = /^\/user\/(\d+)$/.exec(p))) {
       const u = this.users.get(Number(m[1]));
-      return u ? json(200, { id: u.id, login: u.login, created_at: u.created_at }) : json(404, { message: 'Not Found' });
+      return u ? json(200, this.userJson(u)) : json(404, { message: 'Not Found' });
+    }
+    if ((m = /^\/users\/([^/]+)$/.exec(p))) {
+      const login = decodeURIComponent(m[1]!).toLowerCase();
+      const u = [...this.users.values()].find((x) => x.login.toLowerCase() === login);
+      return u ? json(200, this.userJson(u)) : json(404, { message: 'Not Found' });
     }
     if (p === '/user/installations') {
       if (a?.kind !== 'user') return json(401, { message: 'Bad credentials' });

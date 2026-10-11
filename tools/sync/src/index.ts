@@ -9,4 +9,5 @@ export * from './download.ts';
 export * from './data.ts';
 export * from './check-data.ts';
 export * from './log.ts';
+export * from './stars.ts';
 export { mapLimit } from './pool.ts';

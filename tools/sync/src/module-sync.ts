@@ -1,13 +1,14 @@
 // Per-module sync of a bound source: installation -> repo -> content -> releases -> health. Never throws for
 // per-module problems; only App-level authentication failures (AppAuthError) are fatal.
 import { AppAuthError, GitHubError, GitHubNetworkError, type GitHubApp, type GitHubClient } from '@kernelsu-modules/github';
-import type { LockedRelease, ModuleLock, Policy, RegistryRecord, Source } from '@kernelsu-modules/schema';
+import { canonicalJson, type LockedRelease, type ModuleLock, type Policy, type RegistryRecord, type Source } from '@kernelsu-modules/schema';
 import type { Issue, ModuleManifest } from './types.ts';
 import { createCheckOnce, type CheckSpec } from './checks.ts';
 import { checkContentAt, trackedUnchanged } from './content.ts';
 import { FatalError } from './data.ts';
 import type { Logger } from './log.ts';
 import { pickCandidates, processReleases, recomputeReleases, selectFirstSync, type ReleaseOutcome } from './releases.ts';
+import { STARS_REFRESH_MS, sameStars, starsAgeMs, starsEntry, starsIssue, starsNote, verifyStarsRepo, type StarsVerdict } from './stars.ts';
 import { RELEASES_PAGE, TreeLookup, getRepo, listReleases, resolveCommit, resolveTagCommit, type GhRelease, type RepoInfo } from './repo-api.ts';
 
 export interface ModuleSyncDeps {
@@ -120,6 +121,8 @@ export async function syncModule(
 
   const finish = () => {
     const ok = problems.length === 0;
+    const sn = starsNote(lock.stars);
+    if (sn) notes.push(sn);
     lock.health = {
       status: ok ? 'ok' : base.health.lastSuccessAt ? 'stale' : 'error',
       installation: report.installation === 'unknown' ? base.health.installation : report.installation,
@@ -184,6 +187,38 @@ export async function syncModule(
     stage = 'reading module.yaml';
     const manifestPath = source.manifestPath ?? 'module.yaml';
     let manifest: ModuleManifest | undefined;
+    /** starsRepository verdict of this run (verified with the content check, reused by the stars step). */
+    let starsVerdict: { requested: string; verdict: StarsVerdict } | null = null;
+    const verifyStars = async (requested: string) => {
+      if (starsVerdict?.requested !== requested)
+        starsVerdict = { requested, verdict: await verifyStarsRepo(gh, d.modulesApp, { repo, ownerId: source.ownerId }, requested, base.stars, log) };
+      return starsVerdict.verdict;
+    };
+    const otherRepo = (requested: string | undefined) => (requested && requested.toLowerCase() !== repo.fullName.toLowerCase() ? requested : undefined);
+    /**
+     * Stars (display only; never health / validation). The bound repository's count comes with the repository
+     * response above; module.yaml starsRepository is (re-)verified only when the stored entry is missing, ≥ 24 h old
+     * or for another request, on forced runs, and when content / releases change — i.e. only when the result can be
+     * persisted (see lockToPersist).
+     */
+    const stars = async () => {
+      stage = 'reading stars';
+      const prev = base.stars;
+      // module.yaml at the locked content: the manifest read this run, else the request recorded with the stars.
+      const requested = manifest ? manifest.starsRepository : prev?.requested;
+      const other = otherRepo(requested);
+      let next: ReturnType<typeof starsEntry>;
+      if (!other) next = starsEntry(repo, requested, null, nowIso);
+      else {
+        const due = !prev || prev.requested !== requested || starsAgeMs(prev, d.now) >= STARS_REFRESH_MS || opts.force || dataView(base) !== dataView(lock) || starsVerdict !== null;
+        next = due ? starsEntry(repo, requested, await verifyStars(other), nowIso) : null;
+      }
+      if (next && !sameStars(prev, next)) lock.stars = next;
+    };
+    const done = async () => {
+      await stars();
+      return finish();
+    };
     const commit = await resolveCommit(gh, repo.fullName, refName);
     const prevContent = base.content && base.content.manifestPath === manifestPath && base.content.ref === refName ? base.content : null;
     if (!commit) {
@@ -202,6 +237,11 @@ export async function syncModule(
         let changed = false;
         if (res.ok && res.files && res.blobs) {
           manifest = res.manifest;
+          const other = otherRepo(manifest?.starsRepository);
+          if (other) {
+            const v = await verifyStars(other);
+            if (v.kind === 'rejected') res.issues.push(starsIssue(other, v.problem, repo.fullName));
+          }
           if (prevContent && sameMap(prevContent.files, res.files)) {
             // Same bytes at a newer commit: keep the locked commit; only fill in blob shas (older entries).
             lock.content = prevContent.blobs && sameMap(prevContent.blobs, res.blobs) ? prevContent : { ...prevContent, blobs: res.blobs };
@@ -255,7 +295,7 @@ export async function syncModule(
       report.releasesList = 'failed';
       log.log('warn', 'releases list failed', { error: errMsg(e) });
       problems.push(problemFor(e, 'listing releases'));
-      return finish();
+      return done();
     }
     report.releasesList = 'fetched';
     stage = 'checking releases';
@@ -287,7 +327,7 @@ export async function syncModule(
       if (!manifest) {
         problems.push('releases-pending: releases are checked once module.yaml is valid');
         lock.seen = base.seen; // first-sync skips are decided again once releases can be processed
-        return finish();
+        return done();
       }
       const r = await processReleases({
         gh,
@@ -322,7 +362,7 @@ export async function syncModule(
     Object.assign(lock, picked);
     if (note) notes.push(note);
     if (opts.force && d.checks) await reemitNewestRelease(gh, repo.fullName, list, lock, report.releases, d, log);
-    return finish();
+    return done();
   } catch (e) {
     fatalIfApp(e);
     log.log('warn', 'module sync failed', { error: errMsg(e), stage });
@@ -410,6 +450,11 @@ async function reemitNewestRelease(
     fatalIfApp(e);
     log.log('warn', 'release check re-report failed', { error: errMsg(e) });
   }
+}
+
+/** Lock data apart from health and stars: what decides whether the entry changes anyway. */
+function dataView(m: ModuleLock): string {
+  return canonicalJson({ ...m, health: undefined, stars: undefined });
 }
 
 function sameMap(a: Record<string, string>, b: Record<string, string>): boolean {

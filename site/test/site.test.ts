@@ -6,7 +6,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiModuleDetail } from '@kernelsu-modules/schema';
 import { buildSearchIndex, SITE_DATA_SCHEMA, type SiteData, type SiteModule } from '../src/lib/index.ts';
-import { displayUrl, safeHref, safeWebHref } from '../src/lib/format.ts';
+import { compactCount, displayUrl, safeHref, safeWebHref } from '../src/lib/format.ts';
 import { buildSite } from '../src/lib/build.ts';
 
 const C = 'c'.repeat(40);
@@ -67,7 +67,7 @@ const data: SiteData = {
   generatedAt: '2026-10-09T00:00:00Z',
   modules: [
     mod('alpha.mod', { metamodule: true, health: { status: 'stale', lastSuccessAt: null }, updatedAt: '2026-10-05T00:00:00Z' }),
-    mod('zeta.mod'),
+    mod('zeta.mod', { stars: 1234, starsRepository: 'o/zeta-old' }),
   ],
 };
 
@@ -205,6 +205,26 @@ describe('Astro site build', () => {
     expect(get('zh-CN/index.html')).toContain('共 2 个模块');
   });
 
+  it('stars: compact count in the list row and the About box (linked to the counted repository); sort option', () => {
+    for (const ui of ['en', 'zh-CN'] as const) {
+      const list = get(`${ui}/index.html`);
+      expect(list).toContain('<option value="stars">');
+      const zeta = list.slice(list.indexOf('data-id="zeta.mod"'));
+      expect(list).toMatch(/data-id="zeta.mod"[^>]*data-stars="1234"/);
+      expect(list).toMatch(/data-id="alpha.mod"[^>]*data-stars="0"/);
+      expect(zeta).toMatch(/class="stars inline-flex[^"]*" title="[^"]*1234[^"]*">[\s\S]*?1\.2k/);
+    }
+    expect(get('en/index.html')).toContain('Most stars');
+    expect(get('zh-CN/index.html')).toContain('最多 Star');
+    const alpha = get('en/index.html');
+    expect(alpha.slice(alpha.indexOf('data-id="alpha.mod"'), alpha.indexOf('data-id="zeta.mod"'))).not.toContain('class="stars');
+    const detail = get('en/modules/zeta.mod/index.html');
+    expect(detail).toMatch(/href="https:\/\/github\.com\/o\/zeta-old\/stargazers" rel="nofollow noopener noreferrer" class="stars link[^"]*" title="1234 stars on GitHub">[\s\S]*?1\.2k/);
+    expect(detail).toContain('of o/zeta-old');
+    expect(get('zh-CN/modules/zeta.mod/index.html')).toContain('来自 o/zeta-old');
+    expect(get('en/modules/alpha.mod/index.html')).not.toContain('class="stars');
+  });
+
   it('lists modules newest first with localized links and alternates', () => {
     const list = get('zh-CN/index.html');
     expect(list.indexOf('data-id="alpha.mod"')).toBeLessThan(list.indexOf('data-id="zeta.mod"'));
@@ -255,6 +275,14 @@ describe('page-data helpers', () => {
     expect(s.modules.map((m) => m.id)).toEqual(['alpha.mod', 'zeta.mod']);
     expect(s.modules[0]!.url).toBe('zh-CN/modules/alpha.mod/');
     expect(s.buildId).toBe(data.buildId);
+  });
+  it('search entries carry stars (null when not recorded)', () => {
+    expect(buildSearchIndex(data, 'en').modules.map((m) => [m.id, m.stars])).toEqual([['alpha.mod', null], ['zeta.mod', 1234]]);
+  });
+  it('compactCount formats like GitHub, deterministically', () => {
+    expect([0, 7, 999, 1000, 1049, 1050, 1234, 12_345, 999_949, 999_950, 1_500_000, 12_000_000].map(compactCount)).toEqual([
+      '0', '7', '999', '1k', '1k', '1.1k', '1.2k', '12.3k', '999.9k', '1M', '1.5M', '12M',
+    ]);
   });
   it('search entries carry the single-language name and summary', () => {
     for (const ui of ['en', 'zh-CN'] as const) {

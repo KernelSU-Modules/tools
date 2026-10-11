@@ -1,7 +1,7 @@
 # Cloudflare Worker `kernelsu-developer-portal-cron` (Workers Free): Cron Triggers for KernelSU Modules. No routes, no fetch handler,
 # no workers.dev URL. Shares the business code in ../src with the Portal (Pages project `kernelsu-developer-portal`).
-#   */15 * * * *  dispatch sync (lost-webhook fallback), stale-sync alert, expire <=1 request, hourly pruning
-#   17 3 * * *    expire <=2 requests, prune Pages deployments, health
+#   17 3 * * *    once a day: dispatch sync (lost-webhook fallback), sync health (alert if no successful sync for
+#                 26 h), expire <=2 pending requests, prune Pages deployments
 # Deploy: pnpm --filter @kernelsu-modules/worker exec wrangler deploy --config cron/wrangler.toml
 name = "kernelsu-developer-portal-cron"
 main = "../src/entry/cron.ts"
@@ -11,7 +11,7 @@ preview_urls = false
 minify = true
 
 [triggers]
-crons = ["*/15 * * * *", "17 3 * * *"]
+crons = ["17 3 * * *"]
 
 [observability]
 enabled = true

@@ -82,6 +82,200 @@ describe('sync: happy path', () => {
   });
 });
 
+describe('sync: stars', () => {
+  const H = 3600_000;
+
+  it('records stargazers_count from the repository response (no extra request)', async () => {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    repo.stars = 42;
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    await run(gh, dir);
+    expect((await readLock(dir)).modules['demo.mod']!.stars).toEqual({ count: 42, fetchedAt: T0.toISOString(), repositoryId: repo.id, fullName: 'demo/demo.mod', verified: 'self' });
+    expect(gh.count((r) => r.url.includes('/stargazers'))).toBe(0);
+    expect(gh.count((r) => r.url.endsWith(`/repositories/${repo.id}`))).toBe(1);
+  });
+
+  it('a changed count alone is persisted only when the stored one is ≥ 24 h old; same count never commits', async () => {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    repo.stars = 10;
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    gh.seedData({ 'modules/demo.mod.yaml': 'x' });
+    await run(gh, dir, { mode: 'commit' });
+    const head = gh.dataRepo.head;
+    const before = await readFile(join(dir, 'sources.lock.json'), 'utf8');
+    const beforeStatus = await readFile(join(dir, 'status.json'), 'utf8');
+    const checks = gh.checkRuns.length;
+
+    // Same count days later: nothing to persist (fetchedAt is not a heartbeat).
+    let r = await run(gh, dir, { mode: 'commit' }, later(72 * H));
+    expect(r.report.changed).toEqual([]);
+    expect(r.report.commit).toBeNull();
+
+    // Changed within 24 h of the stored value (webhook-triggered runs): not persisted.
+    repo.stars = 11;
+    r = await run(gh, dir, { mode: 'commit' }, later(23 * H));
+    expect(r.report.modules[0]).toMatchObject({ health: 'ok', changed: false });
+    expect(r.report.changed).toEqual([]);
+    expect(r.report.commit).toBeNull();
+    expect(gh.dataRepo.head).toBe(head);
+    expect(await readFile(join(dir, 'sources.lock.json'), 'utf8')).toBe(before);
+
+    // ≥ 24 h later and still different: persisted (lock only; status.json, health and Check Runs untouched).
+    r = await run(gh, dir, { mode: 'commit' }, later(25 * H));
+    expect(r.report.changed).toEqual(['demo.mod']);
+    expect(r.report.statusChanged).toEqual([]);
+    expect(r.report.commit).not.toBeNull();
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stars).toMatchObject({ count: 11, fetchedAt: later(25 * H).toISOString(), verified: 'self' });
+    expect(m.health.lastSuccessAt).toBe(T0.toISOString());
+    expect(JSON.parse(gh.dataFile('sources.lock.json')!).modules['demo.mod'].stars.count).toBe(11);
+    expect(await readFile(join(dir, 'status.json'), 'utf8')).toBe(beforeStatus);
+    expect(gh.checkRuns.length).toBe(checks);
+  });
+
+  it('rides along when the lock entry changes anyway, even within 24 h', async () => {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    repo.stars = 5;
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    await run(gh, dir);
+    repo.stars = 6;
+    gh.addRelease(repo, { tag: 'v2', zip: moduleZip('demo.mod', 2), commit });
+    const { report } = await run(gh, dir, {}, later(H));
+    expect(report.changed).toEqual(['demo.mod']);
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stable!.tag).toBe('v2');
+    expect(m.stars).toMatchObject({ count: 6, fetchedAt: later(H).toISOString(), verified: 'self' });
+  });
+
+  it('entries without stars (written before stars were tracked) get them on the next run', async () => {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    repo.stars = 3;
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    await run(gh, dir);
+    const lock = await readLock(dir);
+    delete lock.modules['demo.mod']!.stars;
+    await writeFile(join(dir, 'sources.lock.json'), serializeLock(lock));
+    const { report } = await run(gh, dir, {}, later(H));
+    expect(report.changed).toEqual(['demo.mod']);
+    expect((await readLock(dir)).modules['demo.mod']!.stars).toMatchObject({ count: 3, fetchedAt: later(H).toISOString(), verified: 'self' });
+  });
+});
+
+describe('sync: starsRepository (module.yaml)', () => {
+  const H = 3600_000;
+  /** Bound repo demo/demo.mod (owner 9, 3 stars) whose module.yaml asks for the stars of `starsRepo`. */
+  function setup(starsRepo: string) {
+    const gh = new FakeGitHub();
+    const repo = gh.addRepo({ id: 101, fullName: 'demo/demo.mod', ownerId: 9, defaultBranch: 'main', branches: {}, commits: {}, stars: 3 });
+    gh.installations.set(101, 601);
+    const commit = gh.commit(repo, { ...goodContent('demo.mod'), 'module.yaml': manifestYaml('demo.mod', `starsRepository: ${starsRepo}\n`) });
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    return { gh, repo, commit };
+  }
+  const starsRequests = (gh: FakeGitHub) => gh.count((r) => /\/repos\/(demo\/old|demo\/new|other\/popular)$|\/repositories\/(201|202)(\/installation)?$/.test(new URL(r.url).pathname));
+
+  it('same owner: accepted, the other repository\'s count is shown; nothing is written there', async () => {
+    const { gh } = setup('demo/old');
+    gh.addRepo({ id: 201, fullName: 'demo/old', ownerId: 9, defaultBranch: 'main', branches: {}, commits: {}, stars: 5000 });
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stars).toEqual({ count: 5000, fetchedAt: T0.toISOString(), repositoryId: 201, fullName: 'demo/old', verified: 'owner', requested: 'demo/old' });
+    expect(m.health).toMatchObject({ status: 'ok', message: null });
+    expect(gh.checkRuns.every((c) => c.repo === 'demo/demo.mod')).toBe(true);
+    expect(gh.count((r) => r.url.includes('/repositories/201/installation'))).toBe(0); // same owner: no App lookup
+  });
+
+  it('another owner with the KernelSU Modules App installed: accepted (installation = proof of control)', async () => {
+    const { gh } = setup('other/popular');
+    gh.addRepo({ id: 202, fullName: 'other/popular', ownerId: 77, defaultBranch: 'main', branches: {}, commits: {}, stars: 9000 });
+    gh.installations.set(202, 902);
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+    expect((await readLock(dir)).modules['demo.mod']!.stars).toMatchObject({ count: 9000, repositoryId: 202, verified: 'app' });
+    expect(gh.checkRuns.every((c) => c.repo === 'demo/demo.mod')).toBe(true);
+    expect(gh.requests.some((r) => r.method !== 'GET' && r.url.includes('other/popular'))).toBe(false);
+  });
+
+  it('another owner without the App: falls back to the own count with a warning; releases and health unaffected', async () => {
+    const { gh, commit } = setup('other/popular');
+    gh.addRepo({ id: 202, fullName: 'other/popular', ownerId: 77, defaultBranch: 'main', branches: {}, commits: {}, stars: 9000 });
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stars).toMatchObject({ count: 3, repositoryId: 101, fullName: 'demo/demo.mod', verified: 'self', requested: 'other/popular' });
+    expect(m.stars!.problem).toMatch(/not installed/);
+    expect(m.stable!.tag).toBe('v1');
+    expect(m.health.status).toBe('ok');
+    expect(m.health.message).toMatch(/^stars-repo-unverified: starsRepository "other\/popular"/);
+    expect((await readStatus(dir)).modules['demo.mod']).toMatchObject({ health: 'ok', message: m.health.message });
+    const content = gh.checkRuns.find((c) => c.external_id === `content:${commit}`)!;
+    expect(content.conclusion).toBe('success');
+    expect(content.output.summary).toContain('stars-repo-unverified');
+  });
+
+  it('a private repository is rejected', async () => {
+    const { gh } = setup('demo/old');
+    gh.addRepo({ id: 201, fullName: 'demo/old', ownerId: 9, defaultBranch: 'main', branches: {}, commits: {}, stars: 5000, private: true });
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+    expect((await readLock(dir)).modules['demo.mod']!.stars).toMatchObject({ count: 3, verified: 'self', problem: 'is private' });
+  });
+
+  it('re-verified only when due: not within 24 h; a rename (same id) keeps working; losing the proof falls back', async () => {
+    const { gh } = setup('other/popular');
+    const pop = gh.addRepo({ id: 202, fullName: 'other/popular', ownerId: 77, defaultBranch: 'main', branches: {}, commits: {}, stars: 9000 });
+    gh.installations.set(202, 902);
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+
+    // Within 24 h: no lookups at all, nothing persisted.
+    gh.requests = [];
+    pop.stars = 9100;
+    let r = await run(gh, dir, {}, later(5 * H));
+    expect(starsRequests(gh)).toBe(0);
+    expect(r.report.changed).toEqual([]);
+
+    // Renamed (module.yaml still says other/popular): followed by id, still verified.
+    pop.fullName = 'other/popular-renamed';
+    gh.renamed.set('other/popular', 202);
+    gh.addRepo({ id: 203, fullName: 'other/popular', ownerId: 66, defaultBranch: 'main', branches: {}, commits: {}, stars: 1 }); // squatter at the old name
+    r = await run(gh, dir, {}, later(25 * H));
+    expect(r.report.changed).toEqual(['demo.mod']);
+    expect((await readLock(dir)).modules['demo.mod']!.stars).toMatchObject({ count: 9100, repositoryId: 202, fullName: 'other/popular-renamed', verified: 'app', requested: 'other/popular' });
+
+    // App removed from the stars repository: the next refresh falls back (health stays ok).
+    gh.installations.delete(202);
+    r = await run(gh, dir, {}, later(50 * H));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stars).toMatchObject({ count: 3, verified: 'self', requested: 'other/popular' });
+    expect(m.health.status).toBe('ok');
+  });
+
+  it('Sync now re-verifies and persists immediately', async () => {
+    const { gh } = setup('other/popular');
+    gh.addRepo({ id: 202, fullName: 'other/popular', ownerId: 77, defaultBranch: 'main', branches: {}, commits: {}, stars: 9000 });
+    const dir = await makeDataDir([record('demo.mod', { id: 101, fullName: 'demo/demo.mod', ownerId: 9 })]);
+    await run(gh, dir);
+    expect((await readLock(dir)).modules['demo.mod']!.stars!.verified).toBe('self');
+    gh.installations.set(202, 902); // author installs the App on the stars repository
+    await run(gh, dir, {}, later(H));
+    expect((await readLock(dir)).modules['demo.mod']!.stars!.verified).toBe('self'); // not due yet
+    await run(gh, dir, { module: 'demo.mod' }, later(2 * H));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stars).toMatchObject({ count: 9000, verified: 'app' });
+    expect(m.health.message).toBeNull();
+  });
+});
+
 describe('sync: release rejections', () => {
   it('rejects a non-immutable release and records it as seen (downloaded at most once)', async () => {
     const gh = new FakeGitHub();

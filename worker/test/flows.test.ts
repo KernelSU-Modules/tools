@@ -389,19 +389,187 @@ describe('moderation', () => {
     expect(replies.some((t) => t.includes('suspended by @maint'))).toBe(true);
   });
 
-  it('maintainers and banned lists are edited through the Bot', async () => {
+  it('banned list is edited through the Bot', async () => {
     const { h } = await world1();
     const m = await login(h, h.world.users.get(MAINTAINER.id)!);
-    const doc = { maintainers: [{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: MAINTAINER.tg } }, { github: { id: 3, login: 'carol' } }] };
-    expect((await m.call('PUT', '/api/admin/maintainers', doc)).status).toBe(200);
-    expect(YAML.parse(h.world.readData('maintainers.yaml')!)).toEqual(doc);
-    expect(h.world.commitMessages()[0]).toContain('Action: maintainers');
-    expect((await m.call('PUT', '/api/admin/maintainers', { maintainers: [] })).status).toBe(400);
     expect((await m.post('/api/admin/banned', { githubId: 2, reason: 'spam' })).status).toBe(201);
     expect(YAML.parse(h.world.readData('banned.yaml')!).banned[0]).toMatchObject({ githubId: 2, login: 'bob', by: MAINTAINER.id });
     expect((await m.post('/api/admin/banned', { githubId: 2, reason: 'spam' })).status).toBe(409);
     expect((await m.call('DELETE', '/api/admin/banned/2')).status).toBe(200);
     expect(YAML.parse(h.world.readData('banned.yaml')!).banned).toEqual([]);
+  });
+});
+
+describe('maintainers', () => {
+  const doc = (h: H) => YAML.parse(h.world.readData('maintainers.yaml')!).maintainers;
+  const err = async (r: Response) => [r.status, ((await r.json()) as any).error?.code];
+
+  it('lists maintainers with GitHub profiles (cached per id) and falls back when GitHub fails', async () => {
+    const { h } = await world1();
+    h.world.users.get(MAINTAINER.id)!.name = 'Maint Ainer';
+    await h.world.writeData({
+      'maintainers.yaml': YAML.stringify({ maintainers: [{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: MAINTAINER.tg } }, { github: { id: 4242, login: 'gone' } }] }),
+    });
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    const n = h.world.requests.length;
+    const r = await m.get('/api/admin/maintainers');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({
+      maintainers: [
+        { githubId: MAINTAINER.id, login: 'maint', name: 'Maint Ainer', avatarUrl: `https://avatars.githubusercontent.com/u/${MAINTAINER.id}?v=4&s=64`, telegramId: MAINTAINER.tg },
+        // unknown to GitHub (404): stored login + id-based avatar
+        { githubId: 4242, login: 'gone', name: null, avatarUrl: 'https://avatars.githubusercontent.com/u/4242?s=64', telegramId: null },
+      ],
+    });
+    expect(h.world.requests.slice(n).filter((x) => /\/user\/\d+$/.test(x)).sort()).toEqual([`GET api.github.com/user/4242`, `GET api.github.com/user/${MAINTAINER.id}`]);
+    // second load: the found profile is cached, only the missing one is retried
+    const n2 = h.world.requests.length;
+    await m.get('/api/admin/maintainers');
+    expect(h.world.requests.slice(n2).filter((x) => /\/user\/\d+$/.test(x))).toEqual(['GET api.github.com/user/4242']);
+  });
+
+  it('adds a maintainer by GitHub login: users only, no duplicates, no banned accounts; one Bot commit with trailers', async () => {
+    const { h } = await world1();
+    const carol = h.world.addUser(3, 'Carol', '2016-01-01T00:00:00Z');
+    carol.name = 'Carol C';
+    h.world.addUser(77, 'some-org').type = 'Organization';
+    h.world.addUser(78, 'helper').type = 'Bot';
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    const before = h.world.commitMessages().length;
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'not a login' }))).toEqual([400, 'bad-login']);
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'nobody-here' }))).toEqual([404, 'user-not-found']);
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'some-org' }))).toEqual([400, 'not-a-user']);
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'helper' }))).toEqual([400, 'not-a-user']);
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'maint' }))).toEqual([409, 'already-maintainer']);
+    expect(h.world.commitMessages().length).toBe(before);
+
+    const r = await m.post('/api/admin/maintainers', { login: '@carol' });
+    expect(r.status).toBe(201);
+    expect(await r.json()).toEqual({ githubId: 3, login: 'Carol', name: 'Carol C', avatarUrl: 'https://avatars.githubusercontent.com/u/3?v=4&s=64', telegramId: null });
+    expect(doc(h)).toEqual([{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: MAINTAINER.tg } }, { github: { id: 3, login: 'Carol' } }]);
+    const text = h.world.readData('maintainers.yaml')!;
+    expect(text).toMatch(/^# KernelSU Modules maintainers/);
+    const msg = h.world.commitMessages()[0]!;
+    expect(msg).toContain('Add maintainer @Carol');
+    expect(msg).toContain('Action: maintainers');
+    expect(msg).toContain('Target: github:3');
+    expect(msg).toContain(`Actor: github:${MAINTAINER.id} via portal`);
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'carol' }))).toEqual([409, 'already-maintainer']);
+
+    // banned (re-checked against banned.yaml at the base commit, even when the snapshot is stale)
+    h.world.addUser(5, 'eve');
+    await h.world.writeData({ 'banned.yaml': YAML.stringify({ banned: [{ githubId: 5, reason: 'spam', by: MAINTAINER.id, at: '2026-01-01T00:00:00Z' }] }) });
+    expect(await err(await m.post('/api/admin/maintainers', { login: 'eve' }))).toEqual([409, 'banned']);
+    expect(doc(h).map((x: any) => x.github.id)).toEqual([MAINTAINER.id, 3]);
+  });
+
+  it('binds / clears a numeric Telegram id: positive integers, unique across maintainers, preconditions at the base commit', async () => {
+    const { h } = await world1();
+    h.world.addUser(3, 'carol');
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    expect((await m.post('/api/admin/maintainers', { login: 'carol' })).status).toBe(201);
+    for (const bad of [0, -1, 1.5, '123', 'abc', Number.MAX_SAFE_INTEGER + 2]) expect(await err(await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: bad }))).toEqual([400, 'bad-telegram-id']);
+    expect(await err(await m.call('PATCH', '/api/admin/maintainers/3', {}))).toEqual([400, 'bad-request']);
+    expect(await err(await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: MAINTAINER.tg }))).toEqual([409, 'telegram-taken']);
+    expect(await err(await m.call('PATCH', '/api/admin/maintainers/999', { telegramId: 1 }))).toEqual([404, 'not-maintainer']);
+
+    const r = await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: 4242 });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ githubId: 3, login: 'carol', telegramId: 4242 });
+    expect(doc(h)[1]).toEqual({ github: { id: 3, login: 'carol' }, telegram: { id: 4242 } });
+    expect(h.world.commitMessages()[0]).toContain('Bind Telegram to maintainer github:3');
+    // same value again: nothing to commit
+    const n = h.world.commitMessages().length;
+    expect((await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: 4242 })).status).toBe(200);
+    expect(h.world.commitMessages().length).toBe(n);
+    // the new binding authorizes Telegram actions at once
+    const who = await signedTelegram(h, { update_id: 5, message: { message_id: 3, from: { id: 4242 }, chat: { id: -1001234 }, text: '/whoami' } });
+    expect(who.status).toBe(200);
+    expect(h.world.telegram.at(-1)!.body.text).toContain('Bound to maintainer @carol');
+
+    // another writer bound 9999 to the first maintainer meanwhile: the check runs against the base commit
+    await h.world.writeData({
+      'maintainers.yaml': YAML.stringify({ maintainers: [{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: 9999 } }, { github: { id: 3, login: 'carol' }, telegram: { id: 4242 } }] }),
+    });
+    expect(await err(await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: 9999 }))).toEqual([409, 'telegram-taken']);
+
+    expect((await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: null })).status).toBe(200);
+    expect(doc(h)[1]).toEqual({ github: { id: 3, login: 'carol' } });
+    expect(h.world.commitMessages()[0]).toContain('Unbind Telegram from maintainer github:3');
+  });
+
+  it('removes maintainers: never yourself, never the last one; a legacy telegram.username is dropped on the next save', async () => {
+    const { h } = await world1();
+    h.world.addUser(3, 'carol');
+    await h.world.writeData({
+      'maintainers.yaml':
+        '# hand-written\n' +
+        YAML.stringify({ maintainers: [{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: MAINTAINER.tg, username: 'Maint' } }, { github: { id: 3, login: 'carol' } }] }),
+    });
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    // the legacy key still parses (admin access keeps working)
+    expect((await m.get('/api/admin/maintainers')).status).toBe(200);
+    expect(await err(await m.call('DELETE', `/api/admin/maintainers/${MAINTAINER.id}`))).toEqual([400, 'cannot-remove-self']);
+    expect(await err(await m.call('DELETE', '/api/admin/maintainers/999'))).toEqual([404, 'not-maintainer']);
+    const r = await m.call('DELETE', '/api/admin/maintainers/3');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ removed: 3 });
+    expect(doc(h)).toEqual([{ github: { id: MAINTAINER.id, login: 'maint' }, telegram: { id: MAINTAINER.tg } }]);
+    expect(h.world.readData('maintainers.yaml')).not.toContain('username');
+    expect(h.world.commitMessages()[0]).toMatch(/Remove maintainer github:3[\s\S]*Action: maintainers[\s\S]*Actor: github:9000 via portal/);
+
+    // carol is a maintainer in a stale snapshot only; another writer left a single maintainer: last-maintainer guard
+    h.world.addUser(4, 'dan');
+    expect((await m.post('/api/admin/maintainers', { login: 'dan' })).status).toBe(201);
+    await h.world.writeData({ 'maintainers.yaml': YAML.stringify({ maintainers: [{ github: { id: 4, login: 'dan' } }] }) });
+    expect(await err(await m.call('DELETE', '/api/admin/maintainers/4'))).toEqual([409, 'last-maintainer']);
+    expect(doc(h)).toEqual([{ github: { id: 4, login: 'dan' } }]);
+  });
+
+  it('refreshes a renamed login on the next save; the bulk PUT is gone; developers get 403', async () => {
+    const { h, alice } = await world1();
+    h.world.addUser(3, 'carol');
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    expect((await m.post('/api/admin/maintainers', { login: 'carol' })).status).toBe(201);
+    h.world.users.get(MAINTAINER.id)!.login = 'maint-renamed';
+    await h.svc.deps.cache.delete(`ghuser/${MAINTAINER.id}`);
+    const list = (await (await m.get('/api/admin/maintainers')).json()) as any;
+    expect(list.maintainers[0].login).toBe('maint-renamed');
+    expect(doc(h)[0].github.login).toBe('maint');
+    expect((await m.call('PATCH', '/api/admin/maintainers/3', { telegramId: 31 })).status).toBe(200);
+    expect(doc(h)[0].github.login).toBe('maint-renamed');
+    expect((await m.call('PUT', '/api/admin/maintainers', { maintainers: [] })).status).toBe(404);
+    const a = await login(h, alice);
+    expect((await a.get('/api/admin/maintainers')).status).toBe(403);
+    expect((await a.post('/api/admin/maintainers', { login: 'alice' })).status).toBe(403);
+  });
+});
+
+describe('telegram /whoami', () => {
+  const msg = (from: number | null, text: string, chat = -1001234, extra: object = {}) => ({
+    update_id: 7,
+    message: { message_id: 12, ...(from === null ? {} : { from: { id: from } }), chat: { id: chat }, text, ...extra },
+  });
+  const replies = (h: H) => h.world.telegram.filter((t) => t.method === 'sendMessage').map((t) => t.body);
+
+  it('replies with the numeric id and the binding, in the review group only', async () => {
+    const { h } = await world1();
+    const before = h.world.commitMessages().length;
+    expect(await (await signedTelegram(h, msg(MAINTAINER.tg, '/whoami@ksudevbot'))).json()).toEqual({ answer: null });
+    expect(await (await signedTelegram(h, msg(777, '/whoami'))).json()).toEqual({ answer: null });
+    await signedTelegram(h, msg(777, '/whoami@AnyBot extra words'));
+    await signedTelegram(h, msg(777, '/whoamix'));
+    await signedTelegram(h, msg(777, '/whoami', 42)); // other chat (e.g. a private chat with the bot): ignored
+    await signedTelegram(h, msg(1087968824, '/whoami', -1001234, { sender_chat: { id: -1001234 } }));
+    const r = replies(h);
+    expect(r).toHaveLength(4);
+    expect(r[0]).toMatchObject({ chat_id: -1001234, reply_parameters: { message_id: 12 }, parse_mode: 'HTML' });
+    expect(r[0]!.text).toBe(`Your Telegram user id: <code>${MAINTAINER.tg}</code>\nBound to maintainer @maint (GitHub #${MAINTAINER.id}).`);
+    expect(r[1]!.text).toContain('<code>777</code>');
+    expect(r[1]!.text).toContain('Not bound to a maintainer');
+    expect(r[2]!.text).toContain('<code>777</code>');
+    expect(r[3]!.text).toContain('anonymously');
+    expect(h.world.commitMessages().length).toBe(before);
   });
 });
 

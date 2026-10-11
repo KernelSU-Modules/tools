@@ -70,6 +70,11 @@ repository by hand — the next release overwrites them with the private copy.
    [KernelSU Developer Portal](https://developers.kernelsu.org) — see [Getting started](getting-started.md#7-submit).
    You need the admin role on the distribution repository.
 
+The module page shows the stars of the distribution repository. If the module used to be open
+source, you can show the stars of its old public repository instead with
+[`starsRepository`](module-yaml.md#fields) in `module.yaml` (same owner, or install the KernelSU
+Modules App on that repository).
+
 ## Workflow
 
 In the **private** repository, `.github/workflows/release.yml`:

@@ -10,6 +10,7 @@ export {
   BookOpen,
   Check,
   CircleAlert,
+  ChevronRight,
   CircleCheck,
   Clock,
   ExternalLink as ExternalLinkIcon,
@@ -33,7 +34,9 @@ export {
   Send,
   ShieldAlert,
   Tag,
+  Trash2,
   TriangleAlert,
+  UserPlus,
   Users,
   X,
 } from 'lucide-preact';

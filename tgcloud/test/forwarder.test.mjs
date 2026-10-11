@@ -139,13 +139,16 @@ describe('callback_query handler', () => {
 describe('message handler', () => {
   const msg = (text) => ({ message_id: 55, from: { id: 42 }, chat: { id: -1001234567890, type: 'supergroup' }, date: 1, text });
 
-  it('forwards /suspend (with and without @bot) and ignores everything else', async () => {
+  it('forwards /suspend and /whoami (with and without @bot) and ignores everything else', async () => {
     const seen = workerStub(() => json(200, {}));
-    for (const t of ['/suspend demo spam', '/suspend@ksudevbot demo spam', 'hello', '/suspended', '/start']) {
+    for (const t of ['/suspend demo spam', '/suspend@ksudevbot demo spam', '/whoami', '/whoami@ksudevbot', 'hello', '/suspended', '/whoamix', '/start', 'say /whoami']) {
       const m = msg(t);
       await message(m, { update: { update_id: 1, message: m } });
     }
-    assert.equal(seen.length, 2);
+    assert.deepEqual(
+      seen.map((s) => JSON.parse(new TextDecoder().decode(s.init.body)).message.text),
+      ['/suspend demo spam', '/suspend@ksudevbot demo spam', '/whoami', '/whoami@ksudevbot'],
+    );
     assert.equal(state.apiCalls.length, 0);
   });
 

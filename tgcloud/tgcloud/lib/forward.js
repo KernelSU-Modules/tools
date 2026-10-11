@@ -101,9 +101,9 @@ export async function handleCallbackQuery(query, ctx, deps) {
   return answer;
 }
 
-const COMMAND = /^\/suspend(?:@[A-Za-z0-9_]+)?(?:\s|$)/;
+const COMMAND = /^\/(?:suspend|whoami)(?:@[A-Za-z0-9_]+)?(?:\s|$)/;
 
-/** handlers/message: only `/suspend ...` is forwarded; the Worker replies via the Bot API itself. */
+/** handlers/message: only `/suspend ...` and `/whoami` are forwarded; the Worker replies via the Bot API itself. */
 export async function handleMessage(message, ctx, deps) {
   const text = typeof message.text === 'string' ? message.text : '';
   if (!COMMAND.test(text)) return { forwarded: false };

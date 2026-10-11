@@ -33,12 +33,23 @@ export const ApiModuleSummary = z.object({
   /** Module content is single-language (module.yaml name / summary). */
   name: z.string(),
   summary: z.string(),
+  /** module.yaml `authors`; when omitted or empty, the repository owner: [{ name: "{owner login}", url: "https://github.com/{owner login}" }]. */
   authors: z.array(z.object({ name: z.string(), url: HttpsUrl.optional() })),
   tags: z.array(z.string()),
   metamodule: z.boolean(),
   /** Content-hashed icon, "assets/{sha256-prefix}.{ext}". */
   icon: ApiPath.nullable(),
   stable: ApiVersionRef,
+  /**
+   * GitHub stargazers count of the bound repository (the public release repository for closed-source modules) or of
+   * the verified module.yaml `starsRepository`; refreshed at most about daily; null when not recorded yet.
+   */
+  stars: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * "owner/name" of the repository the star count belongs to: the bound repository, or the module.yaml
+   * `starsRepository` once verified (same owner, or the KernelSU Modules App installed on it). Null when `stars` is null.
+   */
+  starsRepository: z.string().nullable().optional(),
   /** "api/v1/modules/{id}.json" */
   detail: ApiPath,
   updatedAt: IsoDateTime,

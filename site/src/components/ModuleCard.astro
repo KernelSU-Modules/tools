@@ -2,7 +2,8 @@
 import type { ApiModuleDetail } from '@kernelsu-modules/schema';
 import { MESSAGES, type UiLocale } from '../lib/i18n.ts';
 import { detailUrl } from '../lib/data.ts';
-import { date, safeHref, safeWebHref } from '../lib/format.ts';
+import { compactCount, date, safeHref, safeWebHref } from '../lib/format.ts';
+import StarIcon from './StarIcon.astro';
 import Badges from './Badges.astro';
 import ModuleIcon from './ModuleIcon.astro';
 
@@ -18,7 +19,7 @@ const ext = { rel: 'nofollow noopener noreferrer' };
 const href = `/${detailUrl(ui, d.id)}`;
 ---
 
-<li class="module-card grid grid-cols-[32px_minmax(0,1fr)] gap-x-3 gap-y-3 border-t border-line-muted p-4 first:border-t-0 sm:grid-cols-[32px_minmax(0,1fr)_auto]" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-updated={d.updatedAt}>
+<li class="module-card grid grid-cols-[32px_minmax(0,1fr)] gap-x-3 gap-y-3 border-t border-line-muted p-4 first:border-t-0 sm:grid-cols-[32px_minmax(0,1fr)_auto]" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-updated={d.updatedAt} data-stars={d.stars ?? 0}>
   <ModuleIcon module={d} name={d.name} size="sm" />
   <div class="min-w-0">
     <div class="mb-1.5 flex min-w-0 flex-wrap items-center gap-2">
@@ -37,6 +38,15 @@ const href = `/${detailUrl(ui, d.id)}`;
             </svg>
             <span class="sr-only">{m.authors}:</span>
             <span class="truncate">{authors.join(', ')}{moreAuthors && ', …'}</span>
+          </span>
+        )
+      }
+      {
+        d.stars != null && (
+          <span class="stars inline-flex items-center gap-1" title={m.starsTitle(d.stars)}>
+            <StarIcon />
+            <span class="sr-only">{m.stars}:</span>
+            {compactCount(d.stars)}
           </span>
         )
       }

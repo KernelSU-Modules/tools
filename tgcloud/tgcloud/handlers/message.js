@@ -1,4 +1,4 @@
-// Maintainer commands (P1): only "/suspend <id> <reason>" is forwarded; everything else is ignored.
+// Bot commands: only "/suspend <id> <reason>" (maintainers) and "/whoami" are forwarded; everything else is ignored.
 import { api, fetch } from 'sdk';
 import { handleMessage } from '../lib/forward.js';
 import { FORWARD_SECRET, PORTAL_URL } from '../lib/env.js';

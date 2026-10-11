@@ -168,6 +168,12 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **修复**：当且仅当 `module.prop` 含有 `metamodule=1`（或 `true`）时，在 `module.yaml` 中设置 `metamodule: true`。修改 `module.yaml` 只需推送；修改 `module.prop` 需要发布新 release。
 
+### stars-repo-unverified
+
+**原因（警告**）：`module.yaml` 中的 `starsRepository` 指向的仓库无法用于显示 Star：仓库不存在、是私有仓库，或属于其他账号且没有安装 KernelSU Modules App。模块页面会改为显示模块自身仓库的 Star 数。该警告不会阻止 release 或上架，只会出现在内容 Check Run 中，并作为提示显示在开发者门户。
+
+**修复**：使用与模块仓库属于同一账号的公开仓库，或在该 Star 仓库上安装 KernelSU Modules GitHub App（安装 App 需要该仓库的管理员权限，以此证明你控制该仓库；App 不会在那里报告任何内容）。然后点击 **Sync now**，否则会在一天内重新检查。
+
 ## release 选择
 
 ### release-none

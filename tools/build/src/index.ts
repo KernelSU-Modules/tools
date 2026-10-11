@@ -4,6 +4,7 @@ export {
   changelogPath,
   computeBuildId,
   lockSubset,
+  moduleAuthors,
   PathClaims,
   policySubset,
   readmeApiPath,

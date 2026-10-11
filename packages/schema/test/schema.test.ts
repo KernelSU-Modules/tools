@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_POLICY, ModuleId, ModuleLock, ModuleManifest, Policy, RegistryRecord, RegistryStatus, RelativePath, canonicalJson, foldId,
+  DEFAULT_POLICY, Maintainers, ModuleId, ModuleLock, ModuleManifest, Policy, RegistryRecord, RegistryStatus, RelativePath, canonicalJson, foldId,
+  stripLegacyMaintainerFields,
 } from '../src/index.ts';
 
 describe('schema', () => {
@@ -61,5 +62,19 @@ describe('schema', () => {
     expect(canonicalJson({ b: 1, a: { d: [{ z: 1, y: undefined, x: 2 }], c: null } })).toBe(
       '{\n  "a": {\n    "c": null,\n    "d": [\n      {\n        "x": 2,\n        "z": 1\n      }\n    ]\n  },\n  "b": 1\n}\n',
     );
+  });
+
+  it('maintainers: numeric Telegram ids only; legacy telegram.username is stripped before parsing', () => {
+    const legacy = { maintainers: [{ github: { id: 1, login: 'a' }, telegram: { id: 9, username: 'tg' } }, { github: { id: 2, login: 'b' } }] };
+    expect(Maintainers.safeParse(legacy).success).toBe(false);
+    const { value, dropped } = stripLegacyMaintainerFields(legacy);
+    expect(dropped).toEqual(['maintainers.0.telegram.username']);
+    expect(Maintainers.parse(value)).toEqual({ maintainers: [{ github: { id: 1, login: 'a' }, telegram: { id: 9 } }, { github: { id: 2, login: 'b' } }] });
+    expect(legacy.maintainers[0]!.telegram!.username).toBe('tg'); // input untouched
+    const clean = { maintainers: [{ github: { id: 1, login: 'a' } }] };
+    expect(stripLegacyMaintainerFields(clean)).toEqual({ value: clean, dropped: [] });
+    expect(stripLegacyMaintainerFields(null)).toEqual({ value: null, dropped: [] });
+    expect(Maintainers.safeParse({ maintainers: [{ github: { id: 1, login: 'a' }, telegram: { id: 0 } }] }).success).toBe(false);
+    expect(Maintainers.safeParse({ maintainers: [{ github: { id: 1, login: 'a' }, telegram: { id: 1, extra: true } }] }).success).toBe(false);
   });
 });

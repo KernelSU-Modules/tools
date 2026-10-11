@@ -20,12 +20,14 @@ export const COMMITS = {
   suspended: '4'.repeat(40),
   nostable: '5'.repeat(40),
   collide: '6'.repeat(40),
+  noauthor: '7'.repeat(40),
 };
 
 /** Fixture repositories served by fake-net at their locked content commit. */
 export const REPO_COMMITS: Record<string, string> = {
   'demo/toolbox': COMMITS.toolbox,
   'demo/collide': COMMITS.collide,
+  'demo/noauthor': COMMITS.noauthor,
 };
 
 /** path -> sha256 of fixture repository files (content.files). */
@@ -116,6 +118,7 @@ function main(): void {
         stable: t120, prerelease: t130, maxVersionCode: 130, maxStableVersionCode: 120, releases: [t130, t120, t110],
         seen: { '110': { ok: true, checkedAt: '2026-09-01T10:05:00Z' }, '120': { ok: true, checkedAt: '2026-10-01T10:05:00Z' }, '130': { ok: true, checkedAt: '2026-10-05T10:05:00Z' } },
         health: health('ok', '2026-10-09T12:00:00Z'),
+        stars: { count: 1234, fetchedAt: '2026-10-09T12:00:00Z', repositoryId: 1001, fullName: 'demo/toolbox', verified: 'self' },
       },
     },
   };

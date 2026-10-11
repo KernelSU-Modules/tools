@@ -43,7 +43,11 @@ describe('ApiClient', () => {
     await api.transfer({ id: 'm', repositoryId: 3 });
     await api.submit({ id: 'm', repositoryId: 3 });
     await api.preview({ repositoryId: 3 });
-    await api.saveMaintainers({ maintainers: [] });
+    await api.maintainers();
+    await api.addMaintainer('octocat');
+    await api.setMaintainerTelegram(583231, 42);
+    await api.setMaintainerTelegram(583231, null);
+    await api.removeMaintainer(583231);
     expect(f.mock.calls.map(([u, i]) => `${i!.method} ${u}`)).toEqual([
       'GET /api/ids/a%2Fb',
       'POST /api/modules/demo.toolbox/sync',
@@ -53,9 +57,16 @@ describe('ApiClient', () => {
       'POST /api/transfers',
       'POST /api/submissions',
       'POST /api/preview',
-      'PUT /api/admin/maintainers',
+      'GET /api/admin/maintainers',
+      'POST /api/admin/maintainers',
+      'PATCH /api/admin/maintainers/583231',
+      'PATCH /api/admin/maintainers/583231',
+      'DELETE /api/admin/maintainers/583231',
     ]);
     expect(JSON.parse(f.mock.calls[2]![1]!.body as string)).toEqual({ reason: 'fixed' });
+    expect(JSON.parse(f.mock.calls[9]![1]!.body as string)).toEqual({ login: 'octocat' });
+    expect(JSON.parse(f.mock.calls[10]![1]!.body as string)).toEqual({ telegramId: 42 });
+    expect(JSON.parse(f.mock.calls[11]![1]!.body as string)).toEqual({ telegramId: null });
   });
 
   it('maps {error:{code,message}} into ApiError with Retry-After', async () => {

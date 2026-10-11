@@ -1,8 +1,8 @@
-// Write operations (submit / transfer / decide / moderate / expire / maintainers / banned).
+// Write operations (submit / transfer / decide / moderate / expire / banned; maintainers.yaml: maintainers.ts).
 // All writes go through the KernelSU Modules Bot + commitWithRetry; preconditions are evaluated inside the mutate
 // callback against the record at reader.baseCommit, so concurrent decisions resolve to exactly one winner.
 import { dispatchWorkflow, PreconditionFailed, splitFullName, withTrailers, type GitHubClient } from '@kernelsu-modules/github';
-import { Banned, Maintainers, type OpenRequest, type ReasonCode, type RegistryRecord, type Source } from '@kernelsu-modules/schema';
+import { Banned, type OpenRequest, type ReasonCode, type RegistryRecord, type Source } from '@kernelsu-modules/schema';
 import { checkModuleId, type Issue } from '@kernelsu-modules/validator';
 import { ApiError } from '../lib/errors.ts';
 import { randomId } from '../lib/crypto.ts';
@@ -55,7 +55,7 @@ export function maintainerByTelegram(snap: Snapshot, telegramId: number) {
 
 const errorsOf = (issues: Issue[]) => issues.filter((i) => i.severity === 'error');
 
-function rethrow(e: unknown): never {
+export function rethrow(e: unknown): never {
   if (e instanceof PreconditionFailed) throw new ApiError(409, e.code, e.message);
   throw e;
 }
@@ -451,25 +451,7 @@ export async function expireRequests(svc: Services, max: number, canAfford: () =
   return done;
 }
 
-/* ------------------------------------------------------------------ maintainers / banned */
-
-export async function setMaintainers(svc: Services, actor: Actor, body: unknown) {
-  const parsed = Maintainers.safeParse(body);
-  if (!parsed.success) throw new ApiError(400, 'bad-request', parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
-  const m = parsed.data;
-  if (!m.maintainers.length) throw new ApiError(400, 'bad-request', 'at least one maintainer is required');
-  const ids = m.maintainers.map((x) => x.github.id);
-  if (new Set(ids).size !== ids.length) throw new ApiError(400, 'bad-request', 'duplicate GitHub id');
-  const tg = m.maintainers.flatMap((x) => (x.telegram ? [x.telegram.id] : []));
-  if (new Set(tg).size !== tg.length) throw new ApiError(400, 'bad-request', 'duplicate Telegram id');
-  await svc.data
-    .commit(async () => ({
-      files: { 'maintainers.yaml': stringifyYaml(m) },
-      message: withTrailers('Update maintainers', { Action: 'maintainers', Actor: `github:${actor.githubId} via ${actor.via}` }),
-    }))
-    .catch(rethrow);
-  return m;
-}
+/* ------------------------------------------------------------------ banned (maintainers: see maintainers.ts) */
 
 export async function ban(svc: Services, actor: Actor, body: { githubId: number; reason: string; login?: string }) {
   if (!Number.isSafeInteger(body?.githubId) || body.githubId <= 0) throw new ApiError(400, 'bad-request', 'githubId must be a positive integer');

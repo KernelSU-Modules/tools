@@ -33,6 +33,26 @@ describe('mock API (keeps fixtures honest with the contract)', () => {
     expect((await call(s, 'GET', '/api/modules/zygisk_assistant')).body.status).toBe('listed');
     expect((await call(s, 'POST', `/api/admin/requests/${r.body.submissionId}/approve`, {})).status).toBe(409);
   });
+  it('maintainers: enriched list, add by login, bind / clear Telegram id, remove with guards', async () => {
+    const s = createState('maintainer');
+    const list = async () => (await call(s, 'GET', '/api/admin/maintainers')).body.maintainers as { githubId: number; login: string; telegramId: number | null }[];
+    expect((await list())[0]).toEqual({ githubId: 2001, login: 'kernelsu-maintainer', name: 'KernelSU Maintainer', avatarUrl: '', telegramId: 555000111 });
+    expect((await call(s, 'POST', '/api/admin/maintainers', { login: 'nobody' })).status).toBe(404);
+    expect((await call(s, 'POST', '/api/admin/maintainers', { login: 'github' })).body.error.code).toBe('not-a-user');
+    expect((await call(s, 'POST', '/api/admin/maintainers', { login: 'spammer' })).body.error.code).toBe('banned');
+    expect((await call(s, 'POST', '/api/admin/maintainers', { login: 'second-maintainer' })).status).toBe(409);
+    const added = await call(s, 'POST', '/api/admin/maintainers', { login: '@Octocat' });
+    expect(added.status).toBe(201);
+    expect(added.body).toMatchObject({ githubId: 583231, login: 'octocat', telegramId: null });
+    expect((await call(s, 'PATCH', '/api/admin/maintainers/583231', { telegramId: 555000111 })).body.error.code).toBe('telegram-taken');
+    expect((await call(s, 'PATCH', '/api/admin/maintainers/583231', { telegramId: '42' })).status).toBe(400);
+    expect((await call(s, 'PATCH', '/api/admin/maintainers/583231', { telegramId: 42 })).body.telegramId).toBe(42);
+    expect((await call(s, 'PATCH', '/api/admin/maintainers/583231', { telegramId: null })).body.telegramId).toBeNull();
+    expect((await call(s, 'DELETE', '/api/admin/maintainers/2001')).body.error.code).toBe('cannot-remove-self');
+    expect((await call(s, 'DELETE', '/api/admin/maintainers/583231')).body).toEqual({ removed: 583231 });
+    expect((await call(s, 'DELETE', '/api/admin/maintainers/2002')).status).toBe(200);
+    expect((await list()).map((x) => x.githubId)).toEqual([2001]);
+  });
   it('sync is rate limited with Retry-After', async () => {
     const s = createState('developer');
     expect((await call(s, 'POST', '/api/modules/demo.toolbox/sync', {})).status).toBe(202);

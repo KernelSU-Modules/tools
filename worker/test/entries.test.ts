@@ -69,7 +69,7 @@ describe('kernelsu-developer-portal-cron Worker entry', () => {
     const toml = read('../cron/wrangler.toml');
     expect(toml).toMatch(/^name = "kernelsu-developer-portal-cron"$/m);
     expect(toml).toMatch(/^main = "\.\.\/src\/entry\/cron\.ts"$/m);
-    expect(toml).toMatch(/^crons = \["\*\/15 \* \* \* \*", "17 3 \* \* \*"\]$/m);
+    expect(toml).toMatch(/^crons = \["17 3 \* \* \*"\]$/m);
     expect(toml).toMatch(/^workers_dev = false$/m);
     expect(toml).not.toMatch(/^routes/m);
     expect(toml).toMatch(/^PAGES_PROJECTS = "kernelsu-modules-repo,kernelsu-developer-portal"$/m);
@@ -97,7 +97,7 @@ describe('kernelsu-developer-portal-cron Worker entry', () => {
     h.world.canonical = 'c';
     h.world.deployments = [{ id: 'c', environment: 'production', created_on: '2026-01-01T00:00:00Z' }];
     h.world.workflowRuns = [{ id: 1, status: 'completed', conclusion: 'success', created_at: '2026-10-09T23:50:00Z', updated_at: '2026-10-09T23:55:00Z', html_url: 'u' }];
-    const res = await runScheduled(svc, '*/15 * * * *', Date.parse('2026-10-10T00:00:00Z'));
+    const res = await runScheduled(svc, '17 3 * * *', Date.parse('2026-10-10T00:00:00Z'));
     expect(res).toMatchObject({ dispatched: true, health: { stale: false }, expired: [], pruned: { 'kernelsu-modules-repo': { deleted: [] } } });
     expect(h.world.dispatches.map((d) => d.inputs)).toEqual([{ reason: 'cron' }]);
     expect(() => svc.modules).toThrow(/MODULES_APP_ID/);

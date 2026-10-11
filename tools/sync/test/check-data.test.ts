@@ -39,6 +39,17 @@ describe('checkDataDir', () => {
     }
   });
 
+  it('accepts a legacy telegram.username in maintainers.yaml with a warning (pre-release migration)', () => {
+    const dir = freshDataDir();
+    writeFileSync(join(dir, 'maintainers.yaml'), YAML.stringify({ maintainers: [{ github: { id: 1, login: 'octocat' }, telegram: { id: 123456789, username: 'octo' } }] }));
+    const { issues, stats } = checkDataDir(dir);
+    expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
+    expect(issues.map(fmt)).toEqual([expect.stringContaining('maintainers.yaml: maintainers.0.telegram.username: Telegram usernames are no longer used')]);
+    expect(stats.maintainers).toBe(1);
+    writeFileSync(join(dir, 'maintainers.yaml'), YAML.stringify({ maintainers: [{ github: { id: 1, login: 'octocat' }, telegram: { id: 1, nick: 'x' } }] }));
+    expect(checkDataDir(dir).issues.filter((i) => i.severity === 'error').length).toBe(1);
+  });
+
   it('accepts listed, pending and archived records', () => {
     const dir = freshDataDir();
     put(dir, { id: 'listed.a', status: 'listed', source: src(1), createdAt: t, updatedAt: t });

@@ -11,6 +11,7 @@ interface Entry {
   metamodule: boolean;
   version: string;
   updatedAt: string;
+  stars: number | null;
   url: string;
 }
 
@@ -235,10 +236,13 @@ function listFilter(): void {
     let rows = q && fuse ? fuse.search(q).map((r) => r.item) : [...entries];
     if (meta?.checked) rows = rows.filter((e) => e.metamodule);
     if (!q) {
+      const byUpdated = (a: Entry, b: Entry) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : a.id < b.id ? -1 : 1);
       rows.sort(
         sort?.value === 'name'
           ? (a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1)
-          : (a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : a.id < b.id ? -1 : 1),
+          : sort?.value === 'stars'
+            ? (a, b) => (b.stars ?? 0) - (a.stars ?? 0) || byUpdated(a, b)
+            : byUpdated,
       );
     }
     const shown = new Set<string>();

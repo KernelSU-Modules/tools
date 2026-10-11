@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MODULE_ID_PATTERN as SCHEMA_PATTERN } from '@kernelsu-modules/schema';
 import { attention, canSync, groupIssues, healthTone, isPublic, moderationActions, RECORD_STATUSES, requestCheckOf, statusKey, statusTone } from '../src/lib/status.ts';
 import { idFormatError, MODULE_ID_PATTERN, suggestId } from '../src/lib/ids.ts';
-import { fromRows, rejectNeedsText, toRows } from '../src/lib/admin.ts';
+import { parseLogin, parseTelegramId, rejectNeedsText, telegramOwner } from '../src/lib/admin.ts';
 import { healthSummary, runTone, sortByHealth } from '../src/lib/dashboard.ts';
 import { formatBytes, formatWait, publicModuleUrl } from '../src/lib/format.ts';
 import { blockSync, syncBlockedUntil } from '../src/lib/ratelimit.ts';
@@ -96,17 +96,24 @@ describe('admin helpers', () => {
     expect(rejectNeedsText('other')).toBe(true);
     expect(rejectNeedsText('spam')).toBe(false);
   });
-  it('round-trips maintainers and validates rows', () => {
-    const ms = [{ github: { id: 1, login: 'a' }, telegram: { id: 9, username: 'tg' } }, { github: { id: 2, login: 'b' } }];
-    const rows = toRows(ms);
-    expect(fromRows(rows).value).toEqual(ms);
-    const bad = fromRows([...rows, { githubId: '1', login: 'dup', telegramId: 'x', telegramUsername: '' }]);
-    expect(bad.value).toBeNull();
-    expect(bad.errors[2]).toEqual(['telegramId', 'duplicate']);
-    expect(fromRows([]).empty).toBe(true);
-    expect(fromRows([{ githubId: '3', login: 'c', telegramId: '5', telegramUsername: '@name' }]).value).toEqual([
-      { github: { id: 3, login: 'c' }, telegram: { id: 5, username: 'name' } },
-    ]);
+  it('parses the add-maintainer login input', () => {
+    expect(parseLogin(' octocat ')).toBe('octocat');
+    expect(parseLogin('@Octo-Cat')).toBe('Octo-Cat');
+    expect(parseLogin('https://github.com/octocat')).toBe('octocat');
+    expect(parseLogin('github.com/octocat/')).toBe('octocat');
+    for (const bad of ['', '-x', 'a b', 'a'.repeat(40), 'https://github.com/a/b', 'https://gitlab.com/x']) expect(parseLogin(bad), bad).toBeNull();
+  });
+  it('validates Telegram user ids and detects bindings taken by another maintainer', () => {
+    expect(parseTelegramId('')).toBeNull();
+    expect(parseTelegramId(' 819401657 ')).toBe(819401657);
+    for (const bad of ['0', '-5', '1.5', '@name', '12a', '99999999999999999']) expect(parseTelegramId(bad), bad).toBe('invalid');
+    const list = [
+      { githubId: 1, login: 'a', name: null, avatarUrl: '', telegramId: 9 },
+      { githubId: 2, login: 'b', name: null, avatarUrl: '', telegramId: null },
+    ];
+    expect(telegramOwner(list, 2, 9)?.login).toBe('a');
+    expect(telegramOwner(list, 1, 9)).toBeNull();
+    expect(telegramOwner(list, 2, null)).toBeNull();
   });
 });
 

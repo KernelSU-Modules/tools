@@ -1,8 +1,8 @@
 // Scheduled work of the `kernelsu-developer-portal-cron` Worker (entry/cron.ts). Pages Functions have no Cron Triggers, so this
 // runs in a separate tiny Worker that shares the business code with the Portal.
-//   */15 * * * *  dispatch sync (fallback for lost webhooks), sync health (Actions API), expire ≤1 request,
-//                 and once an hour (:00 run) prune old Pages deployments across PAGES_PROJECTS.
-//   17 3 * * *    sync health, expire ≤2 pending requests, prune Pages deployments.
+//   17 3 * * *    once a day: dispatch sync (fallback for lost webhooks; releases, Portal actions and maintainer
+//                 decisions dispatch it immediately), sync health (Actions API), expire ≤2 pending requests,
+//                 prune old Pages deployments across PAGES_PROJECTS.
 //
 // Subrequest budget (Workers Free: 50 per invocation). Every fetch goes through a SubrequestBudget (hard cap
 // CRON_SUBREQUEST_LIMIT, below 50) and each unit of work first checks that its worst case still fits:
@@ -10,21 +10,17 @@
 // Telegram edit), a Pages project listing PRUNE_LIST_RESERVE, each deletion 1, and ALERT_RESERVE stays free
 // for alerts. Whatever does not fit is left for the next run.
 //
-// Alert de-duplication: the cron Worker has no custom domain, so the Cache API is a no-op and isolates are
-// rarely reused between runs. Cron alerts are therefore gated by the schedule instead of a cache marker:
-// dispatch failures alert from the :00 run only (≤1/h), sync-health alerts from the :00 run of every 6th
-// hour and from the daily run (≤5/day).
+// Alerts: one run a day, so at most one dispatch-failure and one sync-health alert per day.
 import type { Services } from './services.ts';
 import { alert, dispatchSync, expireRequests } from './domain/ops.ts';
 import { SubrequestBudget } from './lib/budget.ts';
 import { lastSuccessfulSync } from './domain/actions.ts';
 
-export const CRON_FREQUENT = '*/15 * * * *';
 export const CRON_DAILY = '17 3 * * *';
 /** Hard cap per invocation (Free plan limit is 50). */
 export const CRON_SUBREQUEST_LIMIT = 45;
-/** Alert when the newest successful sync run is older than this. */
-export const SYNC_STALE_AFTER_MS = 60 * 60_000;
+/** Alert when the newest successful sync run is older than this (daily dispatch + slack). */
+export const SYNC_STALE_AFTER_MS = 26 * 3600_000;
 const EXPIRE_RESERVE = 20;
 const PRUNE_LIST_RESERVE = 5;
 const ALERT_RESERVE = 2;
@@ -47,26 +43,20 @@ export async function runScheduled(
     }
   };
   const t = new Date(scheduledTime);
-  const firstOfHour = t.getUTCMinutes() < 15;
   const expire = (max: number) => expireRequests(svc, max, () => budget.remaining() >= EXPIRE_RESERVE + ALERT_RESERVE);
   const prune = (max: number, rotate: number) => prunePagesProjects(svc, max, rotate, () => budget.remaining() - ALERT_RESERVE);
-  if (cron === CRON_DAILY) {
-    await step('health', () => healthCheck(svc, { alert: true }));
-    await step('expired', () => expire(2));
-    await step('pruned', () => prune(10, t.getUTCDate()));
-  } else {
-    await step('dispatched', () => dispatchSync(svc, { reason: 'cron' }, { alert: firstOfHour }));
-    await step('health', () => healthCheck(svc, { alert: firstOfHour && t.getUTCHours() % 6 === 0 }));
-    await step('expired', () => expire(1));
-    if (firstOfHour) await step('pruned', () => prune(8, t.getUTCHours()));
-  }
+  if (cron !== CRON_DAILY) console.warn(`unexpected cron "${cron}"; running the daily schedule`);
+  await step('dispatched', () => dispatchSync(svc, { reason: 'cron' }, { alert: true }));
+  await step('health', () => healthCheck(svc, { alert: true }));
+  await step('expired', () => expire(2));
+  await step('pruned', () => prune(10, t.getUTCDate()));
   out.subrequests = budget.used;
   return out;
 }
 
 /**
  * Sync health from the Actions API (the sync no longer writes timestamp-only heartbeats): alert when the newest
- * successful run of SYNC_WORKFLOW finished more than 60 min ago (or never), when `opts.alert`.
+ * successful run of SYNC_WORKFLOW finished more than 26 h ago (or never), when `opts.alert`.
  */
 export async function healthCheck(svc: Services, opts: { alert?: boolean } = {}): Promise<{ lastSuccessAt: string | null; stale: boolean }> {
   const run = await lastSuccessfulSync(svc);

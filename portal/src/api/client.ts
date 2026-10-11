@@ -3,7 +3,8 @@ import type {
   BanRequest,
   BannedDoc,
   IdAvailability,
-  MaintainersDoc,
+  MaintainersResponse,
+  MaintainerView,
   Me,
   ModerationAction,
   MyModule,
@@ -179,11 +180,18 @@ export class ApiClient {
   moderate(id: string, action: ModerationAction, reason: string): Promise<unknown> {
     return this.request('POST', `/api/admin/modules/${encodeURIComponent(id)}/${action}`, { reason });
   }
-  maintainers(): Promise<MaintainersDoc> {
+  maintainers(): Promise<MaintainersResponse> {
     return this.request('GET', '/api/admin/maintainers');
   }
-  saveMaintainers(doc: MaintainersDoc): Promise<unknown> {
-    return this.request('PUT', '/api/admin/maintainers', doc);
+  addMaintainer(login: string): Promise<MaintainerView> {
+    return this.request('POST', '/api/admin/maintainers', { login });
+  }
+  /** Bind (number) or clear (null) the maintainer's numeric Telegram user id. */
+  setMaintainerTelegram(githubId: number, telegramId: number | null): Promise<MaintainerView> {
+    return this.request('PATCH', `/api/admin/maintainers/${githubId}`, { telegramId });
+  }
+  removeMaintainer(githubId: number): Promise<{ removed: number }> {
+    return this.request('DELETE', `/api/admin/maintainers/${githubId}`);
   }
   banned(): Promise<BannedDoc> {
     return this.request('GET', '/api/admin/banned');

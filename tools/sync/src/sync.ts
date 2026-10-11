@@ -7,6 +7,7 @@ import { FatalError, LOCK_FILE, STATUS_FILE, loadDataDir, mergeModules, parseSta
 import type { Logger } from './log.ts';
 import { syncModule, type ModuleReport, type ModuleSyncDeps } from './module-sync.ts';
 import { mapLimit } from './pool.ts';
+import { STARS_REFRESH_MS, sameStars, starsAgeMs } from './stars.ts';
 import { checkRequest, type RequestCheckResult } from './request-check.ts';
 import { moduleStatus, wantsStatus } from './status-file.ts';
 
@@ -74,21 +75,35 @@ const SYNCED = new Set(['listed', 'suspended']);
 /** Lock entries are kept for these statuses (archived keeps the versionCode high-water marks). */
 const KEEP_LOCK = new Set(['listed', 'suspended', 'archived']);
 
-/** Lock entry without fields that only carry wall-clock time (attempt / success timestamps). */
+/** Lock entry without fields that only carry wall-clock time (attempt / success timestamps) or display-only stars. */
 function stableView(m: ModuleLock): string {
-  const { health, ...rest } = m;
+  const { health, stars: _stars, ...rest } = m;
   const { lastAttemptAt: _a, lastSuccessAt: _s, ...h } = health;
   return canonicalJson({ ...rest, health: h });
 }
 
 /**
- * A lock entry is persisted only when something substantive changed (content, releases, seen, marks, health
- * status / installation / message). There is no heartbeat: timestamp-only or ETag-only changes are dropped, and
- * lastSuccessAt / lastAttemptAt only move together with a substantive change or a health transition.
+ * The stars entry alone (count, counted repository, verification) is persisted only when the stored one is missing
+ * or at least STARS_REFRESH_MS old, or on a forced run of the module ("Sync now").
  */
-export function isMaterialChange(prev: ModuleLock | undefined, next: ModuleLock): boolean {
-  if (!prev) return true;
-  return stableView(prev) !== stableView(next);
+function starsDue(prev: ModuleLock, next: ModuleLock, now: Date, force: boolean): boolean {
+  if (!next.stars || sameStars(prev.stars, next.stars)) return false;
+  return force || !prev.stars || starsAgeMs(prev.stars, now) >= STARS_REFRESH_MS;
+}
+
+/**
+ * The lock entry to persist, or null when nothing needs persisting. An entry is persisted only when something
+ * substantive changed (content, releases, seen, marks, health status / installation / message). There is no
+ * heartbeat: timestamp-only or ETag-only changes are dropped, and lastSuccessAt / lastAttemptAt only move together
+ * with a substantive change or a health transition. The stars entry rides along with any such change; on its own
+ * it is persisted only when the stored entry is missing or >= 24 h old (or on a forced run), and then ONLY `stars`
+ * changes (health timestamps stay), so webhook-triggered runs never commit just for stars and status.json is
+ * untouched. A starsRepository verification change also changes the health note (status message) and is then
+ * persisted like any other change; verification itself only runs when the entry is due (see module-sync).
+ */
+export function lockToPersist(prev: ModuleLock | undefined, next: ModuleLock, now: Date, force = false): ModuleLock | null {
+  if (!prev || stableView(prev) !== stableView(next)) return next;
+  return starsDue(prev, next, now, force) ? { ...prev, stars: next.stars } : null;
 }
 
 const sameJson = (a: unknown, b: unknown) => canonicalJson(a ?? null) === canonicalJson(b ?? null);
@@ -121,9 +136,10 @@ export async function runSync(o: SyncOptions, d: SyncDeps): Promise<SyncReport> 
   const next: SourcesLock = { schemaVersion: 1, modules: { ...data.lock.modules } };
   const changed = new Set<string>();
   for (const { lock, report } of results) {
-    report.changed = isMaterialChange(data.lock.modules[lock.id], lock);
-    if (report.changed) {
-      next.modules[lock.id] = lock;
+    const persist = lockToPersist(data.lock.modules[lock.id], lock, now, lock.id === o.module);
+    report.changed = persist !== null;
+    if (persist) {
+      next.modules[lock.id] = persist;
       changed.add(lock.id);
     }
   }

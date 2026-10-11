@@ -357,6 +357,13 @@
         "lastAttemptAt": "2026-10-09T12:00:00Z",
         "lastSuccessAt": "2026-10-09T12:00:00Z",
         "message": null
+      },
+      "stars": {
+        "count": 1234,
+        "fetchedAt": "2026-10-09T12:00:00Z",
+        "repositoryId": 1001,
+        "fullName": "demo/toolbox",
+        "verified": "self"
       }
     }
   }

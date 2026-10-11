@@ -220,8 +220,24 @@ export function initialQueue(repos: Repo[], mods: MyModule[]): QueueItem[] {
 }
 
 export const initialMaintainers = (): Maintainer[] => [
-  { github: { id: 2001, login: 'kernelsu-maintainer' }, telegram: { id: 555000111, username: 'ksu_maint' } },
+  { github: { id: 2001, login: 'kernelsu-maintainer' }, telegram: { id: 555000111 } },
   { github: { id: 2002, login: 'second-maintainer' } },
+];
+
+/** GitHub accounts the mock "resolves" (GET /users/{login}, GET /user/{id}). Avatars stay empty (offline initials). */
+export interface MockGithubUser {
+  id: number;
+  login: string;
+  name: string | null;
+  type: 'User' | 'Organization' | 'Bot';
+}
+export const GITHUB_USERS: MockGithubUser[] = [
+  { id: 2001, login: 'kernelsu-maintainer', name: 'KernelSU Maintainer', type: 'User' },
+  { id: 2002, login: 'second-maintainer', name: null, type: 'User' },
+  { id: 1001, login: 'alice', name: 'Alice Liddell', type: 'User' },
+  { id: 583231, login: 'octocat', name: 'The Octocat', type: 'User' },
+  { id: 666, login: 'spammer', name: null, type: 'User' },
+  { id: 9919, login: 'github', name: 'GitHub', type: 'Organization' },
 ];
 
 export const initialBanned = (): BannedEntry[] => [{ githubId: 666, login: 'spammer', reason: 'Repeated spam submissions', by: 2001, at: ago(60 * 24 * 7) }];

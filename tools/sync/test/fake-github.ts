@@ -89,6 +89,8 @@ export interface FakeRepo {
   ownerId: number;
   defaultBranch: string;
   private?: boolean;
+  /** stargazers_count (default 0). */
+  stars?: number;
   branches: Record<string, string>;
   /** commit sha -> path -> content */
   commits: Record<string, Record<string, string | Uint8Array>>;
@@ -219,6 +221,9 @@ export class FakeGitHub {
     return [...this.repos.values()].find((x) => x.fullName.toLowerCase() === `${o}/${r}`.toLowerCase());
   }
 
+  /** Old full name (lowercase) -> repository id, for renamed repositories. */
+  renamed = new Map<string, number>();
+
   count(pred: (r: Req) => boolean): number {
     return this.requests.filter(pred).length;
   }
@@ -265,9 +270,16 @@ export class FakeGitHub {
       if (`${m[1]}/${m[2]}` === this.dataRepo.fullName) return json({ id: this.dataRepo.installationId, account: { id: 2, login: 'KernelSU-Modules' } });
       return notFound();
     }
+    const repoJson = (r: FakeRepo) =>
+      json({ id: r.id, full_name: r.fullName, default_branch: r.defaultBranch, owner: { id: r.ownerId }, private: !!r.private, archived: false, stargazers_count: r.stars ?? 0 });
     if ((m = p.match(/^\/repositories\/(\d+)$/))) {
       const r = this.repos.get(Number(m[1]));
-      return r ? json({ id: r.id, full_name: r.fullName, default_branch: r.defaultBranch, owner: { id: r.ownerId }, private: !!r.private, archived: false }) : notFound();
+      return r ? repoJson(r) : notFound();
+    }
+    if ((m = p.match(/^\/repos\/([^/]+)\/([^/]+)$/))) {
+      // Renamed repositories: GitHub answers 301 to /repositories/{id}; fetch follows it.
+      const r = this.repoByFull(m[1]!, m[2]!) ?? this.repos.get(this.renamed.get(`${m[1]}/${m[2]}`.toLowerCase()) ?? -1);
+      return r ? repoJson(r) : notFound();
     }
     if ((m = p.match(/^\/repositories\/(\d+)\/releases$/))) {
       const r = this.repos.get(Number(m[1]));

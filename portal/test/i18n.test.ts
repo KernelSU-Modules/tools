@@ -44,7 +44,7 @@ describe('i18n dictionaries', () => {
       moderate: ['suspend', 'unsuspend', 'archive'],
       severity: ['error', 'warning'],
       'id.invalid': ['empty', 'tooShort', 'tooLong', 'pattern'],
-      'maint.err': ['githubId', 'login', 'telegramId', 'duplicate', 'empty'],
+      'maint.err': ['githubId', 'login', 'telegramId', 'telegramTaken'],
     };
     for (const [prefix, names] of Object.entries(families)) for (const n of names) expect(en, `${prefix}.${n}`).toHaveProperty([`${prefix}.${n}`]);
   });

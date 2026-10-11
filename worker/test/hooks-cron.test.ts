@@ -123,16 +123,14 @@ describe('GitHub webhooks', () => {
 });
 
 describe('cron', () => {
-  it('*/15 dispatches the sync and alerts on dispatch failure from the :00 run only', async () => {
+  it('daily run dispatches the sync and alerts on dispatch failure', async () => {
     const h = await seeded();
-    h.world.now = Date.parse('2026-10-10T00:05:00Z');
-    await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T00:00:00Z'));
+    h.world.now = Date.parse('2026-10-10T03:20:00Z');
+    await runScheduled(h.svc, '17 3 * * *', Date.parse('2026-10-10T03:17:00Z'));
     expect(h.world.dispatches[0]!.inputs).toEqual({ reason: 'cron' });
     h.world.failDispatch = true;
     const alerts = () => h.world.telegram.filter((t) => t.method === 'sendMessage' && t.body.text.includes('dispatch failed'));
-    await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T00:15:00Z'));
-    expect(alerts()).toHaveLength(0); // :15 run never alerts (no shared cache in the cron Worker)
-    await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T01:00:00Z'));
+    await runScheduled(h.svc, '17 3 * * *', Date.parse('2026-10-11T03:17:00Z'));
     expect(alerts()).toHaveLength(1);
   });
 
@@ -186,32 +184,26 @@ describe('cron', () => {
     h.world.deployments = many('p');
     h.world.canonical = 'p0';
     h.world.pages.set('kernelsu-developer-portal', { canonical: 'q0', deployments: many('q') });
-    // :00 run of hour 1 -> budget 8, starting with the second project
-    const res = (await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T01:00:00Z'))) as any;
+    // day 11 -> budget 10, starting with the second project
+    const res = (await runScheduled(h.svc, '17 3 * * *', Date.parse('2026-10-11T03:17:00Z'))) as any;
     expect(res.pruned['kernelsu-developer-portal'].deleted).toHaveLength(7);
-    expect(res.pruned['kernelsu-modules-repo'].deleted).toHaveLength(1);
-    const later = (await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T01:15:00Z'))) as any;
-    expect(later.pruned).toBeUndefined();
+    expect(res.pruned['kernelsu-modules-repo'].deleted).toHaveLength(3);
   });
 
-  it('alerts when the last successful sync run (Actions API) is older than 60 min, gated by schedule', async () => {
+  it('alerts when the last successful sync run (Actions API) is older than 26 h', async () => {
     const h = await seeded();
     const run = (id: number, conclusion: string, at: string) => ({ id, status: 'completed', conclusion, created_at: at, updated_at: at, html_url: `https://github.com/r/${id}` });
-    h.world.workflowRuns = [run(3, 'failure', '2026-10-10T00:10:00Z'), run(2, 'success', '2026-10-09T22:50:00Z')];
-    h.world.now = Date.parse('2026-10-10T00:20:00Z');
+    h.world.workflowRuns = [run(3, 'failure', '2026-10-10T00:10:00Z'), run(2, 'success', '2026-10-09T00:50:00Z')];
+    h.world.now = Date.parse('2026-10-10T03:20:00Z');
     const stale = () => h.world.telegram.filter((t) => t.method === 'sendMessage' && t.body.text.includes('stale'));
-    // only the :00 run of every 6th hour (and the daily run) may alert
-    const r1 = (await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T01:00:00Z'))) as any;
-    expect(r1.health).toEqual({ lastSuccessAt: '2026-10-09T22:50:00Z', stale: true });
-    expect(stale()).toHaveLength(0);
-    await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T00:00:00Z'));
-    await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T00:15:00Z'));
+    const r1 = (await runScheduled(h.svc, '17 3 * * *', Date.parse('2026-10-10T03:17:00Z'))) as any;
+    expect(r1.health).toEqual({ lastSuccessAt: '2026-10-09T00:50:00Z', stale: true });
     expect(stale()).toHaveLength(1);
     expect(stale()[0]!.body.text).toContain('https://github.com/r/2');
-    // a recent success clears it
-    h.world.workflowRuns.unshift(run(4, 'success', '2026-10-10T00:05:00Z'));
-    const r2 = (await runScheduled(h.svc, '*/15 * * * *', Date.parse('2026-10-10T00:15:00Z'))) as any;
-    expect(r2.health).toEqual({ lastSuccessAt: '2026-10-10T00:05:00Z', stale: false });
+    // a success within the last 26 h clears it
+    h.world.workflowRuns.unshift(run(4, 'success', '2026-10-09T05:00:00Z'));
+    const r2 = (await runScheduled(h.svc, '17 3 * * *', Date.parse('2026-10-10T03:17:00Z'))) as any;
+    expect(r2.health).toEqual({ lastSuccessAt: '2026-10-09T05:00:00Z', stale: false });
     // never succeeded -> stale
     h.world.workflowRuns = [];
     expect(((await runScheduled(h.svc, '17 3 * * *', h.world.now)) as any).health).toEqual({ lastSuccessAt: null, stale: true });
@@ -229,7 +221,7 @@ describe('cron', () => {
     h.world.pages.set('kernelsu-developer-portal', { canonical: 'y', deployments: many('q') });
     h.world.workflowRuns = [{ id: 1, status: 'completed', conclusion: 'success', created_at: at(0), updated_at: at(0), html_url: 'u' }];
     let total = 0;
-    for (const cron of ['17 3 * * *', '*/15 * * * *']) {
+    for (const cron of ['17 3 * * *', '17 3 * * *']) {
       const budget = new SubrequestBudget(CRON_SUBREQUEST_LIMIT, h.world.fetch);
       // fresh isolate per invocation (cold caches: worst case)
       const svc = new Services(h.env, { fetch: budget.fetch, cache: new (h.cache.constructor as any)(new Map(), () => h.world.now), now: () => h.world.now });

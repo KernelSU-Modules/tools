@@ -38,11 +38,12 @@ count against the same 100k/day) — see "CPU notes".
 | `src/routes/api.ts` | developer API (`/api/me`, repos, precheck, preview, ids, submissions, transfers, modules, sync) |
 | `src/routes/admin.ts` | maintainer API (`/api/admin/*`) |
 | `src/routes/hooks.ts` | `/webhooks/github`, `/internal/telegram` (tgcloud forwarder), `/webhooks/telegram` (direct) |
-| `src/cron.ts` | `*/15` dispatch + health (Actions API) + expiry + hourly pruning, daily health + expiry + pruning (both Pages projects), all under a per-invocation subrequest budget |
+| `src/cron.ts` | Daily: dispatch + health (Actions API) + expiry + pruning (both Pages projects), under a per-invocation subrequest budget |
 | `src/lib/budget.ts` | `SubrequestBudget`: counting `fetch` with a hard cap (cron) |
 | `src/domain/actions.ts` | last successful sync run (Actions API, Bot token scoped to `actions` on `tools`) |
 | `src/domain/state.ts` | record state machine (pure; throws `PreconditionFailed`) |
 | `src/domain/ops.ts` | all writes: KernelSU Modules Bot + `commitWithRetry`, trailers, Telegram edits, dispatch |
+| `src/domain/maintainers.ts` | maintainers.yaml: list with cached GitHub profiles, add by login, bind Telegram id, remove (one Bot commit each) |
 | `src/domain/data.ts` | cached read model of the data repo (`KernelSU-Modules/repo`; snapshot per commit, `status.json` by blob sha, cron open-request scan) |
 | `src/domain/fastyaml.ts` | fast parser for the YAML subset records use (falls back to `yaml`) |
 | `src/domain/precheck.ts` | Portal precheck (API only: module.yaml, referenced paths, ID rules, latest release/asset) |
@@ -88,7 +89,7 @@ pnpm --filter @kernelsu-modules/portal build          # static files in ../porta
 pnpm --filter @kernelsu-modules/worker dev            # bundles _worker.js, then `wrangler pages dev` on http://localhost:8787
 # cron Worker (reads cron/.dev.vars): copy the Bot/Telegram/CF lines there, then
 pnpm --filter @kernelsu-modules/worker cron:dev
-curl "http://localhost:8790/__scheduled?cron=*/15+*+*+*+*"   # dispatches the real workflow of TOOLS_REPO!
+curl "http://localhost:8790/__scheduled?cron=17+3+*+*+*"   # dispatches the real workflow of TOOLS_REPO!
 ```
 
 `.dev.vars` is git-ignored. Point `DATA_REPO`/`TOOLS_REPO` at test repos: the Portal writes through the Bot.
@@ -163,19 +164,18 @@ the smoke benchmark only); zod (from `@kernelsu-modules/schema`) is the largest 
   it is read by blob sha (cached like the snapshot; a missing file = empty). "My modules" (`sync` field = the
   module's entry), `/api/admin/status` and the queue's `check` use it; `request` is only passed on while its
   `submissionId` matches the record's open request.
-- **Cron** (`kernelsu-developer-portal-cron`). `*/15`: dispatch `{reason: cron}`, sync health, expire ≤1 overdue request, and in the
-  :00 run prune ≤8 Pages deployments across `PAGES_PROJECTS` (shared budget, rotating start project). Daily
-  `17 3`: health, expire ≤2, prune ≤10. Health = Actions API: the newest successful run of `SYNC_WORKFLOW` on
-  `TOOLS_REPO` (`status=success`, `main`) older than 60 min (or none) → alert (the lock-based 2 h check is gone:
-  the sync no longer writes timestamp-only heartbeats). Expiry scans open requests with one GraphQL request and
+- **Cron** (`kernelsu-developer-portal-cron`), once a day at `17 3`: dispatch `{reason: cron}` (fallback for lost
+  webhooks — releases, Portal actions and decisions dispatch immediately), sync health, expire ≤2 overdue requests,
+  prune ≤10 Pages deployments across `PAGES_PROJECTS` (shared budget, rotating start project). Health = Actions
+  API: the newest successful run of `SYNC_WORKFLOW` on `TOOLS_REPO` (`status=success`, `main`) older than 26 h
+  (or none) → alert (the sync writes no timestamp-only heartbeats). Expiry scans open requests with one GraphQL request and
   parses only records with a top-level `request:` (no full snapshot: the cron Worker has no cache), commits with
   ≤2 attempts. Pruning keeps the newest 5 production deployments, everything < 30 days and the current
   production deployment of each project. **Subrequests:** every fetch goes through a `SubrequestBudget` (hard cap
   45 < 50); each expiry starts only with ≥22 left, each project listing with ≥8, each deletion with ≥3, so a
   backlog or commit retries end the run early and the next run continues (tests: daily run with 6 overdue
-  requests + 60 old deployments uses 38, `*/15` 28, all-conflicting commits 39). The cron Worker has no usable
-  Cache API (no zone), so its alerts are gated by schedule: dispatch failure only from the :00 run (≤1/h), sync
-  health only from the :00 run of every 6th hour and the daily run.
+  requests + 60 old deployments uses 38, all-conflicting commits 39). One run a day, so at most one alert of
+  each kind per day.
 - **`/api/repos`** spends at most 30 GitHub requests on `/user/installations` + per-installation repository
   pages (100 per page) and returns `{repos, truncated}`; `truncated: true` when something was left out (the SPA
   shows a notice).

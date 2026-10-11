@@ -143,6 +143,71 @@ describe('build (fixtures, offline)', () => {
     expect(meta.source.commit).toBe(COMMITS.metaOld);
   });
 
+  it('stars come from the lock (null when not recorded); explicit module.yaml authors win', () => {
+    const list = ApiModules.parse(readJson(out1, 'api/v1/modules.json'));
+    expect(list.modules.map((m) => [m.id, m.stars])).toEqual([['demo.meta', null], ['demo.toolbox', 1234]]);
+    const d = ApiModuleDetail.parse(readJson(out1, 'api/v1/modules/demo.toolbox.json'));
+    expect(d.stars).toBe(1234);
+    expect(d.starsRepository).toBe('demo/toolbox');
+    expect(d.authors).toEqual([{ name: 'Demo Author', url: 'https://github.com/demo' }]);
+    expect(ApiModuleDetail.parse(readJson(out1, 'api/v1/modules/demo.meta.json')).authors).toEqual([{ name: 'Meta Dev' }]);
+    const search = readJson(out1, 'search/en.json') as { modules: { id: string; stars: number | null }[] };
+    expect(search.modules.map((m) => [m.id, m.stars])).toEqual([['demo.meta', null], ['demo.toolbox', 1234]]);
+    // Site: compact count in the list row and on the detail page.
+    expect(read(out1, 'en/index.html')).toMatch(/data-stars="1234"[\s\S]*1\.2k/);
+    expect(read(out1, 'en/index.html')).toContain('data-stars="0"');
+    expect(read(out1, 'zh-CN/modules/demo.toolbox/index.html')).toMatch(/1\.2k/);
+    expect(read(out1, 'en/modules/demo.meta/index.html')).not.toContain('class="stars');
+  });
+
+  it('without module.yaml authors the repository owner is the author; stars changes follow into the output', async () => {
+    const files = repoFiles('demo/noauthor', ['module.yaml', 'README.md']);
+    const data = dataWith(
+      'data-noauthor',
+      (lock) => {
+        const t = lock.modules['demo.toolbox']!;
+        lock.modules['demo.noauthor'] = {
+          ...structuredClone(t),
+          id: 'demo.noauthor',
+          repositoryId: 1007,
+          fullName: 'demo/noauthor',
+          content: { ref: 'main', commit: COMMITS.noauthor, fetchedAt: '2026-10-02T00:00:00Z', manifestPath: 'module.yaml', files },
+          stars: { count: 7000, fetchedAt: '2026-10-09T12:00:00Z', repositoryId: 2007, fullName: 'demo/old-noauthor', verified: 'owner', requested: 'demo/old-noauthor' },
+        };
+      },
+      {
+        'demo.noauthor': {
+          id: 'demo.noauthor',
+          status: 'listed',
+          source: { host: 'github', repositoryId: 1007, ownerId: 507, fullName: 'demo/noauthor' },
+          createdAt: '2026-08-01T00:00:00Z',
+          updatedAt: '2026-08-01T00:00:00Z',
+        },
+      },
+    );
+    const out = path.join(tmp, 'dist-noauthor');
+    const res = await run({ dataDir: data, outDir: out });
+    expect(res.outcomes.find((x) => x.id === 'demo.noauthor')).toMatchObject({ status: 'ok' });
+    const d = ApiModuleDetail.parse(readJson(out, 'api/v1/modules/demo.noauthor.json'));
+    expect(d.authors).toEqual([{ name: 'demo', url: 'https://github.com/demo' }]);
+    // Stars from a verified starsRepository: the count and the repository it belongs to (linked on the page).
+    expect(d.stars).toBe(7000);
+    expect(d.starsRepository).toBe('demo/old-noauthor');
+    expect(ApiModules.parse(readJson(out, 'api/v1/modules.json')).modules.find((m) => m.id === 'demo.noauthor')!.authors).toEqual(d.authors);
+    const page = read(out, 'en/modules/demo.noauthor/index.html');
+    expect(page).toContain('href="https://github.com/demo" rel="nofollow noopener noreferrer"');
+    expect(page).toContain('href="https://github.com/demo/old-noauthor/stargazers"');
+    expect(page).toContain('7k');
+
+    // A stars-only lock change reaches the output, so it changes the buildId (a deploy).
+    const data2 = dataWith('data-stars', (lock) => {
+      lock.modules['demo.toolbox']!.stars = { count: 1300, fetchedAt: '2026-10-11T00:00:00Z', repositoryId: 1001, fullName: 'demo/toolbox', verified: 'self' };
+    });
+    const res2 = await run({ dataDir: data2, outDir: path.join(tmp, 'dist-stars') });
+    expect(res2.buildId).not.toBe(r1.buildId);
+    expect(ApiModuleDetail.parse(readJson(path.join(tmp, 'dist-stars'), 'api/v1/modules/demo.toolbox.json')).stars).toBe(1300);
+  }, 240_000);
+
   it('update.json points at the site-hosted raw changelog of the stable release', () => {
     const u = ApiUpdateJson.parse(readJson(out1, 'api/v1/modules/demo.toolbox/update.json'));
     expect(u).toEqual({

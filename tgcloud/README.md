@@ -17,8 +17,8 @@ button press ─▶ handlers/callback_query.js
                 (any failure → "Service unavailable, use the Portal";
                  no reply within 8 s → "Still processing. If the message does not update shortly, use the Portal.")
 
-"/suspend <id> <reason>" ─▶ handlers/message.js ─▶ same POST; the Worker replies via the Bot API.
-                             Any other message is ignored. On failure the bot replies with the fallback text.
+"/suspend <id> <reason>", "/whoami" ─▶ handlers/message.js ─▶ same POST; the Worker replies via the Bot API.
+                             (also "/cmd@ksudevbot") Any other message is ignored. On failure the bot replies with the fallback text.
 ```
 
 Only `callback_data` starting with `v1:` is forwarded; anything else is answered with
@@ -30,7 +30,7 @@ Only `callback_data` starting with `v1:` is forwarded; anything else is answered
 | --- | --- | --- |
 | `tgcloud.jsonc` | config | Project config (no Mini App → no `static` block) |
 | `tgcloud/handlers/callback_query.js` | yes | Button handler |
-| `tgcloud/handlers/message.js` | yes | `/suspend` command handler |
+| `tgcloud/handlers/message.js` | yes | `/suspend` and `/whoami` command handler |
 | `tgcloud/lib/forward.js` | yes | Forwarding logic (pure, dependency-injected, unit-tested) |
 | `tgcloud/lib/hmac.js` | yes | HMAC-SHA256: `crypto.subtle` if present, else pure-JS SHA-256 |
 | `tgcloud/lib/config.js` | yes | Portal URL default, path, timeout |
@@ -58,7 +58,7 @@ TG_FORWARD_SECRET=<same as worker .dev.vars> PORTAL_URL=http://127.0.0.1:8787 \
 
 The tests check the pure-JS and WebCrypto HMAC against `node:crypto`, the exact signed bytes, the
 fallback texts (HTTP error, network error, timeout), unknown `callback_data`, 200-char clamping, and the
-`/suspend` filter. HMAC interop with `verifySha256Signature` from `@kernelsu-modules/github` was checked too.
+`/suspend` / `/whoami` filter. HMAC interop with `verifySha256Signature` from `@kernelsu-modules/github` was checked too.
 
 ## Deploy
 

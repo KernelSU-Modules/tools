@@ -32,4 +32,11 @@ export function safeWebHref(url: string): string {
 /** Link text for an external URL: without the scheme. */
 export const displayUrl = (url: string): string => url.replace(/^https?:\/\//i, '');
 
+/** Compact count like GitHub: 999, 1k, 1.2k, 12.3k, 1.5M (deterministic, no ICU). */
+export function compactCount(n: number): string {
+  if (n < 1000) return String(n);
+  const [div, unit] = n < 999_950 ? [1000, 'k'] : [1_000_000, 'M'];
+  return `${(n / div).toFixed(1).replace(/\.0$/, '')}${unit}`;
+}
+
 export const shortSha = (sha: string): string => sha.slice(0, 12);

@@ -4,7 +4,8 @@ import { splitFullName } from '@kernelsu-modules/github';
 import { ReasonCode } from '@kernelsu-modules/schema';
 import { ApiError } from '../lib/errors.ts';
 import { deferrer, type AppEnv } from '../types.ts';
-import { ban, decide, maintainerByGithub, moderate, setMaintainers, unban } from '../domain/ops.ts';
+import { ban, decide, maintainerByGithub, moderate, unban } from '../domain/ops.ts';
+import { addMaintainer, listMaintainers, removeMaintainer, setMaintainerTelegram } from '../domain/maintainers.ts';
 import { requestExpired, type Actor } from '../domain/state.ts';
 import { newestSuccessAt } from '../domain/data.ts';
 import { indexOf } from '../domain/index.ts';
@@ -85,10 +86,24 @@ admin.post('/modules/:id/:action{suspend|unsuspend|archive}', async (c) => {
   return c.json(await moderate(c.var.svc, actor, c.req.param('id'), action, typeof b.reason === 'string' ? b.reason : '', deferrer(c)));
 });
 
-admin.get('/maintainers', async (c) => c.json((await c.var.svc.data.snapshot()).maintainers));
-admin.put('/maintainers', async (c) => {
+// maintainers.yaml: granular edits, one Bot commit each (see domain/maintainers.ts). GitHub lookups use the caller's token.
+admin.get('/maintainers', async (c) =>
+  c.json({ maintainers: await listMaintainers(c.var.svc, c.var.svc.userClient(c.var.session!.at)) }),
+);
+admin.post('/maintainers', async (c) => {
   const actor = await requireMaintainer(c);
-  return c.json(await setMaintainers(c.var.svc, actor, await body(c)));
+  const b = await body(c);
+  return c.json(await addMaintainer(c.var.svc, actor, c.var.svc.userClient(c.var.session!.at), b.login), 201);
+});
+admin.patch('/maintainers/:githubId{[0-9]+}', async (c) => {
+  const actor = await requireMaintainer(c);
+  const b = await body(c);
+  if (!('telegramId' in b)) throw new ApiError(400, 'bad-request', 'telegramId (number or null) is required');
+  return c.json(await setMaintainerTelegram(c.var.svc, actor, Number(c.req.param('githubId')), b.telegramId));
+});
+admin.delete('/maintainers/:githubId{[0-9]+}', async (c) => {
+  const actor = await requireMaintainer(c);
+  return c.json(await removeMaintainer(c.var.svc, actor, Number(c.req.param('githubId'))));
 });
 
 admin.get('/banned', async (c) => c.json((await c.var.svc.data.snapshot()).banned));

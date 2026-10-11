@@ -92,6 +92,30 @@ export const LockedContent = z
   })
   .strict();
 
+/**
+ * GitHub stargazers count shown for the module (display only; never affects health, validation or Check Runs).
+ * Refreshed from repository responses sync already reads (plus, for module.yaml `starsRepository`, one lookup of
+ * that repository and possibly of the App installation on it); persisted only when the module's lock entry changes
+ * anyway, when the stored entry is at least 24 hours old and differs, or on a forced run ("Sync now").
+ */
+export const LockedStars = z
+  .object({
+    count: z.number().int().nonnegative(),
+    /** When this entry was recorded (unchanged while nothing but the time would change). */
+    fetchedAt: IsoDateTime,
+    /** Repository the count belongs to (the bound repository unless a verified starsRepository is used). */
+    repositoryId: GitHubId,
+    fullName: z.string(),
+    /** self: the bound repository; owner: same owner as the bound repository; app: KernelSU Modules App installed on it. */
+    verified: z.enum(['self', 'owner', 'app']),
+    /** module.yaml `starsRepository` as written, when set. */
+    requested: z.string().optional(),
+    /** Why `requested` is not used (deterministic text); the count is then the bound repository's own. */
+    problem: z.string().max(300).optional(),
+  })
+  .strict();
+export type LockedStars = z.infer<typeof LockedStars>;
+
 export const ModuleLock = z
   .object({
     id: ModuleId,
@@ -116,6 +140,8 @@ export const ModuleLock = z
     /** releaseId (string) -> result; each releaseId is downloaded at most once. */
     seen: z.record(z.string(), SeenRelease),
     health: SyncHealth,
+    /** Absent: not recorded yet (e.g. entries written before stars were tracked). */
+    stars: LockedStars.optional(),
   })
   .strict();
 export type ModuleLock = z.infer<typeof ModuleLock>;

@@ -284,7 +284,7 @@ export function ExternalLink(props: AccessibleAnchorHTMLAttributes<HTMLAnchorEle
 }
 
 export function Avatar({ url, login, size = 32 }: { url?: string | undefined; login: string; size?: number }) {
-  const cls = `avatar${size < 32 ? ' sm' : ''}`;
+  const cls = `avatar${size < 32 ? ' sm' : size > 32 ? ' lg' : ''}`;
   if (!url || !url.startsWith('https://')) return <span class={`${cls} avatar-fallback`} aria-hidden="true">{login.slice(0, 1).toUpperCase()}</span>;
   return <img class={cls} src={url} alt="" width={size} height={size} loading="lazy" referrerpolicy="no-referrer" />;
 }

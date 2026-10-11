@@ -15,6 +15,10 @@ export interface Messages {
   sortLabel: string;
   sortUpdated: string;
   sortName: string;
+  sortStars: string;
+  stars: string;
+  starsTitle: (n: number) => string;
+  starsFrom: (repo: string) => string;
   modulesCount: (n: number) => string;
   noResults: string;
   metamodule: string;
@@ -100,6 +104,10 @@ const en: Messages = {
   sortLabel: 'Sort',
   sortUpdated: 'Recently updated',
   sortName: 'Name',
+  sortStars: 'Most stars',
+  stars: 'Stars',
+  starsTitle: (n) => `${n} ${n === 1 ? 'star' : 'stars'} on GitHub`,
+  starsFrom: (repo) => `of ${repo}`,
   modulesCount: (n) => (n === 1 ? '1 module' : `${n} modules`),
   noResults: 'No modules match your search.',
   metamodule: 'Metamodule',
@@ -186,6 +194,10 @@ const zhCN: Messages = {
   sortLabel: '排序',
   sortUpdated: '最近更新',
   sortName: '名称',
+  sortStars: '最多 Star',
+  stars: 'Star',
+  starsTitle: (n) => `GitHub 上有 ${n} 个 Star`,
+  starsFrom: (repo) => `来自 ${repo}`,
   modulesCount: (n) => `${n} 个模块`,
   noResults: '没有符合条件的模块。',
   metamodule: '元模块',

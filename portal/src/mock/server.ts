@@ -1,8 +1,9 @@
 /* MOCK-ONLY: in-browser implementation of the Worker JSON API. */
-import type { BannedEntry, IdAvailability, Maintainer, MyModule, PrecheckResult, QueueItem, Repo, ReasonCode } from '../api/types.ts';
+import type { BannedEntry, IdAvailability, Maintainer, MaintainerView, MyModule, PrecheckResult, QueueItem, Repo, ReasonCode } from '../api/types.ts';
 import {
   adminStatus,
   failingPrecheck,
+  GITHUB_USERS,
   initialBanned,
   initialMaintainers,
   initialModules,
@@ -93,6 +94,12 @@ function precheckFor(s: MockState, repositoryId: number): PrecheckResult {
   if (r.repositoryId === 100005) return noManifestPrecheck;
   const id = r.registeredId ?? r.fullName.split('/')[1]!.replace(/-/g, '_');
   return okPrecheck(id, r.fullName);
+}
+
+/** Enriched row (the Worker reads name / avatar / current login from GitHub; the mock from GITHUB_USERS). */
+function maintainerView(x: Maintainer): MaintainerView {
+  const u = GITHUB_USERS.find((g) => g.id === x.github.id);
+  return { githubId: x.github.id, login: u?.login ?? x.github.login, name: u?.name ?? null, avatarUrl: '', telegramId: x.telegram?.id ?? null };
 }
 
 /** Routes one request against the in-memory state. Exported for unit tests. */
@@ -259,12 +266,40 @@ export async function handle(s: MockState, method: string, url: URL, headers: He
       return json(200, { ok: true, status: mod.status });
     }
     if (path === '/api/admin/maintainers') {
-      if (method === 'GET') return json(200, { maintainers: s.maintainers });
-      if (method === 'PUT') {
-        const list = (b.maintainers as Maintainer[] | undefined) ?? [];
-        if (!Array.isArray(list) || list.length === 0) return err(400, 'bad-request', 'At least one maintainer is required');
-        s.maintainers = list;
-        return json(200, { ok: true });
+      if (method === 'GET') return json(200, { maintainers: s.maintainers.map(maintainerView) });
+      if (method === 'POST') {
+        const login = typeof b.login === 'string' ? b.login.trim().replace(/^@/, '') : '';
+        if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)) return err(400, 'bad-login', 'login must be a GitHub username.');
+        const u = GITHUB_USERS.find((x) => x.login.toLowerCase() === login.toLowerCase());
+        if (!u) return err(404, 'user-not-found', `GitHub user "${login}" was not found.`);
+        if (u.type !== 'User') return err(400, 'not-a-user', `@${u.login} is an organization; only personal accounts can be maintainers.`);
+        if (s.maintainers.some((x) => x.github.id === u.id)) return err(409, 'already-maintainer', `@${u.login} is already a maintainer`);
+        if (s.banned.some((x) => x.githubId === u.id)) return err(409, 'banned', `@${u.login} is banned`);
+        const added: Maintainer = { github: { id: u.id, login: u.login } };
+        s.maintainers.push(added);
+        return json(201, maintainerView(added));
+      }
+    }
+    if ((m = path.match(/^\/api\/admin\/maintainers\/(\d+)$/))) {
+      const id = Number(m[1]);
+      const cur = s.maintainers.find((x) => x.github.id === id);
+      if (method === 'PATCH') {
+        const tg = b.telegramId;
+        if (tg !== null && (typeof tg !== 'number' || !Number.isSafeInteger(tg) || tg <= 0))
+          return err(400, 'bad-telegram-id', 'telegramId must be a positive integer (the numeric Telegram user id) or null.');
+        if (!cur) return err(404, 'not-maintainer', `GitHub user #${id} is not a maintainer.`);
+        const owner = tg === null ? undefined : s.maintainers.find((x) => x !== cur && x.telegram?.id === tg);
+        if (owner) return err(409, 'telegram-taken', `Telegram user ${tg} is already bound to @${owner.github.login}`);
+        if (tg === null) delete cur.telegram;
+        else cur.telegram = { id: tg as number };
+        return json(200, maintainerView(cur));
+      }
+      if (method === 'DELETE') {
+        if (id === me.id) return err(400, 'cannot-remove-self', 'You cannot remove yourself; ask another maintainer.');
+        if (!cur) return err(404, 'not-maintainer', `GitHub user #${id} is not a maintainer.`);
+        if (s.maintainers.length <= 1) return err(409, 'last-maintainer', 'at least one maintainer is required');
+        s.maintainers = s.maintainers.filter((x) => x !== cur);
+        return json(200, { removed: id });
       }
     }
     if (path === '/api/admin/banned') {
