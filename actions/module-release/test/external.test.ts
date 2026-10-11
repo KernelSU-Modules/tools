@@ -4,7 +4,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POLICY } from '@kernelsu-modules/schema';
-import { expiryWarning, gitBlobSha, parseExpiry, readTagMessage } from '../src/external.ts';
+import { expiryWarning, gitBlobSha, parseExpiry, readTagMessage, WRITE_PROBE } from '../src/external.ts';
 import { ActionFailed, run } from '../src/main.ts';
 import { FakeGitHub, MANIFEST, fakeValidator, memoryLogger, moduleZip, readOutputs, tempDir, workspace } from './helpers.ts';
 
@@ -234,12 +234,28 @@ describe('external mode: preflight', () => {
     }
   });
 
-  it('warns when write access cannot be verified', async () => {
+  it('proves write access with an unreferenced probe blob', async () => {
     const t = setup();
     const { permissions: _p, ...info } = t.gh.repoInfo!;
     t.gh.repoInfo = info;
     await t.go();
-    expect(t.lines.join('\n')).toMatch(/Could not verify that the token can write/);
+    expect(t.gh.calls.filter((c) => c.method === 'POST' && c.url.pathname.endsWith('/git/blobs') && (c.body as { content?: string }).content === WRITE_PROBE)).toHaveLength(1);
+  });
+
+  it('fails before writing anything when the token cannot write to the target (e.g. scoped to the wrong repository)', async () => {
+    const t = setup();
+    t.gh.probeStatus = 403;
+    const e = await t.fail();
+    expect(e.message).toMatch(/cannot write to dist\/mod \(HTTP 403/);
+    expect(e.message).toMatch(/Repository access must include dist\/mod/);
+    expect(t.gh.writes()).toEqual([]);
+  });
+
+  it('detects a read-only token in a dry run too', async () => {
+    const t = setup({ inputs: { 'INPUT_DRY-RUN': 'true' } });
+    t.gh.probeStatus = 403;
+    await expect(t.fail()).resolves.toBeTruthy();
+    expect(t.gh.writes()).toEqual([]);
   });
 });
 
@@ -352,18 +368,19 @@ describe('token expiration', () => {
     expect(parseExpiry('nonsense')).toBeNull();
   });
 
-  it('warns only within 30 days', () => {
+  it('warns only within 14 days', () => {
     expect(expiryWarning(null, NOW)).toBeNull();
     expect(expiryWarning('2026-12-01 00:00:00 UTC', NOW)).toBeNull();
+    expect(expiryWarning(new Date(NOW + 20 * 86_400_000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC', NOW)).toBeNull();
     expect(expiryWarning('2026-10-21 00:00:00 UTC', NOW)).toMatch(/expires in 10 day/);
     expect(expiryWarning('2026-10-01 00:00:00 UTC', NOW)).toMatch(/has expired/);
   });
 
   it('emits a warning annotation from the preflight response', async () => {
     const t = setup();
-    t.gh.responseHeaders = { 'github-authentication-token-expiration': '2026-10-25 00:00:00 UTC' };
+    t.gh.responseHeaders = { 'github-authentication-token-expiration': '2026-10-21 00:00:00 UTC' };
     await t.go();
-    expect(t.lines.some((l) => l.startsWith('WARN[token-expiration]') && /expires in 14 day/.test(l))).toBe(true);
+    expect(t.lines.some((l) => l.startsWith('WARN[token-expiration]') && /expires in 10 day/.test(l))).toBe(true);
   });
 });
 

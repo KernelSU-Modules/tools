@@ -7,7 +7,7 @@ import { ModuleManifest } from '@kernelsu-modules/schema';
 import type { Logger } from '../src/actions.ts';
 import type { Issue, ReleaseLike, Validator } from '../src/validator-api.ts';
 import { createZip } from '../src/zip.ts';
-import { gitBlobSha } from '../src/external.ts';
+import { gitBlobSha, WRITE_PROBE } from '../src/external.ts';
 
 export function tempDir(prefix = 'kernelsu-mr-'): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -113,6 +113,8 @@ export const fakeValidator: Validator = {
   globMatch: (pattern, name) => globRe(pattern).test(name),
 };
 
+const isProbe = (c: Call) => c.method === 'POST' && /\/git\/blobs$/.test(c.url.pathname) && (c.body as { content?: string } | undefined)?.content === WRITE_PROBE;
+
 export interface Call {
   method: string;
   url: URL;
@@ -213,6 +215,7 @@ export class FakeGitHub {
       return json(200, { sha: m[1], tree: entries, truncated: false });
     }
     if (method === 'POST' && rest === 'blobs') {
+      if (body.content === WRITE_PROBE && this.probeStatus) return json(this.probeStatus, { message: 'Resource not accessible by personal access token' });
       const bytes = new Uint8Array(Buffer.from(body.content, body.encoding === 'base64' ? 'base64' : 'utf8'));
       const sha = gitBlobSha(bytes);
       this.blobs.set(sha, bytes);
@@ -377,8 +380,13 @@ export class FakeGitHub {
     return json(404, { message: `unhandled ${method} ${url}` });
   };
 
+  /** Answer the write-probe blob with this HTTP status (null = accept). */
+  probeStatus: number | null = null;
+
+  /** Visible writes (the write-probe blob is excluded: it is never referenced by anything). */
   writes(): string[] {
-    return this.calls.filter((c) => c.method !== 'GET' && c.method !== 'HEAD').map((c) => `${c.method} ${/\/assets$/.test(c.url.pathname) && c.method === 'POST' ? 'upload' : c.url.pathname}`);
+    return this.calls
+      .filter((c) => c.method !== 'GET' && c.method !== 'HEAD' && !isProbe(c)).map((c) => `${c.method} ${/\/assets$/.test(c.url.pathname) && c.method === 'POST' ? 'upload' : c.url.pathname}`);
   }
 }
 

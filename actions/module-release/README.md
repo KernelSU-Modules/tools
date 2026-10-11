@@ -116,7 +116,7 @@ In external mode the action:
    it is **public** and not archived; the token can push (`permissions.push`, a warning if GitHub does
    not report it); **release immutability** is enabled (a warning instead if the token may not read the
    setting — it is verified again after publishing); the default branch has a commit. Warns when the
-   token expires within 30 days (`github-authentication-token-expiration` header). Prints a reminder
+   token expires within 14 days (`github-authentication-token-expiration` header). Prints a reminder
    to install the KernelSU Modules App on the distribution repository (this cannot be checked with
    your token).
 2. **Metadata sync** (`sync-files: true`): reads `module.yaml` (`manifest`), the description

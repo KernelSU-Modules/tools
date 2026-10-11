@@ -19,7 +19,7 @@ import type { Issue } from './validator-api.ts';
 export const REPOSITORY_RE = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 export const APP_INSTALL_URL = 'https://github.com/apps/kernelsu-modules/installations/new';
 export const EXPIRY_HEADER = 'github-authentication-token-expiration';
-export const EXPIRY_WARN_DAYS = 30;
+export const EXPIRY_WARN_DAYS = 14;
 export const CLOSED_SOURCE_DOCS = 'https://developers.kernelsu.org/docs/closed-source';
 
 export interface Repo {
@@ -106,7 +106,6 @@ export async function preflight(gh: GitHubClient, target: Repo, log: Logger, now
   if (repo.archived) throw new ActionFailed(`${name} is archived and cannot receive new commits, tags or releases.`);
   if (repo.permissions && repo.permissions.push === false)
     throw new ActionFailed(`The token has no write access to ${name} (permissions.push is false). It needs Contents: Read and write on ${name}.`);
-  if (!repo.permissions) log.warning(`Could not verify that the token can write to ${name}; it needs Contents: Read and write.`);
   log.info(`Target repository ${repo.full_name}: public, default branch "${repo.default_branch}"`);
 
   // Release immutability: 200 {enabled} when readable; 404 = disabled (or, for non-admins, unreadable); 403 = no permission.
@@ -130,10 +129,30 @@ export async function preflight(gh: GitHubClient, target: Repo, log: Logger, now
       `${name} has no commits on its default branch "${repo.default_branch}". Initialize it first (e.g. create it with a README), then run again.`,
     );
 
+  await probeWrite(gh, target);
+
   log.notice(
     `Remember to install the KernelSU Modules GitHub App on ${name} (only on the distribution repository, not on your private source repository): ${APP_INSTALL_URL}`,
   );
   return { defaultBranch: repo.default_branch, head: ref.data.object.sha };
+}
+
+/** Content of the write probe: an unreferenced blob is invisible in the repository and garbage-collected by GitHub. */
+export const WRITE_PROBE = 'kernelsu-modules write probe\n';
+
+/**
+ * Proves the token can write to the target (also in dry runs): GET /repos reports the user's role, not what a
+ * fine-grained token was granted, so a token scoped to the wrong repository passes every read check above.
+ */
+async function probeWrite(gh: GitHubClient, target: Repo): Promise<void> {
+  const name = fullName(target);
+  const res = await gh.post<{ sha: string }>(`${repoPath(target)}/git/blobs`, { content: WRITE_PROBE, encoding: 'utf-8' }, { allow: [403, 404] });
+  if (res.status === 201 || res.status === 200) return;
+  throw new ActionFailed(
+    `The token cannot write to ${name} (HTTP ${res.status} creating a test blob). Edit the token: its Repository access must include ${name} ` +
+      `(and its Resource owner must be the owner of ${name}), with Contents: Read and write. For a repository owned by an organization, ` +
+      `the organization must allow fine-grained tokens (and approve this one if approval is required). See ${CLOSED_SOURCE_DOCS}#troubleshooting`,
+  );
 }
 
 /* ------------------------------------------------------------------ local metadata */

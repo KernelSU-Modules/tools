@@ -39168,7 +39168,7 @@ renderMarkdown('# w :+1:\n\n- [x] *a* https://example.com/x <b title="t">b</b>\n
 var REPOSITORY_RE = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 var APP_INSTALL_URL = "https://github.com/apps/kernelsu-modules/installations/new";
 var EXPIRY_HEADER = "github-authentication-token-expiration";
-var EXPIRY_WARN_DAYS = 30;
+var EXPIRY_WARN_DAYS = 14;
 var CLOSED_SOURCE_DOCS = "https://developers.kernelsu.org/docs/closed-source";
 var fullName = (r) => `${r.owner}/${r.repo}`;
 var repoPath = (r) => `/repos/${r.owner}/${r.repo}`;
@@ -39223,7 +39223,6 @@ async function preflight(gh, target, log2, now) {
   if (repo.archived) throw new ActionFailed(`${name} is archived and cannot receive new commits, tags or releases.`);
   if (repo.permissions && repo.permissions.push === false)
     throw new ActionFailed(`The token has no write access to ${name} (permissions.push is false). It needs Contents: Read and write on ${name}.`);
-  if (!repo.permissions) log2.warning(`Could not verify that the token can write to ${name}; it needs Contents: Read and write.`);
   log2.info(`Target repository ${repo.full_name}: public, default branch "${repo.default_branch}"`);
   const imm = await gh.get(`${repoPath(target)}/immutable-releases`, { allow: [403, 404] });
   const immDocs = "https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases";
@@ -39243,10 +39242,20 @@ async function preflight(gh, target, log2, now) {
     throw new ActionFailed(
       `${name} has no commits on its default branch "${repo.default_branch}". Initialize it first (e.g. create it with a README), then run again.`
     );
+  await probeWrite(gh, target);
   log2.notice(
     `Remember to install the KernelSU Modules GitHub App on ${name} (only on the distribution repository, not on your private source repository): ${APP_INSTALL_URL}`
   );
   return { defaultBranch: repo.default_branch, head: ref.data.object.sha };
+}
+var WRITE_PROBE = "kernelsu-modules write probe\n";
+async function probeWrite(gh, target) {
+  const name = fullName(target);
+  const res = await gh.post(`${repoPath(target)}/git/blobs`, { content: WRITE_PROBE, encoding: "utf-8" }, { allow: [403, 404] });
+  if (res.status === 201 || res.status === 200) return;
+  throw new ActionFailed(
+    `The token cannot write to ${name} (HTTP ${res.status} creating a test blob). Edit the token: its Repository access must include ${name} (and its Resource owner must be the owner of ${name}), with Contents: Read and write. For a repository owned by an organization, the organization must allow fine-grained tokens (and approve this one if approval is required). See ${CLOSED_SOURCE_DOCS}#troubleshooting`
+  );
 }
 function readRegular(workspace, rel) {
   const abs = join(workspace, rel);

@@ -149,7 +149,7 @@ publishing.
 
 ## Token rotation
 
-Fine-grained tokens expire. When the token expires within 30 days, the action prints a warning
+Fine-grained tokens expire. When the token expires within 14 days, the action prints a warning
 (from GitHub's `github-authentication-token-expiration` header). Before it expires, regenerate the
 token (or create a new one with the same settings) and update the `DIST_REPO_TOKEN` secret. An
 expired token makes the run fail with HTTP 401 before anything is written.
@@ -177,6 +177,29 @@ the workflow:
 ```
 
 The tokens expire after an hour, so there is nothing to rotate except the private key.
+
+## Troubleshooting
+
+- **"The token cannot write to … (HTTP 403 creating a test blob)"** or `Resource not accessible by
+  personal access token`: the token can read the public distribution repository (anyone can), but
+  was not granted access to it. Open the token in GitHub → Settings → Developer settings → Personal
+  access tokens and check that
+  - *Resource owner* is the owner of the distribution repository (for an organization repository,
+    the organization — not your personal account);
+  - *Repository access* lists the **distribution** repository (an easy mistake is selecting the
+    source repository instead);
+  - *Contents* is **Read and write**.
+
+  For a repository owned by an organization, the organization must also allow fine-grained tokens
+  (organization Settings → Personal access tokens) and approve the token if approval is required;
+  the token then appears under *Active tokens*. The action checks write access with an unreferenced
+  test blob, so a dry run catches all of these before anything is published.
+- **"Could not check whether release immutability is enabled"**: the token has no
+  *Administration: Read-only* permission. Harmless — make sure immutability is enabled in the
+  distribution repository's settings; the action still verifies the published release.
+- **The release is published but KernelSU Modules shows nothing**: the distribution repository has
+  not been submitted in the Developer Portal yet, or the KernelSU Modules App is not installed on it
+  (only releases of registered repositories are picked up).
 
 ## What not to do
 

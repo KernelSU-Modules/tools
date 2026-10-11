@@ -104,7 +104,7 @@ release notes 会作为该版本的更新日志展示。发布后仍可在 GitHu
 
 ## 令牌轮换 {#token-rotation}
 
-Fine-grained token 会过期。当 token 将在 30 天内过期时，action 会给出警告（依据 GitHub 的 `github-authentication-token-expiration` 响应头）。请在过期前重新生成 token（或用相同设置新建一个），并更新 `DIST_REPO_TOKEN` secret。token 过期后，运行会在写入任何内容之前以 HTTP 401 失败。
+Fine-grained token 会过期。当 token 将在 14 天内过期时，action 会给出警告（依据 GitHub 的 `github-authentication-token-expiration` 响应头）。请在过期前重新生成 token（或用相同设置新建一个），并更新 `DIST_REPO_TOKEN` secret。token 过期后，运行会在写入任何内容之前以 HTTP 401 失败。
 
 ### 替代方案：你自己的 GitHub App
 
@@ -126,6 +126,17 @@ Fine-grained token 会过期。当 token 将在 30 天内过期时，action 会�
 ```
 
 这类 token 一小时后就会过期，除私钥外无需轮换。
+
+## 常见问题 {#troubleshooting}
+
+- **"The token cannot write to …（HTTP 403 creating a test blob）"**，或 `Resource not accessible by personal access token`：token 能读取公开的发布仓库（任何人都能读），但没有获得这个仓库的访问权。打开 GitHub → Settings → Developer settings → Personal access tokens 中的这个 token，检查：
+  - *Resource owner* 是发布仓库的所有者（组织下的仓库要选组织，而不是个人账号）；
+  - *Repository access* 里选的是**发布仓库**（常见错误是选成了源码仓库）；
+  - *Contents* 为 **Read and write**。
+
+  组织名下的仓库，还需要组织允许 fine-grained token（组织 Settings → Personal access tokens），如果要求审批则需批准该 token，批准后它会出现在 *Active tokens* 列表中。action 会用一个不被引用的测试 blob 检查写权限，所以 dry run 就能在发布前发现这些问题。
+- **"Could not check whether release immutability is enabled"**：token 没有 *Administration: Read-only* 权限。不影响发布，只需确认发布仓库设置中已开启 immutability；action 仍会校验发布后的 release。
+- **release 已发布，但 KernelSU Modules 上没有显示**：发布仓库还没有在开发者门户提交，或者发布仓库上没有安装 KernelSU Modules App（只处理已登记仓库的 release）。
 
 ## 不要这样做
 
