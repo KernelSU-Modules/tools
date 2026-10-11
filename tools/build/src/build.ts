@@ -59,7 +59,7 @@ export interface BuildOptions {
   outDir: string;
   cacheDir?: string;
   baseUrl?: string;
-  /** Data repo commit (index.json registryCommit only; not part of the buildId). Defaults to $DATA_COMMIT or git HEAD. */
+  /** Data repo commit (index.json repoCommit only; not part of the buildId). Defaults to $DATA_COMMIT or git HEAD. */
   dataCommit?: string;
   portalUrl?: string;
   /** Network access (injectable for tests). Default: SSRF-guarded node:https. */
@@ -89,7 +89,7 @@ export interface ModuleOutcome {
 
 export interface BuildResult {
   buildId: string;
-  registryCommit: string;
+  repoCommit: string;
   generatedAt: string;
   fileCount: number;
   outcomes: ModuleOutcome[];
@@ -789,7 +789,7 @@ export async function build(opts: BuildOptions): Promise<BuildResult> {
   add('api/v1/modules.json', json(modules));
   add(
     'api/v1/index.json',
-    json(ApiIndex.parse({ schemaVersion: API_SCHEMA_VERSION, buildId, registryCommit: dataCommit, generatedAt, modules: 'api/v1/modules.json' })),
+    json(ApiIndex.parse({ schemaVersion: API_SCHEMA_VERSION, buildId, repoCommit: dataCommit, generatedAt, modules: 'api/v1/modules.json' })),
   );
 
   const siteModules: SiteModule[] = builds.map((mb) => ({ detail: mb.detail, readme: mb.readme }));
@@ -821,8 +821,8 @@ export async function build(opts: BuildOptions): Promise<BuildResult> {
     buildId,
     builder: BUILDER_VERSION,
     // Informational: the data commit this dist was built from. A later data commit with the same buildId is not
-    // deployed, so the live registryCommit (here and in api/v1/index.json) may lag behind the data repo.
-    registryCommit: dataCommit,
+    // deployed, so the live repoCommit (here and in api/v1/index.json) may lag behind the data repo.
+    repoCommit: dataCommit,
     generatedAt,
     inputs: {
       lockSha256: inputs.lockSha256,
@@ -848,5 +848,5 @@ export async function build(opts: BuildOptions): Promise<BuildResult> {
   await rm(out, { recursive: true, force: true });
   await rename(staging, out);
 
-  return { buildId, registryCommit: dataCommit, generatedAt, fileCount, outcomes, warnings: b.warnings };
+  return { buildId, repoCommit: dataCommit, generatedAt, fileCount, outcomes, warnings: b.warnings };
 }

@@ -120,7 +120,7 @@ jobs:
           SYNC_COMMIT: ${{ steps.sync.outputs.commit }}
         run: |
           # Sync commits the lock through the API, so the local checkout is behind. Build from the
-          # remote head so buildId / registryCommit match the data actually published.
+          # remote head so buildId / repoCommit match the data actually published.
           git -C data fetch --depth=1 origin main
           git -C data reset --hard FETCH_HEAD
           head=$(git -C data rev-parse HEAD)

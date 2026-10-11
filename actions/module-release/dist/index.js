@@ -27644,7 +27644,7 @@ var ApiPath = external_exports.string().regex(/^[A-Za-z0-9._\-/]+$/).refine((p) 
 var ApiIndex = external_exports.object({
   schemaVersion: external_exports.literal(API_SCHEMA_VERSION),
   buildId: BuildId,
-  registryCommit: GitSha,
+  repoCommit: GitSha,
   generatedAt: IsoDateTime,
   /** "api/v1/modules.json" */
   modules: ApiPath

@@ -10,7 +10,7 @@
       "type": "string",
       "pattern": "^[0-9a-f]{16,64}$"
     },
-    "registryCommit": {
+    "repoCommit": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
     },
@@ -27,7 +27,7 @@
   "required": [
     "schemaVersion",
     "buildId",
-    "registryCommit",
+    "repoCommit",
     "generatedAt",
     "modules"
   ]

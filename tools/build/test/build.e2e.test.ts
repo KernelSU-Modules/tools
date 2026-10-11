@@ -80,11 +80,11 @@ describe('build (fixtures, offline)', () => {
   it('buildId depends on the output-relevant inputs only, not on the data commit', () => {
     expect(r1.buildId).toMatch(/^[0-9a-f]{16}$/);
     expect(r2.buildId).toBe(r1.buildId);
-    expect(r2.registryCommit).toBe('e'.repeat(40));
-    expect(ApiIndex.parse(readJson(out2, 'api/v1/index.json')).registryCommit).toBe('e'.repeat(40));
+    expect(r2.repoCommit).toBe('e'.repeat(40));
+    expect(ApiIndex.parse(readJson(out2, 'api/v1/index.json')).repoCommit).toBe('e'.repeat(40));
   });
 
-  it('is deterministic: identical file set and digests across runs (except the informational registryCommit)', () => {
+  it('is deterministic: identical file set and digests across runs (except the informational repoCommit)', () => {
     const files = walk(out1).filter((f) => f !== 'build-manifest.json').sort();
     expect(walk(out2).filter((f) => f !== 'build-manifest.json').sort()).toEqual(files);
     for (const f of files) if (f !== 'api/v1/index.json') expect(read(out2, f), f).toBe(read(out1, f));
@@ -98,7 +98,7 @@ describe('build (fixtures, offline)', () => {
 
   it('API outputs validate against the schemas', () => {
     const index = ApiIndex.parse(readJson(out1, 'api/v1/index.json'));
-    expect(index).toMatchObject({ schemaVersion: 1, buildId: r1.buildId, registryCommit: DATA_COMMIT, modules: 'api/v1/modules.json' });
+    expect(index).toMatchObject({ schemaVersion: 1, buildId: r1.buildId, repoCommit: DATA_COMMIT, modules: 'api/v1/modules.json' });
     expect(index.generatedAt).toBe('2026-10-09T12:00:00Z');
     const list = ApiModules.parse(readJson(out1, index.modules));
     expect(list.modules.map((m) => m.id)).toEqual(['demo.meta', 'demo.toolbox']);
