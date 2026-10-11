@@ -65,19 +65,27 @@ export interface Messages {
   mainNav: string;
   searchResults: string;
   never: string;
-  heroTitle: string;
-  heroAccent: string;
-  heroTagline: string;
-  viewDetails: string;
   latestVersion: string;
-  moduleDetails: string;
   moduleId: string;
-  sourceCode: string;
   noModulesTitle: string;
   noModulesText: string;
   searchNoMatch: (q: string) => string;
   verifyTitle: string;
-  breadcrumbModules: string;
+  listSubtitle: (n: number) => string;
+  publishModule: string;
+  allModules: string;
+  filterPlaceholder: string;
+  updatedPrefix: string;
+  latest: string;
+  viewAllReleases: string;
+  assets: string;
+  about: string;
+  links: string;
+  moduleSections: string;
+  developerPortal: string;
+  footerPublish: string;
+  skipToContent: string;
+  versionCode: string;
 }
 
 const en: Messages = {
@@ -143,25 +151,33 @@ const en: Messages = {
   mainNav: 'Main',
   searchResults: 'Search results',
   never: 'never',
-  heroTitle: 'Discover Modules',
-  heroAccent: 'for KernelSU',
-  heroTagline: 'Modules published by their authors as immutable GitHub releases, indexed by KernelSU Modules.',
-  viewDetails: 'View details',
   latestVersion: 'Latest version',
-  moduleDetails: 'Module details',
   moduleId: 'Module ID',
-  sourceCode: 'Source code',
   noModulesTitle: 'No modules yet',
   noModulesText: 'Check back later for new additions.',
   searchNoMatch: (q) => `No modules found matching “${q}”`,
   verifyTitle: 'Verify it yourself',
-  breadcrumbModules: 'Modules',
+  listSubtitle: (n) => `${n === 1 ? '1 module' : `${n} modules`}, published by their authors as immutable GitHub releases.`,
+  publishModule: 'Publish a module',
+  allModules: 'All modules',
+  filterPlaceholder: 'Find a module…',
+  updatedPrefix: 'Updated',
+  latest: 'Latest',
+  viewAllReleases: 'View all releases',
+  assets: 'Assets',
+  about: 'About',
+  links: 'Links',
+  moduleSections: 'Module sections',
+  developerPortal: 'KernelSU Developer Portal',
+  footerPublish: 'Publishing a module? Use the',
+  skipToContent: 'Skip to content',
+  versionCode: 'Version code',
 };
 
 const zhCN: Messages = {
   langName: '简体中文',
   siteTitle: 'KernelSU 模块',
-  siteDescription: 'KernelSU 模块仓库：模块直接来自作者的 GitHub 仓库，以不可变 Release 发布。',
+  siteDescription: 'KernelSU 模块：模块直接来自作者的 GitHub 仓库，以不可变 Release 发布。',
   navModules: '模块',
   navDevelopers: '开发者',
   searchPlaceholder: '搜索模块…',
@@ -202,7 +218,7 @@ const zhCN: Messages = {
   attestation: 'Attestation',
   verify: '校验',
   transparency: '透明度',
-  transparencyNote: '仓库不对模块签名，也不审计模块代码。SHA-256 只证明下载内容与本索引一致。可使用 GitHub CLI 自行复核：',
+  transparencyNote: 'KernelSU 模块不对模块签名，也不审计模块代码。SHA-256 只证明下载内容与本索引一致。可使用 GitHub CLI 自行复核：',
   releases: '历史版本',
   changelog: '更新日志',
   noChangelog: '没有更新说明。',
@@ -210,7 +226,7 @@ const zhCN: Messages = {
   noReadme: '作者未提供介绍。',
   backToList: '全部模块',
   notFoundTitle: '页面不存在',
-  notFoundText: '你访问的页面不存在，该模块可能已从仓库中移除。',
+  notFoundText: '你访问的页面不存在，该模块可能已从 KernelSU 模块中移除。',
   language: '语言',
   footer: '模块内容归其作者所有，收录不代表认可。',
   lastSync: '最近同步到变更',
@@ -220,19 +236,27 @@ const zhCN: Messages = {
   mainNav: '主导航',
   searchResults: '搜索结果',
   never: '从未',
-  heroTitle: '发现模块',
-  heroAccent: '为 KernelSU 打造',
-  heroTagline: '模块由作者以不可变 GitHub Release 发布，并由 KernelSU 模块仓库收录。',
-  viewDetails: '查看详情',
   latestVersion: '最新版本',
-  moduleDetails: '模块信息',
   moduleId: '模块 ID',
-  sourceCode: '源代码',
   noModulesTitle: '暂无模块',
   noModulesText: '稍后再来看看吧。',
   searchNoMatch: (q) => `没有找到与“${q}”匹配的模块`,
   verifyTitle: '自行复核',
-  breadcrumbModules: '模块',
+  listSubtitle: (n) => `共 ${n} 个模块，由作者以不可变 GitHub Release 发布。`,
+  publishModule: '发布模块',
+  allModules: '全部模块',
+  filterPlaceholder: '查找模块…',
+  updatedPrefix: '更新于',
+  latest: '最新',
+  viewAllReleases: '查看全部版本',
+  assets: '文件',
+  about: '关于',
+  links: '链接',
+  moduleSections: '模块内容',
+  developerPortal: 'KernelSU 开发者门户',
+  footerPublish: '想发布模块？请前往',
+  skipToContent: '跳到主要内容',
+  versionCode: '版本代码',
 };
 
 export const MESSAGES: Record<UiLocale, Messages> = { en, 'zh-CN': zhCN };

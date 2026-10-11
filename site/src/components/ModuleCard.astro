@@ -2,7 +2,7 @@
 import type { ApiModuleDetail } from '@kernelsu-modules/schema';
 import { MESSAGES, type UiLocale } from '../lib/i18n.ts';
 import { detailUrl } from '../lib/data.ts';
-import { date } from '../lib/format.ts';
+import { date, safeHref, safeWebHref } from '../lib/format.ts';
 import Badges from './Badges.astro';
 import ModuleIcon from './ModuleIcon.astro';
 
@@ -14,54 +14,38 @@ const { module: d, ui } = Astro.props;
 const m = MESSAGES[ui];
 const authors = d.authors.slice(0, 3).map((a) => a.name);
 const moreAuthors = d.authors.length > 3;
+const ext = { rel: 'nofollow noopener noreferrer' };
+const href = `/${detailUrl(ui, d.id)}`;
 ---
 
-<li class="module-card" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-updated={d.updatedAt}>
-  <a
-    href={`/${detailUrl(ui, d.id)}`}
-    class="group relative flex h-full flex-col rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 hover:border-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-900 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300"
-  >
-    <div class="flex items-start gap-4 mb-3">
-      <ModuleIcon module={d} name={d.name} />
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1 min-w-0">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-            {d.name}
-          </h2>
-          <Badges module={d} m={m} />
-        </div>
-        <p class="font-mono text-xs text-gray-500 dark:text-slate-500 truncate">{d.id}</p>
-        <div class="text-sm text-gray-500 dark:text-slate-400 mt-1 space-y-0.5">
-          {
-            authors.length > 0 && (
-              <div class="flex items-center gap-1 min-w-0">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <span class="truncate">{authors.join(', ')}{moreAuthors && ', …'}</span>
-              </div>
-            )
-          }
-          <div class="flex items-center gap-1">
-            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+<li class="module-card grid grid-cols-[32px_minmax(0,1fr)] gap-x-3 gap-y-3 border-t border-line-muted p-4 first:border-t-0 sm:grid-cols-[32px_minmax(0,1fr)_auto]" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-updated={d.updatedAt}>
+  <ModuleIcon module={d} name={d.name} size="sm" />
+  <div class="min-w-0">
+    <div class="mb-1.5 flex min-w-0 flex-wrap items-center gap-2">
+      <h3 class="min-w-0 text-lg leading-tight font-semibold break-words"><a href={href} class="link">{d.name}</a></h3>
+      <span class="label max-w-full break-all whitespace-normal">{d.id}</span>
+      <Badges module={d} m={m} />
+    </div>
+    {d.summary && <p class="line-clamp-3 text-muted">{d.summary}</p>}
+    <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
+      <span class="label label-success" title={m.latestVersion}>{d.stable.version}</span>
+      {
+        authors.length > 0 && (
+          <span class="inline-flex min-w-0 items-center gap-1">
+            <svg class="h-3.5 w-3.5 flex-none" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M10.561 8.073a6.005 6.005 0 0 1 3.432 5.142.75.75 0 1 1-1.498.07 4.5 4.5 0 0 0-8.99 0 .75.75 0 0 1-1.498-.07 6.004 6.004 0 0 1 3.431-5.142 3.999 3.999 0 1 1 5.123 0ZM10.5 5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"></path>
             </svg>
-            <time datetime={d.updatedAt}>{date(d.updatedAt)}</time>
-          </div>
-        </div>
-      </div>
+            <span class="sr-only">{m.authors}:</span>
+            <span class="truncate">{authors.join(', ')}{moreAuthors && ', …'}</span>
+          </span>
+        )
+      }
+      {d.license && <span>{d.license}</span>}
+      <span>{m.updatedPrefix} <time datetime={d.updatedAt} data-relative>{date(d.updatedAt)}</time></span>
     </div>
-    <p class="text-gray-600 dark:text-slate-300 text-sm line-clamp-2 mb-4 flex-1">{d.summary}</p>
-    <div class="flex items-center justify-between mt-auto pt-3 border-t border-gray-100 dark:border-slate-800/50">
-      <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
-        {d.stable.version}
-      </span>
-      <span class="text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
-        {m.viewDetails}
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-        </svg>
-      </span>
-    </div>
-  </a>
+  </div>
+  <div class="col-start-2 flex flex-wrap items-start gap-2 sm:col-start-3 sm:row-start-1">
+    {d.homepage && <a href={safeWebHref(d.homepage)} {...ext} class="btn btn-sm">{m.homepage}</a>}
+    <a href={safeHref(d.source.url)} {...ext} class="btn btn-sm">{m.source}</a>
+  </div>
 </li>

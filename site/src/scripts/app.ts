@@ -146,18 +146,15 @@ function headerSearch(): void {
     if (!hits.length) return show([], (body.dataset['noMatch'] ?? '').replace('{q}', q));
     show(
       hits.map(({ item }, i) => {
-        const a = el('a', 'block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors group');
+        const a = el('a', 'block border-b border-line-muted px-3 py-2.5 last:border-b-0 hover:bg-accent-subtle');
         a.href = `/${item.url}`;
         a.id = `site-search-option-${i}`;
         a.setAttribute('role', 'option');
         a.setAttribute('aria-selected', 'false');
         a.tabIndex = -1;
         const title = el('div', 'flex items-baseline justify-between gap-2');
-        title.append(
-          el('span', 'font-medium text-gray-900 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate', item.name),
-          el('span', 'text-xs text-gray-400 dark:text-slate-500 flex-none', item.version),
-        );
-        a.append(title, el('div', 'text-xs text-gray-500 dark:text-slate-500 line-clamp-1 mt-0.5', item.summary || item.id));
+        title.append(el('strong', 'truncate font-semibold text-fg', item.name), el('span', 'flex-none text-xs text-muted', item.version));
+        a.append(title, el('div', 'mt-0.5 line-clamp-2 text-xs text-muted', item.summary || item.id));
         return a;
       }),
       String(hits.length),
@@ -180,6 +177,13 @@ function headerSearch(): void {
   });
   document.addEventListener('click', (e) => {
     if (e.target instanceof Node && !input.contains(e.target) && !popup.contains(e.target)) hide();
+  });
+  // "/" focuses the search box (as on GitHub) unless the user is typing somewhere.
+  document.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || t?.closest('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    input.focus();
   });
 }
 
@@ -247,7 +251,10 @@ function listFilter(): void {
     }
     for (const [id, li] of cards) if (!shown.has(id)) li.hidden = true;
     const n = shown.size;
-    if (count) count.textContent = n === 1 ? (count.dataset['one'] ?? '1') : (count.dataset['many'] ?? '{n}').replace('{n}', String(n));
+    if (count) {
+      count.textContent = String(n);
+      count.title = n === 1 ? (count.dataset['one'] ?? '1') : (count.dataset['many'] ?? '{n}').replace('{n}', String(n));
+    }
     if (empty) empty.hidden = n !== 0;
     try {
       const url = new URL(location.href);
@@ -263,6 +270,8 @@ function listFilter(): void {
     if (!s?.entries.length) return;
     fuse = s.fuse;
     entries = s.entries;
+    const tools = document.getElementById('list-tools');
+    if (tools) tools.hidden = false;
     const q = new URLSearchParams(location.search).get('q');
     if (q) input.value = q;
     input.addEventListener('input', update);
@@ -272,8 +281,130 @@ function listFilter(): void {
   });
 }
 
+/** "Updated 2026-10-02" -> "Updated 3 days ago" (the static date stays in the title). */
+function relativeTimes(): void {
+  if (typeof Intl === 'undefined' || !Intl.RelativeTimeFormat) return;
+  const fmt = new Intl.RelativeTimeFormat(document.documentElement.lang || undefined, { numeric: 'auto' });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['year', 31_536_000],
+    ['month', 2_592_000],
+    ['week', 604_800],
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+  for (const t of document.querySelectorAll<HTMLTimeElement>('time[data-relative]')) {
+    const when = Date.parse(t.dateTime);
+    if (Number.isNaN(when)) continue;
+    const secs = Math.max(0, (Date.now() - when) / 1000);
+    const unit = units.find(([, n]) => secs >= n);
+    t.title = t.textContent ?? '';
+    t.textContent = unit ? fmt.format(-Math.floor(secs / unit[1]), unit[0]) : fmt.format(0, 'minute');
+  }
+}
+
+/** <details class="dropdown"> menus: close on outside click and on Escape (focus back to the toggle). */
+function dropdowns(): void {
+  const menus = Array.from(document.querySelectorAll<HTMLDetailsElement>('details.dropdown'));
+  document.addEventListener('click', (e) => {
+    for (const d of menus) if (d.open && e.target instanceof Node && !d.contains(e.target)) d.open = false;
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    for (const d of menus) {
+      if (!d.open) continue;
+      d.open = false;
+      d.querySelector('summary')?.focus();
+    }
+  });
+}
+
+/**
+ * Module page: the in-page links of #module-tabs become ARIA tabs (one panel at a time). Arrow keys / Home / End
+ * move between tabs; the URL hash selects the tab holding its target. Without JS every panel stays visible.
+ */
+function moduleTabs(): void {
+  const nav = document.getElementById('module-tabs');
+  const box = document.getElementById('module-panels');
+  if (!nav || !box) return;
+  const tabs = Array.from(nav.querySelectorAll<HTMLAnchorElement>('a[data-tab]'));
+  const panels = tabs.map((t) => document.getElementById(t.dataset['tab'] ?? ''));
+  if (!tabs.length || panels.some((p) => !p)) return;
+  nav.setAttribute('role', 'tablist');
+  box.classList.add('tabs-ready');
+  tabs.forEach((t, i) => {
+    const p = panels[i]!;
+    t.id = `tab-${p.id}`;
+    t.setAttribute('role', 'tab');
+    t.setAttribute('aria-controls', p.id);
+    p.setAttribute('role', 'tabpanel');
+    p.setAttribute('aria-labelledby', t.id);
+  });
+  const select = (i: number) => {
+    tabs.forEach((t, j) => {
+      t.setAttribute('aria-selected', i === j ? 'true' : 'false');
+      t.tabIndex = i === j ? 0 : -1;
+      panels[j]!.hidden = i !== j;
+    });
+  };
+  const hashTarget = (): HTMLElement | null => {
+    try {
+      return location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    } catch {
+      return null; // malformed hash
+    }
+  };
+  /** Tab index for the current hash (a panel id or an anchor inside a panel), or -1. */
+  const fromHash = () => {
+    const target = hashTarget();
+    return target ? panels.findIndex((p) => p!.contains(target)) : -1;
+  };
+  const go = (i: number, focus: boolean) => {
+    select(i);
+    if (focus) tabs[i]!.focus();
+    history.replaceState(null, '', i === 0 ? location.pathname + location.search : `#${panels[i]!.id}`);
+  };
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', (e) => {
+      e.preventDefault();
+      go(i, false);
+    });
+    t.addEventListener('keydown', (e) => {
+      const n = tabs.length;
+      const next = { ArrowRight: i + 1, ArrowLeft: i - 1 + n, Home: 0, End: n - 1 }[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      go(next % n, true);
+    });
+  });
+  // In-page links to a panel elsewhere on the page ("View all releases").
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('a[data-tab-link]')) {
+    const i = panels.findIndex((p) => p!.id === a.dataset['tabLink']);
+    if (i < 0) continue;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      go(i, false);
+      panels[i]!.scrollIntoView();
+      tabs[i]!.focus({ preventScroll: true });
+    });
+  }
+  /** Select the tab holding the hash target and scroll to it (panels' scroll margin keeps the tab bar in view). */
+  const onHash = () => {
+    const i = fromHash();
+    if (i < 0) return;
+    select(i);
+    hashTarget()?.scrollIntoView();
+  };
+  window.addEventListener('hashchange', onHash);
+  select(0);
+  onHash();
+}
+
 if (!autoLocale()) {
   themeToggle();
+  dropdowns();
   headerSearch();
   listFilter();
+  relativeTimes();
+  moduleTabs();
 }

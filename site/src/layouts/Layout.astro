@@ -33,7 +33,8 @@ const bodyData: Record<string, string> = {
   'data-no-match': m.searchNoMatch('{q}'),
 };
 if (autoLocale) bodyData['data-auto-locale'] = UI_LOCALES.join(' ');
-const navLink = 'text-gray-600 dark:text-slate-400 transition-colors hover:text-blue-600 dark:hover:text-blue-400';
+const menuItem = 'block rounded-md px-2 py-1.5 text-fg hover:bg-subtle';
+const iconBtn = 'flex-none inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-subtle hover:text-fg transition-colors';
 const langHref = (l: UiLocale) => `/${alternates ? alternates[l] : `${l}/`}`;
 ---
 
@@ -47,154 +48,145 @@ const langHref = (l: UiLocale) => `/${alternates ? alternates[l] : `${l}/`}`;
     <meta name="description" content={description} />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="color-scheme" content="light dark" />
-    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href={logoUrl} type="image/svg+xml" />
     {path !== undefined && <link rel="canonical" href={safeHref(`${base}/${path}`)} />}
     {path === undefined && <meta name="robots" content="noindex" />}
     {alternates && UI_LOCALES.map((l) => <link rel="alternate" hreflang={l} href={safeHref(`${base}/${alternates[l]}`)} />)}
     {alternates && <link rel="alternate" hreflang="x-default" href={safeHref(`${base}/${alternates[DEFAULT_UI_LOCALE]}`)} />}
   </head>
-  <body
-    class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-50 min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-600 dark:selection:text-blue-200"
-    {...bodyData}
-  >
-    <header
-      class="sticky top-0 z-50 w-full border-b border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-950/60"
-    >
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex h-16 items-center justify-between gap-3">
-          <div class="flex items-center gap-8">
-            <a href={`/${ui}/`} class="flex items-center gap-2">
-              <img src={logoUrl} alt="" width="32" height="32" class="h-8 w-8 rounded-lg select-none shadow-lg shadow-blue-500/20" />
-              <span class="hidden font-bold sm:inline-block text-lg tracking-tight text-gray-900 dark:text-slate-100">
-                KernelSU <span class="text-blue-600 dark:text-blue-400">{ui === 'zh-CN' ? '模块' : 'Modules'}</span>
-              </span>
-            </a>
-            <nav class="hidden md:block text-sm font-medium" aria-label={m.mainNav}>
-              <ul class="flex items-center gap-6">
-                <li><a href={`/${ui}/`} class={navLink}>{m.navModules}</a></li>
-                <li><a href={safeHref(portal)} class={navLink}>{m.navDevelopers}</a></li>
-              </ul>
-            </nav>
+  <body class="min-h-screen flex flex-col" {...bodyData}>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-canvas focus:px-3 focus:py-2 focus:shadow-overlay">{m.skipToContent}</a>
+    <header class="sticky top-0 z-40 border-b border-line bg-canvas/90 backdrop-blur-md">
+      <div class="mx-auto grid max-w-[1280px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2.5 px-4 py-3 md:h-16 md:grid-cols-[minmax(0,1fr)_minmax(220px,420px)_minmax(0,1fr)] md:py-0">
+        <a href={`/${ui}/`} class="flex min-w-0 items-center gap-2.5 justify-self-start font-semibold text-fg">
+          <img src={logoUrl} alt="" width="28" height="28" class="h-7 w-7 flex-none rounded-md select-none dark:ring-1 dark:ring-line" />
+          <span class="truncate text-base">{m.siteTitle}</span>
+        </a>
+        <div class="relative col-span-2 row-start-2 md:col-span-1 md:col-start-2 md:row-start-1">
+          <svg class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"></path>
+          </svg>
+          <input
+            type="search"
+            id="site-search"
+            role="combobox"
+            autocomplete="off"
+            aria-label={m.searchLabel}
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="site-search-listbox"
+            aria-keyshortcuts="/"
+            class="form-control block w-full bg-canvas pl-8"
+            placeholder={m.searchPlaceholder}
+          />
+          <div id="site-search-results" hidden class="absolute inset-x-0 top-full z-50 mt-2 max-h-[min(560px,calc(100vh-96px))] overflow-y-auto rounded-md border border-line bg-overlay shadow-overlay">
+            <div id="site-search-listbox" role="listbox" aria-label={m.searchResults}></div>
+            <p id="site-search-empty" hidden class="px-3 py-4 text-center text-muted"></p>
           </div>
-          <div class="flex items-center gap-2 sm:gap-4">
-            <div class="relative w-full max-w-sm md:w-64">
-              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg class="h-4 w-4 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-              </div>
-              <input
-                type="search"
-                id="site-search"
-                role="combobox"
-                autocomplete="off"
-                aria-label={m.searchLabel}
-                aria-autocomplete="list"
-                aria-expanded="false"
-                aria-controls="site-search-listbox"
-                class="block w-full rounded-full border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-900/50 py-1.5 pl-10 pr-3 text-sm text-gray-900 dark:text-slate-200 placeholder:text-gray-500 dark:placeholder:text-slate-500 focus:border-blue-500 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
-                placeholder={m.searchPlaceholder}
-              />
-              <div
-                id="site-search-results"
-                hidden
-                class="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-2xl shadow-black/10 dark:shadow-black/50 z-50 max-h-[80vh] overflow-y-auto"
-              >
-                <div id="site-search-listbox" role="listbox" aria-label={m.searchResults}></div>
-                <p id="site-search-empty" hidden class="p-4 text-center text-sm text-gray-500 dark:text-slate-500"></p>
-              </div>
-              <p id="site-search-status" class="sr-only" role="status" aria-live="polite"></p>
+          <p id="site-search-status" class="sr-only" role="status" aria-live="polite"></p>
+        </div>
+        <div class="flex items-center gap-1 justify-self-end">
+          <nav class="hidden md:block" aria-label={m.mainNav}>
+            <ul class="flex items-center gap-1">
+              <li><a href={safeHref(portal)} class="block rounded-md px-2 py-1.5 font-medium text-fg hover:bg-subtle">{m.navDevelopers}</a></li>
+            </ul>
+          </nav>
+          <details class="dropdown relative hidden md:block">
+            <summary class={`${iconBtn} cursor-pointer gap-1`} title={m.language}>
+              <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM5.78 8.75a9.64 9.64 0 0 0 1.363 4.177c.255.426.542.832.857 1.215.245-.296.551-.705.857-1.215A9.64 9.64 0 0 0 10.22 8.75Zm4.44-1.5a9.64 9.64 0 0 0-1.363-4.177c-.307-.51-.612-.919-.857-1.215a9.927 9.927 0 0 0-.857 1.215A9.64 9.64 0 0 0 5.78 7.25Zm-5.944 1.5H1.543a6.507 6.507 0 0 0 4.666 5.5c-.123-.181-.24-.365-.352-.552-.715-1.192-1.437-2.874-1.581-4.948Zm-2.733-1.5h2.733c.144-2.074.866-3.756 1.58-4.948.12-.197.237-.381.353-.552a6.507 6.507 0 0 0-4.666 5.5Zm10.181 1.5c-.144 2.074-.866 3.756-1.58 4.948-.12.197-.237.381-.353.552a6.507 6.507 0 0 0 4.666-5.5Zm2.733-1.5a6.507 6.507 0 0 0-4.666-5.5c.123.181.24.365.353.552.714 1.192 1.436 2.874 1.58 4.948Z"></path>
+              </svg>
+              <span class="text-sm text-fg">{m.langName}</span>
+              <svg class="h-3 w-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
+              <span class="sr-only">{m.language}</span>
+            </summary>
+            <div class="absolute right-0 top-full z-50 mt-1 w-40 rounded-md border border-line bg-overlay p-1 shadow-overlay">
+              <nav aria-label={m.language}>
+                <ul>
+                  {
+                    UI_LOCALES.map((l) => (
+                      <li>
+                        {l === ui ? (
+                          <span aria-current="true" lang={l} class="block px-2 py-1.5 font-semibold text-fg">
+                            {MESSAGES[l].langName}
+                          </span>
+                        ) : (
+                          <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class={menuItem}>
+                            {MESSAGES[l].langName}
+                          </a>
+                        )}
+                      </li>
+                    ))
+                  }
+                </ul>
+              </nav>
             </div>
-            <nav class="hidden md:block text-sm whitespace-nowrap" aria-label={m.language}>
-              <ul class="flex items-center gap-2">
-                {
-                  UI_LOCALES.map((l) => (
-                    <li>
-                      {l === ui ? (
-                        <span aria-current="true" lang={l} class="font-semibold text-gray-900 dark:text-slate-100">
-                          {MESSAGES[l].langName}
-                        </span>
-                      ) : (
-                        <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class="text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
-                          {MESSAGES[l].langName}
-                        </a>
-                      )}
-                    </li>
-                  ))
-                }
-              </ul>
-            </nav>
-            <button
-              type="button"
-              id="theme-toggle"
-              hidden
-              aria-label={m.toggleTheme}
-              title={m.toggleTheme}
-              class="flex-none rounded-lg p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+          </details>
+          <button type="button" id="theme-toggle" hidden aria-label={m.toggleTheme} title={m.toggleTheme} class={iconBtn}>
+            <svg class="h-4 w-4 dark:hidden" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M9.598 1.591a.749.749 0 0 1 .785-.175 7.001 7.001 0 1 1-8.967 8.967.75.75 0 0 1 .961-.96 5.5 5.5 0 0 0 7.046-7.046.75.75 0 0 1 .175-.786Zm1.616 1.945a7 7 0 0 1-7.678 7.678 5.499 5.499 0 1 0 7.678-7.678Z"></path>
+            </svg>
+            <svg class="hidden h-4 w-4 dark:block" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm5.657-8.157a.75.75 0 0 1 0 1.061l-1.061 1.06a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l1.06-1.06a.75.75 0 0 1 1.06 0Zm-9.193 9.193a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM8 0a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0ZM3 8a.75.75 0 0 1-.75.75H.75a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 3 8Zm13 0a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 16 8Zm-8 5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13Zm3.536-1.464a.75.75 0 0 1 1.06 0l1.061 1.06a.75.75 0 0 1-1.06 1.061l-1.061-1.06a.75.75 0 0 1 0-1.061ZM2.343 2.343a.75.75 0 0 1 1.061 0l1.06 1.061a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-1.06-1.06a.75.75 0 0 1 0-1.06Z"></path>
+            </svg>
+          </button>
+          <a href="https://github.com/KernelSU-Modules" class={`${iconBtn} hidden sm:inline-flex`}>
+            <span class="sr-only">GitHub</span>
+            <svg class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+            </svg>
+          </a>
+          <details class="mobile-menu dropdown relative md:hidden">
+            <summary class={`${iconBtn} cursor-pointer`}>
+              <span class="sr-only">{m.menu}</span>
+              <svg class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5Z"></path>
               </svg>
-              <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
-              </svg>
-            </button>
-            <a href="https://github.com/KernelSU-Modules" class="hidden sm:block flex-none text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-              <span class="sr-only">GitHub</span>
-              <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill-rule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                  clip-rule="evenodd"></path>
-              </svg>
-            </a>
-            <details class="mobile-menu relative md:hidden">
-              <summary class="flex cursor-pointer list-none items-center rounded-lg p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800">
-                <span class="sr-only">{m.menu}</span>
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                </svg>
-              </summary>
-              <div class="absolute right-0 top-full mt-2 w-56 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-2xl shadow-black/10 dark:shadow-black/50 z-50 text-sm">
-                <nav aria-label={m.mainNav}>
-                  <ul>
-                    <li><a href={`/${ui}/`} class={`block rounded-lg px-3 py-2 ${navLink}`}>{m.navModules}</a></li>
-                    <li><a href={safeHref(portal)} class={`block rounded-lg px-3 py-2 ${navLink}`}>{m.navDevelopers}</a></li>
-                    <li><a href="https://github.com/KernelSU-Modules" class={`block rounded-lg px-3 py-2 ${navLink}`}>GitHub</a></li>
-                  </ul>
-                </nav>
-                <nav aria-label={m.language} class="mt-2 border-t border-gray-100 dark:border-slate-800 pt-2">
-                  <ul>
-                    {
-                      UI_LOCALES.map((l) => (
-                        <li>
-                          {l === ui ? (
-                            <span aria-current="true" lang={l} class="block px-3 py-2 font-semibold text-gray-900 dark:text-slate-100">
-                              {MESSAGES[l].langName}
-                            </span>
-                          ) : (
-                            <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class={`block rounded-lg px-3 py-2 ${navLink}`}>
-                              {MESSAGES[l].langName}
-                            </a>
-                          )}
-                        </li>
-                      ))
-                    }
-                  </ul>
-                </nav>
-              </div>
-            </details>
-          </div>
+            </summary>
+            <div class="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-line bg-overlay p-1 shadow-overlay">
+              <nav aria-label={m.mainNav}>
+                <ul>
+                  <li><a href={`/${ui}/`} class={menuItem}>{m.navModules}</a></li>
+                  <li><a href={safeHref(portal)} class={menuItem}>{m.navDevelopers}</a></li>
+                  <li><a href="https://github.com/KernelSU-Modules" class={menuItem}>GitHub</a></li>
+                </ul>
+              </nav>
+              <nav aria-label={m.language} class="mt-1 border-t border-line-muted pt-1">
+                <ul>
+                  {
+                    UI_LOCALES.map((l) => (
+                      <li>
+                        {l === ui ? (
+                          <span aria-current="true" lang={l} class="block px-2 py-1.5 font-semibold text-fg">
+                            {MESSAGES[l].langName}
+                          </span>
+                        ) : (
+                          <a href={langHref(l)} hreflang={l} lang={l} data-set-locale={l} class={menuItem}>
+                            {MESSAGES[l].langName}
+                          </a>
+                        )}
+                      </li>
+                    ))
+                  }
+                </ul>
+              </nav>
+            </div>
+          </details>
         </div>
       </div>
     </header>
-    <main class="flex-1 relative">
+    <main id="main" class="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-6 pb-12">
       <slot />
     </main>
-    <footer class="border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-8 mt-auto relative z-10">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500 dark:text-slate-500 space-y-1">
-        <p>{m.footer}</p>
-        <p class="font-mono text-xs">build {data.buildId} · {date(data.generatedAt)}</p>
+    <footer class="mt-auto border-t border-line">
+      <div class="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-6 text-xs text-muted md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center gap-2">
+          <img src={logoUrl} alt="" width="16" height="16" class="h-4 w-4 flex-none rounded-sm" />
+          <p>{m.footer}</p>
+        </div>
+        <p>{m.footerPublish} <a href={safeHref(portal)} class="link">{m.developerPortal}</a></p>
+        <p class="font-mono">build {data.buildId} · {date(data.generatedAt)}</p>
       </div>
     </footer>
     <script>

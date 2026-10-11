@@ -31,277 +31,324 @@ const repo = d.source.fullName;
 const alternates = Object.fromEntries(UI_LOCALES.map((x) => [x, detailUrl(x, d.id)])) as Record<UiLocale, string>;
 // External links: never pass referrer/opener, never vouch for the target.
 const ext = { rel: 'nofollow noopener noreferrer' };
-const card = 'bg-white dark:bg-slate-900/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm';
-const cardTitle = 'text-sm font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-4';
-const dt = 'text-xs text-gray-500 dark:text-slate-500 mb-1';
-const link = 'text-blue-600 dark:text-blue-400 hover:underline break-all';
+const dt = 'text-xs text-muted';
+const dd = 'min-w-0 break-words';
+const tab = 'tab inline-flex flex-none items-center gap-2 border-b-2 border-transparent px-2 py-2.5 text-fg hover:border-line';
+const icon = 'h-4 w-4 flex-none text-muted';
+const tabIcon = `${icon} hidden sm:block`;
+const ghRelease = (r: { tag: string; zip: { name: string } }) =>
+  `gh release verify ${r.tag} -R ${repo}\ngh release verify-asset ${r.tag} ${r.zip.name} -R ${repo}`;
 ---
 
 <Layout ui={ui} title={`${d.name} · ${m.siteTitle}`} description={d.summary || d.name} path={detailUrl(ui, d.id)} alternates={alternates}>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <div class="mb-8">
-      <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mb-4" aria-label="breadcrumb">
-        <a href={`/${listUrl(ui)}`} class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{m.breadcrumbModules}</a>
-        <span>/</span>
-        <span class="text-gray-900 dark:text-slate-200 truncate">{d.id}</span>
-      </nav>
-      <div class="flex flex-wrap items-center gap-5">
-        <ModuleIcon module={d} name={d.name} size="lg" />
-        <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center gap-3 mb-2">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white tracking-tight break-words">{d.name}</h1>
-            <Badges module={d} m={m} full />
-          </div>
-          <p class="font-mono text-sm text-gray-500 dark:text-slate-500 mb-2">{d.id}</p>
-          {d.summary && <p class="text-lg text-gray-600 dark:text-slate-400 max-w-3xl leading-relaxed">{d.summary}</p>}
+  <nav class="mb-4 text-muted" aria-label="breadcrumb">
+    <ol class="flex min-w-0 items-center gap-1.5">
+      <li><a href={`/${listUrl(ui)}`} class="link">{m.navModules}</a></li>
+      <li aria-hidden="true">/</li>
+      <li class="min-w-0 truncate font-semibold text-fg" aria-current="page">{d.id}</li>
+    </ol>
+  </nav>
+
+  <div class="flex flex-col gap-4 md:flex-row md:items-start">
+    <div class="flex min-w-0 flex-1 items-start gap-4">
+      <ModuleIcon module={d} name={d.name} size="lg" />
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="min-w-0 text-2xl leading-tight font-semibold break-words md:text-[28px]">{d.name}</h1>
+          <Badges module={d} m={m} full />
         </div>
+        {d.summary && <p class="mt-1.5 max-w-3xl text-base text-muted">{d.summary}</p>}
       </div>
     </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-      <div class="lg:col-span-3 space-y-12 min-w-0">
-        <section class={`${card} p-8`}>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+    <div class="flex flex-none flex-wrap gap-2">
+      {
+        st && (
+          <a href={safeHref(st.zip.url)} {...ext} class="btn btn-primary">
+            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"></path>
+              <path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"></path>
             </svg>
-            {m.readme}
-          </h2>
+            {m.download} {st.version}
+          </a>
+        )
+      }
+      <a href={safeHref(d.source.url)} {...ext} class="btn">
+        <svg class="h-4 w-4 text-muted" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"></path>
+        </svg>
+        {m.source}
+      </a>
+    </div>
+  </div>
+
+  <div class="mt-5 mb-6 border-b border-line">
+    <nav id="module-tabs" class="-mb-px flex gap-2 overflow-x-auto" aria-label={m.moduleSections}>
+      <a href="#readme" class={tab} data-tab="readme">
+        <svg class={tabIcon} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z"></path>
+        </svg>
+        {m.readme}
+      </a>
+      <a href="#releases" class={tab} data-tab="releases">
+        <svg class={tabIcon} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"></path>
+        </svg>
+        {m.releases}
+        <span class="counter">{shown.length}</span>
+      </a>
+      <a href="#transparency" class={tab} data-tab="transparency">
+        <svg class={tabIcon} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="m8.533.133 5.25 1.68A1.75 1.75 0 0 1 15 3.48V7c0 1.566-.32 3.182-1.303 4.682-.983 1.498-2.585 2.813-5.032 3.855a1.697 1.697 0 0 1-1.33 0c-2.447-1.042-4.049-2.357-5.032-3.855C1.32 10.182 1 8.566 1 7V3.48a1.755 1.755 0 0 1 1.217-1.667l5.25-1.68a1.748 1.748 0 0 1 1.066 0Zm-.61 1.429.001.001-5.25 1.68a.251.251 0 0 0-.174.237V7c0 1.36.275 2.666 1.057 3.859.784 1.194 2.121 2.342 4.366 3.298a.196.196 0 0 0 .154 0c2.245-.957 3.582-2.103 4.366-3.297C13.225 9.666 13.5 8.358 13.5 7V3.48a.25.25 0 0 0-.174-.238l-5.25-1.68a.25.25 0 0 0-.153 0ZM11.28 6.28l-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l.97.97 2.97-2.97a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"></path>
+        </svg>
+        {m.transparency}
+      </a>
+    </nav>
+  </div>
+
+  <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px]">
+    <div id="module-panels" class="min-w-0 space-y-6">
+      <section id="readme" class="tab-panel scroll-mt-44 md:scroll-mt-36" aria-labelledby="readme-title">
+        <h2 id="readme-title" class="panel-heading mb-3 text-xl font-semibold">{m.readme}</h2>
+        <div class="box min-w-0 p-5 md:p-8">
           {
             readmeHtml !== null ? (
               <article class="markdown-body">
                 <Fragment set:html={readmeHtml} />
               </article>
             ) : (
-              <p class="text-gray-500 dark:text-slate-400">{m.noReadme}</p>
+              <p class="text-muted">{m.noReadme}</p>
             )
           }
-        </section>
+        </div>
+      </section>
 
-        <section class="space-y-6">
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            {m.releases}
-          </h2>
-          <div class="grid gap-4">
-            {
-              shown.map((r) => (
-                <article class="release bg-white dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 p-6 transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5">
-                  <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                    <div class="min-w-0">
-                      <div class="flex flex-wrap items-center gap-3 mb-1">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">{r.version}</h3>
-                        <span class="text-sm text-gray-500 dark:text-slate-400">({r.versionCode})</span>
-                        <a href={safeHref(r.releaseUrl)} {...ext} class="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                          {r.tag}
-                        </a>
-                      </div>
-                      <div class="text-sm text-gray-500 dark:text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <time datetime={r.publishedAt}>{date(r.publishedAt)}</time>
-                        <span>{bytes(r.zip.size)}</span>
-                        {r.attestationUrl && (
-                          <a href={safeHref(r.attestationUrl)} {...ext} class="text-blue-600 dark:text-blue-400 hover:underline">
-                            {m.attestation}
-                          </a>
-                        )}
-                      </div>
-                      <p class="mt-1 text-xs text-gray-500 dark:text-slate-500">
-                        {m.sha256}: <code class="font-mono break-all">{r.zip.sha256}</code>
-                      </p>
+      <section id="releases" class="tab-panel scroll-mt-44 md:scroll-mt-36" aria-labelledby="releases-title">
+        <h2 id="releases-title" class="panel-heading mb-3 text-xl font-semibold">{m.releases}</h2>
+        <div class="space-y-4">
+          {
+            shown.map((r, i) => (
+              <article class="release box min-w-0" id={`release-${r.versionCode}`}>
+                <div class="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h3 class="text-xl font-semibold break-all">
+                        <a href={safeHref(r.releaseUrl)} {...ext} class="link">{r.version}</a>
+                      </h3>
+                      {i === 0 && <span class="label label-success">{m.latest}</span>}
+                      {r.name && r.name !== r.version && r.name !== r.tag && <span class="text-muted">{r.name}</span>}
                     </div>
-                    <a
-                      href={safeHref(r.zip.url)}
-                      {...ext}
-                      class="inline-flex flex-none items-center justify-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
-                    >
-                      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      {m.download}
-                    </a>
+                    <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                      <time datetime={r.publishedAt}>{date(r.publishedAt)}</time>
+                      <span>{m.versionCode} {r.versionCode}</span>
+                      <a href={safeHref(r.releaseUrl)} {...ext} class="link font-mono">{r.tag}</a>
+                    </p>
                   </div>
+                  <a href={safeHref(r.zip.url)} {...ext} class={i === 0 ? 'btn btn-primary' : 'btn'}>
+                    {m.download}
+                  </a>
+                </div>
+                <div class="px-5 py-4">
                   {r.changelogHtml ? (
-                    <div class="markdown-body markdown-body-sm bg-gray-50 dark:bg-slate-950/50 rounded-lg p-4 border border-gray-100 dark:border-slate-800/50">
+                    <div class="markdown-body markdown-body-sm">
                       <Fragment set:html={r.changelogHtml} />
                     </div>
                   ) : (
-                    <p class="text-sm text-gray-500 dark:text-slate-400">{m.noChangelog}</p>
+                    <p class="text-muted">{m.noChangelog}</p>
                   )}
-                </article>
-              ))
-            }
-          </div>
-        </section>
-      </div>
-
-      <aside class="lg:col-span-1 order-first lg:order-none">
-        <div class="lg:sticky lg:top-24 space-y-6">
-          {
-            st && (
-              <section class="bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-900/20 dark:to-violet-900/20 rounded-2xl border border-blue-100 dark:border-blue-500/20 p-6 shadow-sm">
-                <h2 class="text-sm font-semibold text-blue-800 dark:text-blue-200 uppercase tracking-wider mb-2">{m.latestVersion}</h2>
-                <div class="text-3xl font-bold text-gray-900 dark:text-white mb-1 break-words">{st.version}</div>
-                <div class="text-sm text-gray-500 dark:text-slate-400 mb-4">
-                  {m.published} {date(st.publishedAt)} · {bytes(st.zip.size)}
                 </div>
-                <a
-                  href={safeHref(st.zip.url)}
-                  {...ext}
-                  class="block w-full text-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
-                >
-                  {m.download} {st.version}
-                </a>
-              </section>
-            )
-          }
-
-          <section class={card}>
-            <h2 class={cardTitle}>{m.moduleDetails}</h2>
-            <dl class="space-y-4 text-sm">
-              <div>
-                <dt class={dt}>{m.moduleId}</dt>
-                <dd class="font-mono text-gray-900 dark:text-slate-200 bg-gray-100 dark:bg-slate-950/50 px-2 py-1 rounded border border-gray-200 dark:border-slate-800 inline-block break-all">{d.id}</dd>
-              </div>
-              <div>
-                <dt class={dt}>{m.version}</dt>
-                <dd>{d.stable.version} <span class="text-gray-500 dark:text-slate-500">({d.stable.versionCode})</span></dd>
-              </div>
-              {
-                d.license && (
-                  <div>
-                    <dt class={dt}>{m.license}</dt>
-                    <dd>{d.license}</dd>
-                  </div>
-                )
-              }
-              {
-                d.authors.length > 0 && (
-                  <div>
-                    <dt class={dt}>{m.authors}</dt>
-                    <dd class="flex flex-wrap gap-2">
-                      {d.authors.map((a) =>
-                        a.url ? (
-                          <a href={safeHref(a.url)} {...ext} class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                            {a.name}
-                          </a>
-                        ) : (
-                          <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">{a.name}</span>
-                        ),
+                <div class="border-t border-line-muted px-5 py-4">
+                  <h4 class="mb-2 flex items-center gap-2 font-semibold">
+                    {m.assets} <span class="counter">1</span>
+                  </h4>
+                  <div class="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 rounded-md border border-line px-4 py-3">
+                    <svg class={icon} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <path d="m8.878.392 5.25 3.045c.54.314.872.89.872 1.514v6.098a1.75 1.75 0 0 1-.872 1.514l-5.25 3.045a1.75 1.75 0 0 1-1.756 0l-5.25-3.045A1.75 1.75 0 0 1 1 11.049V4.951c0-.624.332-1.201.872-1.514L7.122.392a1.75 1.75 0 0 1 1.756 0ZM7.875 1.69l-4.63 2.685L8 7.133l4.755-2.758-4.63-2.685a.248.248 0 0 0-.25 0ZM2.5 5.677v5.372c0 .09.047.171.125.216l4.625 2.683V8.432Zm6.25 8.271 4.625-2.683a.25.25 0 0 0 .125-.216V5.677L8.75 8.432Z"></path>
+                    </svg>
+                    <a href={safeHref(r.zip.url)} {...ext} class="link font-semibold break-words">{r.zip.name}</a>
+                    <span class="text-xs whitespace-nowrap text-muted">{bytes(r.zip.size)}</span>
+                    <p class="col-start-2 col-end-4 text-xs text-muted">
+                      {m.sha256} <code class="font-mono break-all">{r.zip.sha256}</code>
+                      {r.attestationUrl && (
+                        <>
+                          {' · '}
+                          <a href={safeHref(r.attestationUrl)} {...ext} class="link">{m.attestation}</a>
+                        </>
                       )}
-                    </dd>
+                    </p>
                   </div>
-                )
-              }
-              {
-                d.homepage && (
-                  <div>
-                    <dt class={dt}>{m.homepage}</dt>
-                    <dd><a href={safeWebHref(d.homepage)} {...ext} class={link}>{displayUrl(d.homepage)}</a></dd>
-                  </div>
-                )
-              }
-              {
-                d.support && (
-                  <div>
-                    <dt class={dt}>{m.support}</dt>
-                    <dd><a href={safeWebHref(d.support)} {...ext} class={link}>{displayUrl(d.support)}</a></dd>
-                  </div>
-                )
-              }
-              {
-                d.tags.length > 0 && (
-                  <div>
-                    <dt class={dt}>{m.tags}</dt>
-                    <dd class="flex flex-wrap gap-1">
-                      {d.tags.map((t) => (
-                        <span class="px-2 py-0.5 rounded-md text-xs bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">{t}</span>
-                      ))}
-                    </dd>
-                  </div>
-                )
-              }
-            </dl>
-            <a
-              href={safeHref(d.source.url)}
-              {...ext}
-              class="mt-6 flex items-center justify-center w-full px-4 py-2.5 rounded-lg text-sm font-medium text-white dark:text-slate-200 bg-gray-900 dark:bg-slate-800 border border-transparent dark:border-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 transition-all"
-            >
-              {m.sourceCode}
-            </a>
-          </section>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </section>
 
-          <section class={card}>
-            <h2 class={cardTitle}>{m.compatibility}</h2>
-            <dl class="space-y-3 text-sm">
-              <div><dt class={dt}>{m.androidApi}</dt><dd>{api}</dd></div>
-              <div><dt class={dt}>{m.architectures}</dt><dd>{archs}</dd></div>
-            </dl>
-          </section>
-
-          <section class={`${card} transparency`}>
-            <h2 class={cardTitle}>{m.transparency}</h2>
-            <dl class="space-y-3 text-sm">
-              <div>
-                <dt class={dt}>{m.repository}</dt>
-                <dd><a href={safeHref(d.source.url)} {...ext} class={link}>{repo}</a></dd>
-              </div>
-              {
-                st && (
-                  <>
-                    <div>
-                      <dt class={dt}>{m.tag}</dt>
-                      <dd class="flex flex-wrap items-center gap-2">
-                        <a href={safeHref(st.releaseUrl)} {...ext} class={`${link} font-mono`}>{st.tag}</a>
-                        {st.immutable && <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" title={m.immutableTitle}>{m.immutable}</span>}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class={dt}>{m.commit}</dt>
-                      <dd><a href={safeHref(`https://github.com/${repo}/commit/${st.tagCommit}`)} {...ext} class={`${link} font-mono`} title={st.tagCommit}>{shortSha(st.tagCommit)}</a></dd>
-                    </div>
-                  </>
-                )
-              }
-              <div>
-                <dt class={dt}>{m.contentCommit}</dt>
-                <dd><a href={safeHref(`https://github.com/${repo}/tree/${d.source.commit}`)} {...ext} class={`${link} font-mono`} title={d.source.commit}>{shortSha(d.source.commit)}</a></dd>
-              </div>
-              {
-                st && (
-                  <>
-                    <div>
-                      <dt class={dt}>{m.sha256}</dt>
-                      <dd><code class="font-mono text-xs break-all">{st.zip.sha256}</code></dd>
-                    </div>
-                    {st.attestationUrl && (
-                      <div>
-                        <dt class={dt}>{m.attestation}</dt>
-                        <dd><a href={safeHref(st.attestationUrl)} {...ext} class={link}>{displayUrl(st.attestationUrl)}</a></dd>
-                      </div>
-                    )}
-                  </>
-                )
-              }
-              <div>
-                <dt class={dt} title={m.lastSyncTitle}>{m.lastSync}</dt>
-                <dd><time datetime={d.health.lastSuccessAt ?? undefined}>{date(d.health.lastSuccessAt) || m.never}</time></dd>
-              </div>
-            </dl>
+      <section id="transparency" class="tab-panel scroll-mt-44 md:scroll-mt-36 transparency" aria-labelledby="transparency-title">
+        <h2 id="transparency-title" class="panel-heading mb-3 text-xl font-semibold">{m.transparency}</h2>
+        <div class="box">
+          <dl class="divide-y divide-line-muted">
+            <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+              <dt class="text-muted">{m.repository}</dt>
+              <dd class={dd}><a href={safeHref(d.source.url)} {...ext} class="link">{repo}</a></dd>
+            </div>
             {
               st && (
-                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-                  <h3 class="text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">{m.verifyTitle}</h3>
-                  <p class="text-xs text-gray-500 dark:text-slate-400 mb-2">{m.transparencyNote}</p>
-                  <pre class="text-[11px] leading-relaxed overflow-x-auto bg-gray-100 dark:bg-slate-950/60 rounded-lg p-2"><code>gh release verify {st.tag} -R {repo}
-gh release verify-asset {st.tag} {st.zip.name} -R {repo}</code></pre>
-                </div>
+                <>
+                  <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+                    <dt class="text-muted">{m.tag}</dt>
+                    <dd class={`${dd} flex flex-wrap items-center gap-2`}>
+                      <a href={safeHref(st.releaseUrl)} {...ext} class="link font-mono">{st.tag}</a>
+                      {st.immutable && <span class="label label-success" title={m.immutableTitle}>{m.immutable}</span>}
+                    </dd>
+                  </div>
+                  <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+                    <dt class="text-muted">{m.commit}</dt>
+                    <dd class={dd}><a href={safeHref(`https://github.com/${repo}/commit/${st.tagCommit}`)} {...ext} class="link font-mono" title={st.tagCommit}>{shortSha(st.tagCommit)}</a></dd>
+                  </div>
+                </>
               )
             }
-          </section>
+            <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+              <dt class="text-muted">{m.contentCommit}</dt>
+              <dd class={dd}><a href={safeHref(`https://github.com/${repo}/tree/${d.source.commit}`)} {...ext} class="link font-mono" title={d.source.commit}>{shortSha(d.source.commit)}</a></dd>
+            </div>
+            {
+              st && (
+                <>
+                  <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+                    <dt class="text-muted">{m.sha256}</dt>
+                    <dd class={dd}><code class="font-mono text-xs break-all">{st.zip.sha256}</code></dd>
+                  </div>
+                  {st.attestationUrl && (
+                    <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+                      <dt class="text-muted">{m.attestation}</dt>
+                      <dd class={dd}><a href={safeHref(st.attestationUrl)} {...ext} class="link break-all">{displayUrl(st.attestationUrl)}</a></dd>
+                    </div>
+                  )}
+                </>
+              )
+            }
+            <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+              <dt class="text-muted" title={m.lastSyncTitle}>{m.lastSync}</dt>
+              <dd class={dd}><time datetime={d.health.lastSuccessAt ?? undefined}>{date(d.health.lastSuccessAt) || m.never}</time></dd>
+            </div>
+          </dl>
+          {
+            st && (
+              <div class="border-t border-line px-5 py-4">
+                <h3 class="mb-1 font-semibold">{m.verifyTitle}</h3>
+                <p class="mb-3 text-muted">{m.transparencyNote}</p>
+                <pre class="overflow-x-auto rounded-md bg-subtle p-3 font-mono text-xs leading-relaxed"><code>{ghRelease(st)}</code></pre>
+              </div>
+            )
+          }
         </div>
-      </aside>
+      </section>
     </div>
+
+    <aside class="min-w-0 space-y-4 lg:sticky lg:top-20" aria-label={m.about}>
+      {
+        st && (
+          <section class="box">
+            <h2 class="box-header box-title">{m.latestVersion}</h2>
+            <div class="space-y-2 p-4">
+              <p class="flex flex-wrap items-center gap-2">
+                <a href={safeHref(st.releaseUrl)} {...ext} class="link text-base font-semibold break-all">{st.version}</a>
+                <span class="label label-success">{m.latest}</span>
+              </p>
+              <p class="text-xs text-muted">
+                {m.published} <time datetime={st.publishedAt}>{date(st.publishedAt)}</time> · {bytes(st.zip.size)}
+              </p>
+              <a href={safeHref(st.zip.url)} {...ext} class="btn btn-primary w-full">{m.download} {st.version}</a>
+              <p><a href="#releases" class="link" data-tab-link="releases">{m.viewAllReleases}</a></p>
+            </div>
+          </section>
+        )
+      }
+
+      <section class="box">
+        <h2 class="box-header box-title">{m.about}</h2>
+        <dl class="space-y-3 p-4">
+          <div>
+            <dt class={dt}>{m.moduleId}</dt>
+            <dd class={dd}><code class="font-mono text-xs break-all">{d.id}</code></dd>
+          </div>
+          <div>
+            <dt class={dt}>{m.version}</dt>
+            <dd class={dd}>{d.stable.version} <span class="text-muted">({d.stable.versionCode})</span></dd>
+          </div>
+          {
+            d.license && (
+              <div>
+                <dt class={dt}>{m.license}</dt>
+                <dd class={dd}>{d.license}</dd>
+              </div>
+            )
+          }
+          {
+            d.authors.length > 0 && (
+              <div>
+                <dt class={dt}>{m.authors}</dt>
+                <dd class={`${dd} flex flex-wrap gap-x-3 gap-y-1`}>
+                  {d.authors.map((a) => (a.url ? <a href={safeHref(a.url)} {...ext} class="link">{a.name}</a> : <span>{a.name}</span>))}
+                </dd>
+              </div>
+            )
+          }
+          {
+            d.tags.length > 0 && (
+              <div>
+                <dt class={dt}>{m.tags}</dt>
+                <dd class="mt-1 flex flex-wrap gap-1">
+                  {d.tags.map((t) => (
+                    <span class="topic">{t}</span>
+                  ))}
+                </dd>
+              </div>
+            )
+          }
+        </dl>
+      </section>
+
+      <section class="box">
+        <h2 class="box-header box-title">{m.links}</h2>
+        <ul class="space-y-2.5 p-4">
+          {
+            d.homepage && (
+              <li class="flex items-start gap-2">
+                <svg class={`${icon} mt-0.5`} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path>
+                </svg>
+                <span class="min-w-0"><span class="block text-xs text-muted">{m.homepage}</span><a href={safeWebHref(d.homepage)} {...ext} class="link break-all">{displayUrl(d.homepage)}</a></span>
+              </li>
+            )
+          }
+          {
+            d.support && (
+              <li class="flex items-start gap-2">
+                <svg class={`${icon} mt-0.5`} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"></path>
+                </svg>
+                <span class="min-w-0"><span class="block text-xs text-muted">{m.support}</span><a href={safeWebHref(d.support)} {...ext} class="link break-all">{displayUrl(d.support)}</a></span>
+              </li>
+            )
+          }
+          <li class="flex items-start gap-2">
+            <svg class={`${icon} mt-0.5`} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"></path>
+            </svg>
+            <span class="min-w-0"><span class="block text-xs text-muted">{m.repository}</span><a href={safeHref(d.source.url)} {...ext} class="link break-all">{repo}</a></span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="box">
+        <h2 class="box-header box-title">{m.compatibility}</h2>
+        <dl class="space-y-3 p-4">
+          <div><dt class={dt}>{m.androidApi}</dt><dd class={dd}>{api}</dd></div>
+          <div><dt class={dt}>{m.architectures}</dt><dd class={dd}>{archs}</dd></div>
+        </dl>
+      </section>
+    </aside>
   </div>
 </Layout>

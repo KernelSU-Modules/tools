@@ -1,6 +1,7 @@
 ---
 import { MESSAGES, type UiLocale } from '../lib/i18n.ts';
 import { listOrder } from '../lib/data.ts';
+import { safeHref } from '../lib/format.ts';
 import { siteData } from '../lib/load.ts';
 import ModuleCard from './ModuleCard.astro';
 
@@ -9,70 +10,68 @@ interface Props {
 }
 const { ui } = Astro.props;
 const m = MESSAGES[ui];
-const mods = listOrder(siteData().modules);
+const data = siteData();
+const mods = listOrder(data.modules);
 ---
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-  <section class="text-center mb-12">
-    <h1 class="text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-      <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600 dark:from-blue-400 dark:via-violet-400 dark:to-indigo-400">
-        {m.heroTitle}
-      </span>
-      <br />
-      <span class="text-gray-900 dark:text-white">{m.heroAccent}</span>
-    </h1>
-    <p class="text-lg text-gray-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">{m.heroTagline}</p>
-  </section>
+<section class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div class="min-w-0">
+    <h1 class="text-[28px] leading-tight font-semibold">{m.siteTitle}</h1>
+    <p class="mt-1 text-muted">{m.listSubtitle(mods.length)}</p>
+  </div>
+  <a href={safeHref(data.portalUrl)} class="btn btn-primary self-start sm:self-auto">
+    <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path>
+    </svg>
+    {m.publishModule}
+  </a>
+</section>
 
-  {
-    mods.length > 0 ? (
-      <>
-        <section class="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6 text-sm" aria-label={m.searchLabel}>
-          <input
-            id="filter"
-            type="search"
-            autocomplete="off"
-            placeholder={m.searchPlaceholder}
-            aria-label={m.searchLabel}
-            class="flex-[1_1_18rem] rounded-full border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 px-4 py-2 text-gray-900 dark:text-slate-200 placeholder:text-gray-500 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <label class="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400">
-            <input id="filter-meta" type="checkbox" class="accent-blue-600" />
+<section class="box" aria-labelledby="all-modules">
+  <div class="box-header flex-wrap gap-y-2">
+    <h2 id="all-modules" class="box-title mr-auto">{m.allModules}</h2>
+    {
+      mods.length > 0 && (
+        <div id="list-tools" hidden class="order-last flex w-full flex-wrap items-center gap-x-4 gap-y-2 md:order-none md:w-auto">
+          <input id="filter" type="search" autocomplete="off" placeholder={m.filterPlaceholder} aria-label={m.searchLabel} class="form-control min-w-0 flex-[1_1_14rem] py-[3px] md:w-64 md:flex-none" />
+          <label class="inline-flex items-center gap-1.5 text-muted">
+            <input id="filter-meta" type="checkbox" class="accent-[var(--ksu-accent)]" />
             {m.metamodulesOnly}
           </label>
-          <label class="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400">
+          <label class="inline-flex items-center gap-1.5 text-muted">
             {m.sortLabel}
-            <select id="sort" class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1 text-gray-900 dark:text-slate-200">
+            <select id="sort" class="form-control py-[3px] pl-2 pr-1">
               <option value="updated">{m.sortUpdated}</option>
               <option value="name">{m.sortName}</option>
             </select>
           </label>
-          <span id="count" class="text-gray-500 dark:text-slate-500" data-one={m.modulesCount(1)} data-many={m.modulesCount(2).replace('2', '{n}')}>
-            {m.modulesCount(mods.length)}
-          </span>
-        </section>
-        <ul id="modules" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {mods.map((mod) => <ModuleCard module={mod.detail} ui={ui} />)}
+        </div>
+      )
+    }
+    <span id="count" class="counter" title={m.modulesCount(mods.length)} data-one={m.modulesCount(1)} data-many={m.modulesCount(2).replace('2', '{n}')}>
+      {mods.length}
+    </span>
+  </div>
+  {
+    mods.length > 0 ? (
+      <>
+        <ul id="modules">
+          {mods.map((mod) => (
+            <ModuleCard module={mod.detail} ui={ui} />
+          ))}
         </ul>
-        <p id="no-results" hidden class="text-center py-12 text-gray-500 dark:text-slate-400">
+        <p id="no-results" hidden class="px-4 py-12 text-center text-muted">
           {m.noResults}
         </p>
       </>
     ) : (
-      <div class="text-center py-20">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-900 mb-4">
-          <svg class="w-8 h-8 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-            />
-          </svg>
-        </div>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-white">{m.noModulesTitle}</h2>
-        <p class="text-gray-500 dark:text-slate-400 mt-1">{m.noModulesText}</p>
+      <div class="px-4 py-16 text-center">
+        <svg class="mx-auto mb-3 h-6 w-6 text-muted" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="m8.878.392 5.25 3.045c.54.314.872.89.872 1.514v6.098a1.75 1.75 0 0 1-.872 1.514l-5.25 3.045a1.75 1.75 0 0 1-1.756 0l-5.25-3.045A1.75 1.75 0 0 1 1 11.049V4.951c0-.624.332-1.201.872-1.514L7.122.392a1.75 1.75 0 0 1 1.756 0ZM7.875 1.69l-4.63 2.685L8 7.133l4.755-2.758-4.63-2.685a.248.248 0 0 0-.25 0ZM2.5 5.677v5.372c0 .09.047.171.125.216l4.625 2.683V8.432Zm6.25 8.271 4.625-2.683a.25.25 0 0 0 .125-.216V5.677L8.75 8.432Z"></path>
+        </svg>
+        <h3 class="text-xl font-semibold">{m.noModulesTitle}</h3>
+        <p class="mt-1 text-muted">{m.noModulesText}</p>
       </div>
     )
   }
-</div>
+</section>

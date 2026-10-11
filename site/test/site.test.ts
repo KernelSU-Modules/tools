@@ -178,6 +178,33 @@ describe('Astro site build', () => {
     expect(head).toMatch(/<script src="\/assets\/[0-9a-f]{16}\.js"><\/script>/);
   });
 
+  it('detail page: tab bar of in-page links (JS turns them into ARIA tabs), panels, verbatim versions', () => {
+    const p = get('en/modules/zeta.mod/index.html');
+    expect(p).toMatch(/<nav id="module-tabs"[^>]*aria-label="Module sections"/);
+    for (const id of ['readme', 'releases', 'transparency']) {
+      expect(p).toContain(`href="#${id}"`);
+      expect(p).toMatch(new RegExp(`<section id="${id}" class="tab-panel`));
+    }
+    expect(p).toContain('Download 1.0');
+    expect(p).not.toContain('v1.0 ·');
+    // header: KernelSU logo as SVG icon next to favicon.ico; footer links the Developer Portal
+    expect(p).toMatch(/<link rel="icon" href="\/assets\/[0-9a-f]{16}\.svg" type="image\/svg\+xml">/);
+    expect(p).toContain('<link rel="icon" href="/favicon.ico" sizes="32x32">');
+    expect(p).toContain('href="https://developers.kernelsu.org" class="link">KernelSU Developer Portal</a>');
+    expect(get('zh-CN/modules/zeta.mod/index.html')).toContain('KernelSU 开发者门户');
+  });
+
+  it('list page: heading with module count, publish link, module rows with version and actions', () => {
+    const list = get('en/index.html');
+    expect(list).toContain('2 modules, published by their authors as immutable GitHub releases.');
+    expect(list).toMatch(/<a href="https:\/\/developers\.kernelsu\.org" class="btn btn-primary[^"]*">[\s\S]*?Publish a module/);
+    expect(list).toMatch(/<span class="label label-success"[^>]*>1\.0<\/span>/);
+    expect(list).toMatch(/<time datetime="2026-10-01T00:00:00Z" data-relative>2026-10-01<\/time>/);
+    expect(list).toContain('href="https://example.com/home" rel="nofollow noopener noreferrer" class="btn btn-sm">Homepage</a>');
+    expect(list).toMatch(/<div id="list-tools" hidden/);
+    expect(get('zh-CN/index.html')).toContain('共 2 个模块');
+  });
+
   it('lists modules newest first with localized links and alternates', () => {
     const list = get('zh-CN/index.html');
     expect(list.indexOf('data-id="alpha.mod"')).toBeLessThan(list.indexOf('data-id="zeta.mod"'));

@@ -11,36 +11,22 @@ interface Props {
 }
 const { module: d, m, full = false } = Astro.props;
 const stale = d.health.status === 'stale';
-const pill = 'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold flex-shrink-0';
 ---
 
-{
-  d.metamodule && (
-    <span class={`${pill} badge-meta bg-gradient-to-r from-purple-500 to-pink-500 text-white border border-purple-400 dark:border-pink-400 shadow-sm`}>
-      {m.metamodule}
-    </span>
-  )
-}
+{d.metamodule && <span class="label label-done badge-meta">{m.metamodule}</span>}
 {
   full && (
-    <span title={m.immutableTitle} class={`${pill} badge-immutable bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20`}>
+    <span title={m.immutableTitle} class="label label-success badge-immutable">
       {m.immutable}
     </span>
   )
 }
 {
   stale ? (
-    <span
-      title={m.healthStaleTitle(date(d.health.lastSuccessAt) || m.never)}
-      class={`${pill} badge-stale bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20`}
-    >
+    <span title={m.healthStaleTitle(date(d.health.lastSuccessAt) || m.never)} class="label label-attention badge-stale">
       {m.healthStale}
     </span>
   ) : (
-    full && (
-      <span class={`${pill} badge-ok bg-sky-100 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20`}>
-        {m.healthOk}
-      </span>
-    )
+    full && <span class="label label-accent badge-ok">{m.healthOk}</span>
   )
 }
