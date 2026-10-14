@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileParamPattern, duplicateJsonKeys, parseParams } from '../src/index.ts';
+import { duplicateJsonKeys, parseParams } from '../src/index.ts';
 
 const codes = (r: { issues: { code: string }[] }) => r.issues.map((i) => i.code);
 const errors = (r: { issues: { severity: string; message: string }[] }) => r.issues.filter((i) => i.severity === 'error').map((i) => i.message);
@@ -19,7 +19,7 @@ const EXAMPLE = `{
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
       "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
-      "pattern": "^[a-z]*$", "required": false },
+      "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
   ]
 }`;
@@ -117,16 +117,17 @@ describe('parseParams', () => {
     expect(errors(dupObj)).toEqual(['params.json repeats the object key "label" within one object.']);
   });
 
-  it('rejects patterns that do not compile', () => {
-    const r = parseParams(doc([{ key: 'S', type: 'string', label: 'x', pattern: '([a-z' }]));
-    expect(r.issues).toMatchObject([{ code: 'script-params-invalid', severity: 'error', path: 'params[0].pattern', message: expect.stringContaining('is not a valid regular expression') }]);
+  it('pattern is not part of the format: an unknown field, never compiled', () => {
+    const r = parseParams(doc([{ key: 'S', type: 'string', label: 'x', pattern: '([a-z', default: 'ABC' }]));
+    expect(r.ok).toBe(true);
+    expect(r.issues).toMatchObject([{ code: 'script-params-invalid', severity: 'warning', path: 'params[0].pattern' }]);
+    expect(r.value?.params[0]).not.toHaveProperty('pattern');
   });
 
   it('rejects defaults that violate their own constraints', () => {
     const r = parseParams(
       doc([
         { key: 'E', type: 'enum', label: 'x', options: [{ value: 'a' }], default: 'b' },
-        { key: 'S', type: 'string', label: 'x', pattern: '[a-z]+', default: 'ABC' },
         { key: 'T', type: 'string', label: 'x', maxLength: 2, default: 'abc' },
         { key: 'U', type: 'string', label: 'x', default: 'a\nb' },
         { key: 'I', type: 'int', label: 'x', min: 0, max: 10, default: 11 },
@@ -137,25 +138,17 @@ describe('parseParams', () => {
     );
     expect(errors(r)).toEqual([
       'params.json params[0].default: "b" is not one of the option values ("a").',
-      'params.json params[1].default: "ABC" does not fully match the pattern "[a-z]+".',
-      'params.json params[2].default: is 3 characters long; maxLength is 2.',
-      'params.json params[3].default: must not contain NUL or newline characters.',
-      'params.json params[4].default: 11 is greater than max 10.',
-      'params.json params[5].default: 4 is less than min 5.',
-      'params.json params[6].default: 0 (implicit; set "default") is greater than max -1.',
-      'params.json params[7].min: min 5 is greater than max 1.',
+      'params.json params[1].default: is 3 characters long; maxLength is 2.',
+      'params.json params[2].default: must not contain NUL or newline characters.',
+      'params.json params[3].default: 11 is greater than max 10.',
+      'params.json params[4].default: 4 is less than min 5.',
+      'params.json params[5].default: 0 (implicit; set "default") is greater than max -1.',
+      'params.json params[6].min: min 5 is greater than max 1.',
     ]);
   });
 
-  it('an empty string default is fine with a pattern or required: true; the pattern is a full match', () => {
-    const r = parseParams(
-      doc([
-        { key: 'S', type: 'string', label: 'x', pattern: '[a-z]+', required: true },
-        { key: 'T', type: 'string', label: 'x', pattern: 'a|b', default: 'b' },
-      ]),
-    );
-    expect(r.issues).toEqual([]);
-    expect(parseParams(doc([{ key: 'T', type: 'string', label: 'x', pattern: 'a|b', default: 'ab' }])).ok).toBe(false);
+  it('an empty string default is fine with required: true', () => {
+    expect(parseParams(doc([{ key: 'S', type: 'string', label: 'x', required: true }])).issues).toEqual([]);
   });
 
   it('int values are 32-bit', () => {
@@ -169,11 +162,5 @@ describe('params helpers', () => {
     expect(duplicateJsonKeys('{"a":1,"b":{"a":2},"c":[{"a":1},{"a":2}],"d":"\\"a\\""}')).toEqual([]);
     expect(duplicateJsonKeys('{"a":1,"b":{"x":1,"x":2},"a":3}')).toEqual(['x', 'a']);
     expect(duplicateJsonKeys('{"k\\u0061":1,"ka":2}')).toEqual(['ka']);
-  });
-
-  it('compileParamPattern anchors the pattern', () => {
-    const c = compileParamPattern('a|b');
-    expect('re' in c && c.re.test('a') && !c.re.test('ab')).toBe(true);
-    expect(compileParamPattern('(')).toEqual({ error: expect.any(String) });
   });
 });

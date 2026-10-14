@@ -159,7 +159,7 @@ Optional, at the ZIP root, UTF-8 JSON, at most 64 KiB. JSON Schema: `schemas/par
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
       "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
-      "pattern": "^[a-z]*$", "required": false },
+      "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
   ]
 }
@@ -180,12 +180,12 @@ Per type:
 | --- | --- |
 | `bool` | `default`: `true` / `false` (default `false`). Passed as `true` / `false`. |
 | `enum` | `options`: 1–32 entries `{value, label?}`; `value` matches `^[A-Za-z0-9._-]{1,64}$` and is unique. `default` must be one of the values (default: the first option). |
-| `string` | `default` (default `""`), `maxLength` 1–1024 (default 256), optional `pattern` (a JavaScript regular expression that must compile; the manager requires a **full** match, so stick to syntax that ECMAScript and Java share), `required` (default `false`: an empty value is always allowed, the pattern only applies to non-empty values). Values must not contain NUL or line breaks. |
+| `string` | `default` (default `""`), `maxLength` 1–1024 (default 256), `required` (default `false`: an empty value is always allowed). Values must not contain NUL or line breaks; there is no format check (no `pattern`), so `action.sh` must validate the value itself. |
 | `int` | Optional `min` / `max`, `default` (default `min`, or `0` without `min`); `min ≤ default ≤ max`; 32-bit signed integers. Passed in decimal. |
 
 The `default` of every parameter must satisfy its own constraints. Unknown fields are reported as a
 warning and ignored; any other problem — invalid JSON, a repeated object key, an unknown
-`schemaVersion`, duplicate keys or option values, a pattern that does not compile, a default that
+`schemaVersion`, duplicate keys or option values, a default that
 violates its constraints — is [`script-params-invalid`](checks.md#script-params-invalid).
 
 ### How the manager runs `action.sh`

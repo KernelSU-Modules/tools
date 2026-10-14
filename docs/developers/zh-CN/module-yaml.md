@@ -127,7 +127,7 @@ release:
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
       "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
-      "pattern": "^[a-z]*$", "required": false },
+      "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
   ]
 }
@@ -148,10 +148,10 @@ release:
 | --- | --- |
 | `bool` | `default`：`true` / `false`（默认 `false`）。以 `true` / `false` 传入。 |
 | `enum` | `options`：1–32 个 `{value, label?}`；`value` 匹配 `^[A-Za-z0-9._-]{1,64}$` 且不能重复。`default` 必须是其中一个值（默认为第一个选项）。 |
-| `string` | `default`（默认 `""`）、`maxLength` 1–1024（默认 256）、可选的 `pattern`（必须能编译的 JavaScript 正则表达式；管理器要求**完全**匹配，请只使用 ECMAScript 与 Java 共有的语法）、`required`（默认 `false`：空值总是允许，`pattern` 只作用于非空值）。值不能包含 NUL 或换行符。 |
+| `string` | `default`（默认 `""`）、`maxLength` 1–1024（默认 256）、`required`（默认 `false`：空值总是允许）。值不能包含 NUL 或换行符；没有格式校验（没有 `pattern`），`action.sh` 需要自行校验取值。 |
 | `int` | 可选的 `min` / `max`、`default`（默认为 `min`，没有 `min` 时为 `0`）；`min ≤ default ≤ max`；32 位有符号整数。以十进制传入。 |
 
-每个参数的 `default` 都必须满足它自身的约束。未知字段会产生警告并被忽略；其他任何问题（无效的 JSON、同一对象中重复的键、未知的 `schemaVersion`、重复的 key 或选项值、无法编译的 pattern、违反约束的默认值）都是 [`script-params-invalid`](checks.md#script-params-invalid)。
+每个参数的 `default` 都必须满足它自身的约束。未知字段会产生警告并被忽略；其他任何问题（无效的 JSON、同一对象中重复的键、未知的 `schemaVersion`、重复的 key 或选项值、违反约束的默认值）都是 [`script-params-invalid`](checks.md#script-params-invalid)。
 
 ### 管理器如何运行 `action.sh`
 

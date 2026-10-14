@@ -7631,7 +7631,6 @@ __export(src_exports, {
   checkReleaseEligibility: () => checkReleaseEligibility,
   checkReleaseKind: () => checkReleaseKind,
   compareWithLocked: () => compareWithLocked,
-  compileParamPattern: () => compileParamPattern,
   cp437: () => cp437,
   crc32: () => crc32,
   duplicateJsonKeys: () => duplicateJsonKeys,
@@ -27731,7 +27730,6 @@ var PARAM_TEXT_MAX = 200;
 var PARAM_OPTION_VALUE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 var PARAM_OPTIONS_MAX = 32;
 var PARAM_STRING_MAX_LENGTH = 1024;
-var PARAM_PATTERN_MAX = 256;
 var PARAM_STRING_DEFAULT_MAX_LENGTH = 256;
 var PARAM_INT_MIN = -2147483648;
 var PARAM_INT_MAX = 2147483647;
@@ -27763,9 +27761,7 @@ var StringParam = external_exports.object({
   type: external_exports.literal("string"),
   default: external_exports.string().default(""),
   maxLength: external_exports.number().int().min(1).max(PARAM_STRING_MAX_LENGTH).default(PARAM_STRING_DEFAULT_MAX_LENGTH),
-  /** JavaScript RegExp source; clients require a full match. Keep to the common ECMAScript / Java subset. */
-  pattern: external_exports.string().min(1).max(PARAM_PATTERN_MAX).optional(),
-  /** false: the empty string is always accepted (the pattern only applies to non-empty values). */
+  /** false: the empty string is always accepted. There is no format check: the script validates its input. */
   required: external_exports.boolean().default(false)
 });
 var IntParam = external_exports.object({
@@ -29343,14 +29339,6 @@ function unknownFieldIssues2(data) {
     });
   return out;
 }
-function compileParamPattern(pattern) {
-  try {
-    new RegExp(pattern);
-    return { re: new RegExp(`^(?:${pattern})$`) };
-  } catch (e) {
-    return { error: e.message };
-  }
-}
 var FORBIDDEN_CHARS = /[\u0000\n\r]/;
 function checkParam(p, at, issues) {
   const err = (path, message) => issues.push(issue(CODE, `params.json ${at}${path ? `.${path}` : ""}: ${message}`, "error", `${at}${path ? `.${path}` : ""}`));
@@ -29366,16 +29354,9 @@ function checkParam(p, at, issues) {
       return { ...p, default: def };
     }
     case "string": {
-      let re;
-      if (p.pattern !== void 0) {
-        const c = compileParamPattern(p.pattern);
-        if ("error" in c) err("pattern", `${JSON.stringify(p.pattern)} is not a valid regular expression (${c.error}).`);
-        else re = c.re;
-      }
       const d = p.default;
       if (FORBIDDEN_CHARS.test(d)) err("default", "must not contain NUL or newline characters.");
       if (d.length > p.maxLength) err("default", `is ${d.length} characters long; maxLength is ${p.maxLength}.`);
-      if (d !== "" && re && !re.test(d)) err("default", `${JSON.stringify(d)} does not fully match the pattern ${JSON.stringify(p.pattern)}.`);
       return p;
     }
     case "int": {

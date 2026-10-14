@@ -615,10 +615,8 @@ possible, the field (`params[2].default`, …):
   long `label`, a `label` / `description` that is not a string, more than 16 parameters, 0 or more than 32
   `options`, `maxLength` outside 1–1024, a non-integer `int` value, …;
 - the same `key` declared twice, or the same option `value` twice in one `enum`;
-- a `pattern` that is not a valid JavaScript regular expression;
 - a `default` that violates its own constraints: an `enum` default that is not an option, a string
-  longer than `maxLength`, containing NUL or a line break, or not fully matching `pattern` (an empty
-  default is always allowed), an `int` default outside `min`/`max` (without `default` it is `min`,
+  longer than `maxLength` or containing NUL or a line break, an `int` default outside `min`/`max` (without `default` it is `min`,
   or `0`), or `min` greater than `max`.
 
 Unknown fields are reported with the same code as a **warning** and ignored.

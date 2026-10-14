@@ -128,11 +128,6 @@
                 "minimum": 1,
                 "maximum": 1024
               },
-              "pattern": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
               "required": {
                 "default": false,
                 "type": "boolean"

@@ -6,8 +6,8 @@ import { z } from 'zod';
  * (bool → "true" / "false", int → decimal, enum → the option value, string → as entered).
  *
  * Like module.yaml, objects are not strict: unknown fields are dropped (the validator warns), only an unsupported
- * `schemaVersion` is fatal. Cross-field rules (unique keys / option values, a pattern that compiles, a default that
- * satisfies its own constraints, min <= max) are checked by the validator (`parseParams`), not by this schema.
+ * `schemaVersion` is fatal. Cross-field rules (unique keys / option values, a default that satisfies its own
+ * constraints, min <= max) are checked by the validator (`parseParams`), not by this schema.
  */
 
 export const PARAMS_SCHEMA_VERSION = 1;
@@ -20,7 +20,6 @@ export const PARAM_TEXT_MAX = 200;
 export const PARAM_OPTION_VALUE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 export const PARAM_OPTIONS_MAX = 32;
 export const PARAM_STRING_MAX_LENGTH = 1024;
-export const PARAM_PATTERN_MAX = 256;
 export const PARAM_STRING_DEFAULT_MAX_LENGTH = 256;
 /** int values are exchanged as 32-bit signed integers (Kotlin Int on the manager side). */
 export const PARAM_INT_MIN = -2147483648;
@@ -61,9 +60,7 @@ export const StringParam = z.object({
   type: z.literal('string'),
   default: z.string().default(''),
   maxLength: z.number().int().min(1).max(PARAM_STRING_MAX_LENGTH).default(PARAM_STRING_DEFAULT_MAX_LENGTH),
-  /** JavaScript RegExp source; clients require a full match. Keep to the common ECMAScript / Java subset. */
-  pattern: z.string().min(1).max(PARAM_PATTERN_MAX).optional(),
-  /** false: the empty string is always accepted (the pattern only applies to non-empty values). */
+  /** false: the empty string is always accepted. There is no format check: the script validates its input. */
   required: z.boolean().default(false),
 });
 

@@ -60,16 +60,6 @@ function unknownFieldIssues(data: Record<string, unknown>): Issue[] {
   return out;
 }
 
-/** Compile a params.json `pattern` like the manager uses it (full match), or say why it does not compile. */
-export function compileParamPattern(pattern: string): { re: RegExp } | { error: string } {
-  try {
-    new RegExp(pattern);
-    return { re: new RegExp(`^(?:${pattern})$`) };
-  } catch (e) {
-    return { error: (e as Error).message };
-  }
-}
-
 // eslint-disable-next-line no-control-regex
 const FORBIDDEN_CHARS = /[\u0000\n\r]/;
 
@@ -88,17 +78,9 @@ function checkParam(p: ScriptParam, at: string, issues: Issue[]): ScriptParam {
       return { ...p, default: def };
     }
     case 'string': {
-      let re: RegExp | undefined;
-      if (p.pattern !== undefined) {
-        const c = compileParamPattern(p.pattern);
-        if ('error' in c) err('pattern', `${JSON.stringify(p.pattern)} is not a valid regular expression (${c.error}).`);
-        else re = c.re;
-      }
       const d = p.default;
       if (FORBIDDEN_CHARS.test(d)) err('default', 'must not contain NUL or newline characters.');
       if (d.length > p.maxLength) err('default', `is ${d.length} characters long; maxLength is ${p.maxLength}.`);
-      // An empty default is always allowed: optional strings accept "", required ones make the user enter a value.
-      if (d !== '' && re && !re.test(d)) err('default', `${JSON.stringify(d)} does not fully match the pattern ${JSON.stringify(p.pattern)}.`);
       return p;
     }
     case 'int': {
@@ -117,7 +99,7 @@ function checkParam(p: ScriptParam, at: string, issues: Issue[]): ScriptParam {
 
 /**
  * params.json of a one-shot script entry: JSON parse + schema + semantic checks (unique keys and option values,
- * the pattern compiles, defaults satisfy their own constraints). Every problem is a `script-params-invalid` issue;
+ * defaults satisfy their own constraints). Every problem is a `script-params-invalid` issue;
  * unknown fields are warnings. The returned value has every default resolved (enum: first option, int: min or 0).
  */
 export function parseParams(text: string, opts?: { maxBytes?: number }): Result<ScriptParams> {
