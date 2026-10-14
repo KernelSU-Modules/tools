@@ -37,6 +37,11 @@ export const ApiModuleSummary = z.object({
   authors: z.array(z.object({ name: z.string(), url: HttpsUrl.optional() })),
   tags: z.array(z.string()),
   metamodule: z.boolean(),
+  /**
+   * module.yaml `kind`: "module" (install with the manager) or "script" (one-shot: run the ZIP's action.sh once,
+   * nothing is installed). Always emitted; clients treat a missing value as "module" and hide unknown values.
+   */
+  kind: z.enum(['module', 'script']),
   /** Content-hashed icon, "assets/{sha256-prefix}.{ext}". */
   icon: ApiPath.nullable(),
   stable: ApiVersionRef,

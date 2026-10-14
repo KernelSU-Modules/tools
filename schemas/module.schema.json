@@ -59,6 +59,14 @@
       "default": false,
       "type": "boolean"
     },
+    "kind": {
+      "default": "module",
+      "type": "string",
+      "enum": [
+        "module",
+        "script"
+      ]
+    },
     "authors": {
       "minItems": 1,
       "maxItems": 20,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMetamoduleProp, parseJavaProperties, parseModuleProp } from '../src/index.ts';
+import { isMetamoduleProp, isOneshotProp, parseJavaProperties, parseModuleProp } from '../src/index.ts';
 import { VALID_PROP } from './zipwriter.ts';
 
 import { JAVA_PROPERTIES_CORPUS as CORPUS } from './fixtures/java-properties-corpus.ts';
@@ -116,6 +116,26 @@ describe('parseModuleProp', () => {
     ['', false],
   ])('metamodule=%j -> %s (ksud is_metamodule)', (v, want) => {
     expect(isMetamoduleProp({ metamodule: v })).toBe(want);
+  });
+
+  it.each([
+    ['1', true],
+    [' TRUE \t', true],
+    ['True', true],
+    ['0', false],
+    ['yes', false],
+    ['', false],
+  ])('oneshot=%j -> %s (same rule as metamodule)', (v, want) => {
+    expect(isOneshotProp({ oneshot: v })).toBe(want);
+  });
+
+  it('oneshot: missing key, other keys and parsed module.prop', () => {
+    expect(isOneshotProp({})).toBe(false);
+    expect(isOneshotProp({ metamodule: '1' })).toBe(false);
+    expect(isOneshotProp(Object.create(null))).toBe(false);
+    const r = parseModuleProp('id=demo.mod\nname=D\nversion=1\nversionCode=1\nauthor=a\ndescription=d\noneshot = true\n');
+    expect(r.ok).toBe(true);
+    expect(isOneshotProp(r.value!.props)).toBe(true);
   });
 
   it.each(['1', '2147483647', '0042'])('versionCode %s is valid', (vc) => {

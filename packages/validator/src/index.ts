@@ -6,6 +6,8 @@ export * from './range.ts';
 export * from './zip.ts';
 export * from './release.ts';
 export * from './asset.ts';
+export * from './params.ts';
+export * from './kind.ts';
 
 import { DEFAULT_POLICY, type Policy } from '@kernelsu-modules/schema';
 import type { ZipLimits } from './zip.ts';

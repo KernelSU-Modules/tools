@@ -88,6 +88,8 @@ export function parseManifest(text: string, opts?: { maxBytes?: number }): Resul
     issues.push(issue('manifest-schema', 'compatibility.androidMinApi must not be greater than androidMaxApi.', 'error', 'compatibility'));
   if (m.tags && new Set(m.tags).size !== m.tags.length)
     issues.push(issue('manifest-schema', 'tags contains duplicates (tags are case-insensitive).', 'warning', 'tags'));
+  if (m.kind === 'script' && m.metamodule)
+    issues.push(issue('manifest-schema', 'kind: script cannot be combined with metamodule: true (scripts are never installed).', 'error', 'kind'));
   if (c?.architectures && new Set(c.architectures).size !== c.architectures.length)
     issues.push(issue('manifest-schema', 'compatibility.architectures contains duplicates.', 'warning', 'compatibility.architectures'));
 

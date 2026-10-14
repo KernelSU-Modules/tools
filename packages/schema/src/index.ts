@@ -1,5 +1,6 @@
 export * from './common.ts';
 export * from './manifest.ts';
+export * from './params.ts';
 export * from './registry.ts';
 export * from './lock.ts';
 export * from './api.ts';

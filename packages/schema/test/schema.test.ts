@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_POLICY, Maintainers, ModuleId, ModuleLock, ModuleManifest, Policy, RegistryRecord, RegistryStatus, RelativePath, canonicalJson, foldId,
+  ApiModuleSummary, ScriptParams, DEFAULT_POLICY, Maintainers, ModuleId, ModuleLock, ModuleManifest, Policy, RegistryRecord, RegistryStatus, RelativePath, canonicalJson, foldId,
   stripLegacyMaintainerFields,
 } from '../src/index.ts';
 
@@ -33,6 +33,38 @@ describe('schema', () => {
     expect(ModuleManifest.safeParse({ ...base, homepage: 'http://example.org' }).success).toBe(true);
     expect(ModuleManifest.safeParse({ ...base, homepage: 'ftp://example.org' }).success).toBe(false);
     expect(ModuleManifest.safeParse({ ...base, schemaVersion: 2 }).success).toBe(false);
+  });
+
+  it('manifest kind defaults to module; the API requires a known kind', () => {
+    const base = { schemaVersion: 1, id: 'demo.toolbox', name: 'n', summary: 's', description: 'README.md' };
+    expect(ModuleManifest.parse(base).kind).toBe('module');
+    expect(ModuleManifest.parse({ ...base, kind: 'script' }).kind).toBe('script');
+    expect(ModuleManifest.safeParse({ ...base, kind: 'Script' }).success).toBe(false);
+    const summary = {
+      id: 'x.y', name: 'X', summary: '', authors: [], tags: [], metamodule: false, icon: null,
+      stable: { version: '1', versionCode: 1, publishedAt: '2026-10-10T00:00:00Z' }, detail: 'api/v1/modules/x.y.json', updatedAt: '2026-10-10T00:00:00Z',
+    };
+    expect(ApiModuleSummary.safeParse(summary).success).toBe(false);
+    expect(ApiModuleSummary.safeParse({ ...summary, kind: 'script' }).success).toBe(true);
+    expect(ApiModuleSummary.safeParse({ ...summary, kind: 'other' }).success).toBe(false);
+  });
+
+  it('params.json: per-type fields and defaults', () => {
+    const p = ScriptParams.parse({
+      schemaVersion: 1,
+      params: [
+        { key: 'A', type: 'bool', label: { en: 'A', 'zh-CN': '甲', 'zh-Hant-TW': '甲' } },
+        { key: 'B', type: 'string', label: 'B' },
+      ],
+    });
+    expect(p.params).toEqual([
+      { key: 'A', type: 'bool', label: { en: 'A', 'zh-CN': '甲', 'zh-Hant-TW': '甲' }, default: false },
+      { key: 'B', type: 'string', label: 'B', default: '', maxLength: 256, required: false },
+    ]);
+    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'bool', label: { EN: 'A' } }] }).success).toBe(false);
+    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'bool', label: {} }] }).success).toBe(false);
+    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'enum', label: 'x', options: [] }] }).success).toBe(false);
+    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A1_', type: 'int', label: 'x', min: 1.5 }] }).success).toBe(false);
   });
 
   it('record status requires source / request', () => {

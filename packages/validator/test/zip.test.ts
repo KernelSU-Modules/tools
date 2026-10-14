@@ -298,6 +298,38 @@ describe('inspectZip: module.prop location and content', () => {
   });
 });
 
+describe('inspectZip: entry list and params.json', () => {
+  it('lists extracted paths (directories end with "/") and has no paramsJson without params.json', async () => {
+    const r = await inspect([file('./system/', ''), file('system/bin/tool', 'x'), prop(), file('a//action.sh', '#!/bin/sh')]);
+    expect(r.ok).toBe(true);
+    expect(r.value?.files).toEqual(['system/', 'system/bin/tool', 'module.prop', 'a/action.sh']);
+    expect(r.value?.paramsJson).toBeUndefined();
+  });
+
+  it.each([0, 8])('reads a root params.json (method %i)', async (method) => {
+    const json = '{"schemaVersion":1,"params":[]}';
+    const r = await inspect([prop(), file('params.json', json, { method }), file('sub/params.json', '{')]);
+    expect(r.issues).toEqual([]);
+    expect(r.value?.paramsJson).toEqual({ text: json });
+  });
+
+  it('reports unreadable params.json without failing the ZIP', async () => {
+    const big = await inspect([prop(), file('params.json', ' '.repeat(64 * 1024 + 1))]);
+    expect(big.ok).toBe(true);
+    expect(big.value?.paramsJson).toEqual({ error: expect.stringContaining('the limit is 65536') });
+    const crc = await inspect([prop(), file('params.json', '{}', { cd: { crc: 1 }, local: { crc: 1 } })]);
+    expect(crc.ok).toBe(true);
+    expect(crc.value?.paramsJson).toEqual({ error: 'params.json CRC-32 mismatch.' });
+    const latin1 = await inspect([prop(), { name: 'params.json', data: new Uint8Array([0x7b, 0xe9, 0x7d]) }]);
+    expect(latin1.value?.paramsJson).toEqual({ error: 'params.json is not valid UTF-8.' });
+    const method = await inspect([prop(), file('params.json', '{}', { method: 14, payload: enc('lzma') })]);
+    expect(codes(method)).toEqual([]);
+    expect(method.value?.paramsJson).toEqual({ error: expect.stringContaining('compression method 14') });
+    const dir = await inspect([prop(), file('params.json/', '')]);
+    expect(dir.value?.paramsJson).toEqual({ error: 'params.json is a directory, not a file.' });
+  });
+});
+
 describe('inspectZip: structural corruption', () => {
   it('not a zip', async () => {
     const r = await inspectZip(rangeReaderFromBytes(enc('this is definitely not a zip archive at all')), LIMITS);

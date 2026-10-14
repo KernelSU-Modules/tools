@@ -38,6 +38,32 @@ describe('validateReleaseAsset', () => {
   });
 });
 
+describe('validateReleaseAsset: entry kind', () => {
+  const ONESHOT = VALID_PROP + 'oneshot=true\n';
+  const runZip = async (entries: { name: string; data: string }[], kind?: 'module' | 'script') =>
+    validateReleaseAsset({ reader: rangeReaderFromBytes(await buildZip(entries)), expectedId: 'demo.toolbox', limits, kind });
+
+  it('accepts a script entry', async () => {
+    const r = await runZip(
+      [{ name: 'module.prop', data: ONESHOT }, { name: 'action.sh', data: 'echo hi' }, { name: 'params.json', data: '{"schemaVersion":1,"params":[]}' }],
+      'script',
+    );
+    expect(r.issues).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('runs the kind rules (module.yaml kind, else module.prop oneshot)', async () => {
+    const bad = [{ name: 'module.prop', data: ONESHOT }, { name: 'service.sh', data: 'x' }, { name: 'params.json', data: '{' }];
+    expect((await runZip(bad, 'script')).issues.map((i) => i.code)).toEqual(['script-missing-action', 'script-forbidden-file', 'script-params-invalid']);
+    expect((await runZip(bad)).issues.map((i) => i.code)).toEqual(['script-missing-action', 'script-forbidden-file', 'script-params-invalid']);
+    const mismatch = await runZip(bad, 'module');
+    expect(mismatch.ok).toBe(false);
+    expect(mismatch.issues.map((i) => i.code)).toEqual(['manifest-kind-mismatch', 'params-ignored']);
+    const notOneshot = await runZip([{ name: 'module.prop', data: VALID_PROP }, { name: 'action.sh', data: 'x' }], 'script');
+    expect(notOneshot.issues.map((i) => i.code)).toEqual(['manifest-kind-mismatch']);
+  });
+});
+
 describe('ISSUE_CODES', () => {
   it('every code is kebab-case and documented', () => {
     for (const [code, text] of Object.entries(ISSUE_CODES)) {

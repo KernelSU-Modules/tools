@@ -50,6 +50,15 @@ export const GitHubFullName = z
   .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/, 'must be "owner/name" of a GitHub repository')
   .refine((v) => !/\/\.{1,2}$/.test(v), 'must be "owner/name" of a GitHub repository');
 
+/**
+ * Entry kind. `module` (default): installed by the KernelSU manager. `script`: a one-shot script — the manager
+ * downloads the release ZIP and runs its root `action.sh` once with a root shell; nothing is installed. The release
+ * module.prop must declare `oneshot=1` / `true` exactly when the kind is `script`.
+ */
+export const MANIFEST_KINDS = ['module', 'script'] as const;
+export const ManifestKind = z.enum(MANIFEST_KINDS);
+export type ManifestKind = z.infer<typeof ManifestKind>;
+
 export const MANIFEST_NAME_MAX = 100;
 export const MANIFEST_SUMMARY_MAX = 500;
 
@@ -67,6 +76,8 @@ export const ModuleManifest = z.object({
   tags: z.array(Tag).max(10).optional(),
   icon: ManifestPath.optional(),
   metamodule: z.boolean().default(false),
+  /** `script` = one-shot script entry (must not be a metamodule; the validator reports that combination). */
+  kind: ManifestKind.default('module'),
   /** Complete author list; when omitted the site shows the owner of the bound repository. */
   authors: z.array(Author).min(1).max(20).optional(),
   /**

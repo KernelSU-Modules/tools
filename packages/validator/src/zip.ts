@@ -1,4 +1,5 @@
 import { issue, result, type Issue, type IssueCode, type Result, type Severity } from './issues.ts';
+import { PARAMS_MAX_BYTES } from '@kernelsu-modules/schema';
 import type { RangeReader } from './range.ts';
 
 export interface ZipLimits {
@@ -15,6 +16,17 @@ export interface ZipInspection {
   entries: number;
   uncompressedTotal: number;
   moduleProp: string;
+  /**
+   * Every extracted path (normalized like ksud extracts it, see normalizeEntryPath); directories end with "/".
+   * Parent directories that have no entry of their own are not listed.
+   */
+  files: string[];
+  /**
+   * The root params.json (one-shot script parameters) when present: its UTF-8 text, or why it could not be read
+   * (size above PARAMS_MAX_BYTES, encrypted, unsupported compression, corrupt, not UTF-8, a directory). Not an
+   * issue here: whether it matters depends on the entry kind (see checkReleaseKind).
+   */
+  paramsJson?: { text: string } | { error: string };
 }
 
 /** Ratio checks only apply above this many uncompressed bytes (small text files compress extremely well). */
@@ -34,6 +46,7 @@ const SIG_LOCAL = 0x04034b50;
 const U16_MAX = 0xffff;
 const U32_MAX = 0xffffffff;
 const MODULE_PROP = 'module.prop';
+const PARAMS_JSON = 'params.json';
 /**
  * Compression methods ksud's zip crate can extract: zip 8 with features deflate, deflate64, lzma, xz
  * (KernelSU userspace/ksud/Cargo.toml) — stored, deflate, deflate64, LZMA, XZ. Anything else makes
@@ -44,6 +57,8 @@ export const EXTRACTABLE_METHODS: ReadonlySet<number> = new Set([0, 8, 9, 14, 95
 const MAX_PER_CODE = 10;
 
 class Fatal extends Error {}
+/** A stored entry's data could not be read back (reported as zip-entry-corrupt for module.prop). */
+class EntryError extends Error {}
 
 class Issues {
   readonly list: Issue[] = [];
@@ -471,15 +486,65 @@ async function inspect(reader: RangeReader, limits: ZipLimits, iss: Issues): Pro
   if (e.uncompressedSize > limits.modulePropMaxBytes)
     iss.fatal('prop-too-large', `module.prop is ${e.uncompressedSize} bytes; the limit is ${limits.modulePropMaxBytes}.`);
   if (e.method === 0 && e.compressedSize !== e.uncompressedSize) throw new Fatal('stored size mismatch');
+  let data: Uint8Array;
+  try {
+    data = await readEntry(reader, e, cdOffset, MODULE_PROP);
+  } catch (err) {
+    if (err instanceof EntryError) iss.fatal('zip-entry-corrupt', err.message);
+    throw err;
+  }
+
+  let moduleProp: string;
+  try {
+    moduleProp = utf8Fatal.decode(data);
+  } catch {
+    iss.fatal('prop-encoding', 'module.prop is not valid UTF-8.');
+  }
+  const files = entries.filter((x) => x.path !== '').map((x) => (x.isDir ? `${x.path}/` : x.path));
+  const value: ZipInspection = { entries: entries.length, uncompressedTotal, moduleProp, files };
+  const params = entries.find((x) => x.path === PARAMS_JSON);
+  if (params) value.paramsJson = await readParamsJson(reader, params, cdOffset);
+  return value;
+}
+
+/** Read the root params.json without reporting issues (see ZipInspection.paramsJson). */
+async function readParamsJson(reader: RangeReader, e: CdEntry, cdOffset: number): Promise<{ text: string } | { error: string }> {
+  if (e.isDir) return { error: `${PARAMS_JSON} is a directory, not a file.` };
+  if ((e.flags & 0x0001) !== 0 || (e.flags & 0x0040) !== 0 || e.method === 99) return { error: `${PARAMS_JSON} is encrypted.` };
+  if (e.method !== 0 && e.method !== 8)
+    return { error: `${PARAMS_JSON} uses compression method ${e.method}; it must be stored (0) or deflated (8).` };
+  if (e.uncompressedSize > PARAMS_MAX_BYTES) return { error: `${PARAMS_JSON} is ${e.uncompressedSize} bytes; the limit is ${PARAMS_MAX_BYTES}.` };
+  if (e.method === 0 && e.compressedSize !== e.uncompressedSize) return { error: `${PARAMS_JSON} has inconsistent stored sizes.` };
+  let data: Uint8Array;
+  try {
+    data = await readEntry(reader, e, cdOffset, PARAMS_JSON);
+  } catch (err) {
+    if (err instanceof EntryError || err instanceof RangeError) return { error: err.message };
+    throw err;
+  }
+  try {
+    return { text: utf8Fatal.decode(data) };
+  } catch {
+    return { error: `${PARAMS_JSON} is not valid UTF-8.` };
+  }
+}
+
+/**
+ * Read and verify one stored (0) or deflated (8) entry whose central directory record was already checked:
+ * local header consistency, inflated size and CRC-32. Throws EntryError (messages start with `label`).
+ */
+async function readEntry(reader: RangeReader, e: CdEntry, cdOffset: number, label: string): Promise<Uint8Array> {
+  const fail = (message: string): never => {
+    throw new EntryError(`${label} ${message}`);
+  };
   // Deflate cannot expand data by more than ~0.1% + a few bytes; anything bigger is junk.
-  if (e.compressedSize > e.uncompressedSize + (e.uncompressedSize >> 6) + 64)
-    iss.fatal('zip-entry-corrupt', 'module.prop compressed size is implausibly large for its declared size.');
+  if (e.compressedSize > e.uncompressedSize + (e.uncompressedSize >> 6) + 64) fail('compressed size is implausibly large for its declared size.');
 
   const maxLocal = cdOffset - e.localOffset;
   const want = Math.min(maxLocal, LOCAL_HEADER + e.nameBytes.length + 64 + e.compressedSize);
   let buf = await reader.read(e.localOffset, want);
   let lv = dv(buf);
-  if (lv.getUint32(0, true) !== SIG_LOCAL) iss.fatal('zip-entry-corrupt', 'module.prop local header signature mismatch.');
+  if (lv.getUint32(0, true) !== SIG_LOCAL) fail('local header signature mismatch.');
   const lFlags = lv.getUint16(6, true);
   const lMethod = lv.getUint16(8, true);
   const lCrc = lv.getUint32(14, true);
@@ -489,40 +554,29 @@ async function inspect(reader: RangeReader, limits: ZipLimits, iss: Issues): Pro
   const lExtraLen = lv.getUint16(28, true);
   const dataStart = LOCAL_HEADER + lNameLen + lExtraLen;
   const dataEnd = dataStart + e.compressedSize;
-  if (e.localOffset + dataEnd > cdOffset) iss.fatal('zip-entry-corrupt', 'module.prop data runs into the central directory.');
+  if (e.localOffset + dataEnd > cdOffset) fail('data runs into the central directory.');
   if (dataEnd > buf.length) {
     buf = await reader.read(e.localOffset, dataEnd);
     lv = dv(buf);
   }
-  if (!bytesEqual(buf.subarray(LOCAL_HEADER, LOCAL_HEADER + lNameLen), e.nameBytes))
-    iss.fatal('zip-entry-corrupt', 'module.prop local header name differs from the central directory.');
-  if (lMethod !== e.method || (lFlags & 0x0041) !== (e.flags & 0x0041))
-    iss.fatal('zip-entry-corrupt', 'module.prop local header method/flags differ from the central directory.');
+  if (!bytesEqual(buf.subarray(LOCAL_HEADER, LOCAL_HEADER + lNameLen), e.nameBytes)) fail('local header name differs from the central directory.');
+  if (lMethod !== e.method || (lFlags & 0x0041) !== (e.flags & 0x0041)) fail('local header method/flags differ from the central directory.');
   if ((lFlags & 0x0008) === 0) {
     const sizesOk =
       (lComp === U32_MAX || lComp === e.compressedSize) && (lUncomp === U32_MAX || lUncomp === e.uncompressedSize) && lCrc === e.crc;
-    if (!sizesOk) iss.fatal('zip-entry-corrupt', 'module.prop local header sizes/CRC differ from the central directory.');
+    if (!sizesOk) fail('local header sizes/CRC differ from the central directory.');
   }
 
   const raw = buf.subarray(dataStart, dataEnd);
-  let data: Uint8Array;
-  if (e.method === 0) data = raw;
-  else {
+  let data: Uint8Array = raw;
+  if (e.method !== 0) {
     try {
       data = await inflateLimited(raw, e.uncompressedSize);
     } catch (err) {
-      iss.fatal('zip-entry-corrupt', `module.prop could not be inflated: ${(err as Error).message}`);
+      fail(`could not be inflated: ${(err as Error).message}`);
     }
   }
-  if (data.length !== e.uncompressedSize)
-    iss.fatal('zip-entry-corrupt', `module.prop inflated to ${data.length} bytes but ${e.uncompressedSize} were declared.`);
-  if (crc32(data) !== e.crc) iss.fatal('zip-entry-corrupt', 'module.prop CRC-32 mismatch.');
-
-  let moduleProp: string;
-  try {
-    moduleProp = utf8Fatal.decode(data);
-  } catch {
-    iss.fatal('prop-encoding', 'module.prop is not valid UTF-8.');
-  }
-  return { entries: entries.length, uncompressedTotal, moduleProp };
+  if (data.length !== e.uncompressedSize) fail(`inflated to ${data.length} bytes but ${e.uncompressedSize} were declared.`);
+  if (crc32(data) !== e.crc) fail('CRC-32 mismatch.');
+  return data;
 }

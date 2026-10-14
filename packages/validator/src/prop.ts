@@ -222,6 +222,17 @@ export function isMetamoduleProp(props: Record<string, string>): boolean {
   return t === '1' || /^true$/i.test(t);
 }
 
+/**
+ * One-shot script entry marker: `oneshot` read exactly like ksud reads `metamodule` (trimmed value equals "1" or,
+ * ASCII case-insensitively, "true"). ksud itself ignores the key; the manager uses it to run the ZIP instead of
+ * installing it.
+ */
+export function isOneshotProp(props: Record<string, string>): boolean {
+  if (!Object.prototype.hasOwnProperty.call(props, 'oneshot')) return false;
+  const t = rustTrim(props.oneshot!);
+  return t === '1' || /^true$/i.test(t);
+}
+
 const shown = (s: string) => JSON.stringify(s.length > 80 ? `${s.slice(0, 80)}…` : s);
 
 /**

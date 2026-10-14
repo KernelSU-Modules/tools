@@ -9,6 +9,7 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '../../../schemas');
 mkdirSync(out, { recursive: true });
 const targets: Record<string, z.ZodType> = {
   'module.schema.json': S.ModuleManifest,
+  'params.schema.json': S.ScriptParams,
   'record.schema.json': S.RegistryRecord,
   'policy.schema.json': S.Policy,
   'maintainers.schema.json': S.Maintainers,

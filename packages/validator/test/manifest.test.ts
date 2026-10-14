@@ -47,6 +47,7 @@ describe('parseManifest', () => {
     const r = parseManifest('\uFEFF' + MIN);
     expect(r.ok).toBe(true);
     expect(r.value?.metamodule).toBe(false);
+    expect(r.value?.kind).toBe('module');
     expect(manifestReferencedPaths(r.value!)).toEqual(['README.md']);
   });
 
@@ -134,5 +135,17 @@ describe('parseManifest', () => {
     const w = parseManifest(MIN + 'tags: [a, a]\n');
     expect(w.ok).toBe(true);
     expect(w.issues).toMatchObject([{ severity: 'warning' }]);
+  });
+
+  it('kind: module (default) or script; script cannot be a metamodule', () => {
+    expect(parseManifest(MIN + 'kind: script\n').value?.kind).toBe('script');
+    expect(parseManifest(MIN + 'kind: module\n').value?.kind).toBe('module');
+    const bad = parseManifest(MIN + 'kind: plugin\n');
+    expect(bad.ok).toBe(false);
+    expect(bad.issues).toMatchObject([{ code: 'manifest-schema', severity: 'error', path: 'kind' }]);
+    const meta = parseManifest(MIN + 'kind: script\nmetamodule: true\n');
+    expect(meta.ok).toBe(false);
+    expect(meta.issues).toMatchObject([{ code: 'manifest-schema', severity: 'error', path: 'kind', message: expect.stringContaining('metamodule') }]);
+    expect(parseManifest(MIN + 'kind: module\nmetamodule: true\n').ok).toBe(true);
   });
 });

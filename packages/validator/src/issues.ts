@@ -113,6 +113,32 @@ export const ISSUE_DEFS = {
     summary: '(caller, sync) metamodule in module.yaml disagrees with module.prop as KernelSU reads it (metamodule=1 or true, case-insensitive, trimmed).',
     fix: 'Set metamodule: true in module.yaml exactly when module.prop has metamodule=1 (or true), or vice versa.',
   },
+  'manifest-kind-mismatch': {
+    summary: '(caller, sync and author action) kind in module.yaml disagrees with module.prop: kind: script requires oneshot=1 or true (case-insensitive, trimmed), and oneshot requires kind: script.',
+    fix: 'Set kind: script in module.yaml exactly when module.prop has oneshot=1 (or true); otherwise omit kind (or set kind: module) and remove oneshot.',
+  },
+
+  /* ---------------- script entries (kind: script) ---------------- */
+  'script-missing-action': {
+    summary: 'A script entry (kind: script) has no action.sh at the ZIP root; it is the script the manager runs.',
+    fix: 'Put action.sh at the top level of the ZIP and publish a new release.',
+  },
+  'script-forbidden-file': {
+    summary: 'A script entry ships a root file or directory that only an installed module uses (boot scripts, metamodule hooks, system.prop, sepolicy.rule, skip_mount, system/, vendor/, product/, system_ext/, odm/, webroot/, zygisk/).',
+    fix: 'Remove the file from the ZIP, or publish the entry as a regular module (kind: module, no oneshot in module.prop).',
+  },
+  'script-metamodule': {
+    summary: 'A script entry declares metamodule=1/true in module.prop; scripts are never installed, so they cannot be metamodules.',
+    fix: 'Remove metamodule from module.prop, or publish the entry as a module (kind: module, no oneshot).',
+  },
+  'script-params-invalid': {
+    summary: 'params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a pattern that does not compile, a default that violates its own constraints); unknown fields are warnings.',
+    fix: 'Fix params.json as described in the message (see the params.json reference in the module.yaml docs) and publish a new release.',
+  },
+  'params-ignored': {
+    summary: '(warning) The ZIP of a regular module (kind: module) has a root params.json; only script entries use it.',
+    fix: 'Remove params.json, or set kind: script in module.yaml and oneshot=true in module.prop if the entry is a one-shot script.',
+  },
 
   /* ---------------- release selection ---------------- */
   'release-none': {

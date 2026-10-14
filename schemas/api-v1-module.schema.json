@@ -42,6 +42,13 @@
     "metamodule": {
       "type": "boolean"
     },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "module",
+        "script"
+      ]
+    },
     "icon": {
       "anyOf": [
         {
@@ -356,6 +363,7 @@
     "authors",
     "tags",
     "metamodule",
+    "kind",
     "icon",
     "stable",
     "detail",

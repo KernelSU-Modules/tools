@@ -25,7 +25,7 @@ describe('stars', () => {
 
   it('api: stars / starsRepository are optional and nullable', () => {
     const summary = {
-      id: 'x.y', name: 'X', summary: '', authors: [{ name: 'a', url: 'https://github.com/a' }], tags: [], metamodule: false, icon: null,
+      id: 'x.y', name: 'X', summary: '', authors: [{ name: 'a', url: 'https://github.com/a' }], tags: [], metamodule: false, kind: 'module', icon: null,
       stable: { version: '1', versionCode: 1, publishedAt: '2026-10-10T00:00:00Z' }, detail: 'api/v1/modules/x.y.json', updatedAt: '2026-10-10T00:00:00Z',
     };
     expect(ApiModuleSummary.safeParse(summary).success).toBe(true);
