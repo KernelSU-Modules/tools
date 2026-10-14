@@ -9,6 +9,7 @@ interface Entry {
   authors: string[];
   tags: string[];
   metamodule: boolean;
+  kind: 'module' | 'script';
   version: string;
   updatedAt: string;
   stars: number | null;

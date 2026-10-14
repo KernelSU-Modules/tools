@@ -35,6 +35,8 @@ export interface SearchEntry {
   authors: string[];
   tags: string[];
   metamodule: boolean;
+  /** "module" or "script" (one-shot script entry). */
+  kind: 'module' | 'script';
   version: string;
   updatedAt: string;
   /** GitHub stars of the bound repository; null when not recorded. */
@@ -82,6 +84,7 @@ export function buildSearchIndex(data: Pick<SiteData, 'buildId' | 'modules'>, ui
         authors: d.authors.map((a) => a.name),
         tags: d.tags,
         metamodule: d.metamodule,
+        kind: d.kind,
         version: d.stable.version,
         updatedAt: d.updatedAt,
         stars: d.stars ?? null,

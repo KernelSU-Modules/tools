@@ -4,7 +4,7 @@ import type { Messages } from '../lib/i18n.ts';
 import { date } from '../lib/format.ts';
 
 interface Props {
-  module: Pick<ApiModuleDetail, 'metamodule' | 'health'>;
+  module: Pick<ApiModuleDetail, 'metamodule' | 'kind' | 'health'>;
   m: Messages;
   /** Detail page: also show the immutable-release and sync-ok badges. */
   full?: boolean;
@@ -14,6 +14,13 @@ const stale = d.health.status === 'stale';
 ---
 
 {d.metamodule && <span class="label label-done badge-meta">{m.metamodule}</span>}
+{
+  d.kind === 'script' && (
+    <span title={m.scriptTitle} class="label label-accent badge-script">
+      {m.script}
+    </span>
+  )
+}
 {
   full && (
     <span title={m.immutableTitle} class="label label-success badge-immutable">

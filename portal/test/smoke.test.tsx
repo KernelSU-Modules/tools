@@ -41,6 +41,7 @@ const ROUTES: [string, string][] = [
   ['/repos', 'alice/zygisk-assistant'],
   ['/repos/100002/precheck', 'Zygisk Assistant'],
   ['/repos/100003/precheck', 'release-not-immutable'],
+  ['/repos/100003/precheck', 'Script (one-shot, runs action.sh)'],
   ['/repos/100005/precheck', 'manifest-missing'],
   ['/repos/100002/submit', 'zygisk-assistant'],
   ['/repos/100001/preview', 'Preview'],

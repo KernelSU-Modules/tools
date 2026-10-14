@@ -19,7 +19,7 @@ const ext = { rel: 'nofollow noopener noreferrer' };
 const href = `/${detailUrl(ui, d.id)}`;
 ---
 
-<li class="module-card grid grid-cols-[32px_minmax(0,1fr)] gap-x-3 gap-y-3 border-t border-line-muted p-4 first:border-t-0 sm:grid-cols-[32px_minmax(0,1fr)_auto]" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-updated={d.updatedAt} data-stars={d.stars ?? 0}>
+<li class="module-card grid grid-cols-[32px_minmax(0,1fr)] gap-x-3 gap-y-3 border-t border-line-muted p-4 first:border-t-0 sm:grid-cols-[32px_minmax(0,1fr)_auto]" data-id={d.id} data-meta={d.metamodule ? '1' : '0'} data-kind={d.kind} data-updated={d.updatedAt} data-stars={d.stars ?? 0}>
   <ModuleIcon module={d} name={d.name} size="sm" />
   <div class="min-w-0">
     <div class="mb-1.5 flex min-w-0 flex-wrap items-center gap-2">

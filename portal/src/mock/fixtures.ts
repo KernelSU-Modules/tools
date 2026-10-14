@@ -167,6 +167,7 @@ export const okPrecheck = (id: string, fullName: string): PrecheckResult => ({
     homepage: `https://github.com/${fullName}`,
     tags: ['zygisk', 'utility'],
     metamodule: false,
+    kind: 'module',
     authors: [{ name: 'Alice' }],
     release: { assetPattern: '*-release.zip' },
   },
@@ -188,6 +189,7 @@ export const failingPrecheck: PrecheckResult = {
     summary: 'Saves battery.',
     description: 'docs/README.md',
     metamodule: false,
+    kind: 'script',
   },
   latestRelease: { tag: 'v2.3', immutable: false },
 };

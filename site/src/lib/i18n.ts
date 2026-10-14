@@ -22,6 +22,8 @@ export interface Messages {
   modulesCount: (n: number) => string;
   noResults: string;
   metamodule: string;
+  script: string;
+  scriptTitle: string;
   immutable: string;
   immutableTitle: string;
   healthOk: string;
@@ -111,6 +113,8 @@ const en: Messages = {
   modulesCount: (n) => (n === 1 ? '1 module' : `${n} modules`),
   noResults: 'No modules match your search.',
   metamodule: 'Metamodule',
+  script: 'Script',
+  scriptTitle: 'A one-shot script: the KernelSU manager runs it once with root; nothing is installed.',
   immutable: 'Immutable release',
   immutableTitle: 'Published as a GitHub immutable release: the tag and assets cannot be changed.',
   healthOk: 'Synced',
@@ -201,6 +205,8 @@ const zhCN: Messages = {
   modulesCount: (n) => `${n} 个模块`,
   noResults: '没有符合条件的模块。',
   metamodule: '元模块',
+  script: '脚本',
+  scriptTitle: '一次性脚本：由 KernelSU 管理器以 root 权限运行一次，不会安装任何内容。',
   immutable: '不可变 Release',
   immutableTitle: '以 GitHub 不可变 Release 发布：tag 与资产无法被修改。',
   healthOk: '已同步',

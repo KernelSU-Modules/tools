@@ -119,6 +119,7 @@ export function ManifestSummary({ manifest }: { manifest: ModuleManifest | undef
         [t('manifest.description'), <code>{manifest.description}</code>],
         [t('manifest.license'), manifest.license ?? '—'],
         [t('manifest.tags'), manifest.tags?.length ? manifest.tags.map((x) => <span key={x} class="tag">{x}</span>) : '—'],
+        [t('manifest.kind'), manifest.kind === 'script' ? t('manifest.kindScript') : t('manifest.kindModule')],
         [t('manifest.metamodule'), manifest.metamodule ? t('common.yes') : t('common.no')],
         [t('manifest.assetPattern'), manifest.release?.assetPattern ? <code>{manifest.release.assetPattern}</code> : t('manifest.assetPatternDefault')],
       ]}

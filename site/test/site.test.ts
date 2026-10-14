@@ -35,6 +35,7 @@ function mod(id: string, over: Partial<ApiModuleDetail> = {}): SiteModule {
     authors: [{ name: 'Alice', url: 'https://github.com/alice' }],
     tags: ['tools'],
     metamodule: false,
+    kind: 'module',
     icon: null,
     stable: { version: '1.0', versionCode: 10, publishedAt: '2026-10-01T00:00:00Z' },
     detail: `api/v1/modules/${id}.json`,
@@ -67,7 +68,7 @@ const data: SiteData = {
   generatedAt: '2026-10-09T00:00:00Z',
   modules: [
     mod('alpha.mod', { metamodule: true, health: { status: 'stale', lastSuccessAt: null }, updatedAt: '2026-10-05T00:00:00Z' }),
-    mod('zeta.mod', { stars: 1234, starsRepository: 'o/zeta-old' }),
+    mod('zeta.mod', { stars: 1234, starsRepository: 'o/zeta-old', kind: 'script' }),
   ],
 };
 
@@ -276,6 +277,18 @@ describe('page-data helpers', () => {
     expect(s.modules[0]!.url).toBe('zh-CN/modules/alpha.mod/');
     expect(s.buildId).toBe(data.buildId);
   });
+  it('script entries: "Script" badge on the list row and the detail page, kind in the search index', () => {
+    expect(get('en/modules/zeta.mod/index.html')).toMatch(/class="label label-accent badge-script"[^>]*>\s*Script\s*</);
+    expect(get('zh-CN/modules/zeta.mod/index.html')).toMatch(/badge-script"[^>]*>\s*脚本\s*</);
+    expect(get('en/modules/alpha.mod/index.html')).not.toContain('badge-script');
+    const list = get('en/index.html');
+    expect(list).toMatch(/data-id="zeta\.mod"[^>]*data-kind="script"/);
+    expect(list).toMatch(/data-id="alpha\.mod"[^>]*data-kind="module"/);
+    expect(list.match(/badge-script/g)).toHaveLength(1);
+    const idx = buildSearchIndex(data, 'en');
+    expect(idx.modules.map((e) => [e.id, e.kind])).toEqual([['alpha.mod', 'module'], ['zeta.mod', 'script']]);
+  });
+
   it('search entries carry stars (null when not recorded)', () => {
     expect(buildSearchIndex(data, 'en').modules.map((m) => [m.id, m.stars])).toEqual([['alpha.mod', null], ['zeta.mod', 1234]]);
   });
