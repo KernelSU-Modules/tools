@@ -53,15 +53,15 @@ describe('schema', () => {
     const p = ScriptParams.parse({
       schemaVersion: 1,
       params: [
-        { key: 'A', type: 'bool', label: { en: 'A', 'zh-CN': '甲', 'zh-Hant-TW': '甲' } },
+        { key: 'A', type: 'bool', label: 'A' },
         { key: 'B', type: 'string', label: 'B' },
       ],
     });
     expect(p.params).toEqual([
-      { key: 'A', type: 'bool', label: { en: 'A', 'zh-CN': '甲', 'zh-Hant-TW': '甲' }, default: false },
+      { key: 'A', type: 'bool', label: 'A', default: false },
       { key: 'B', type: 'string', label: 'B', default: '', maxLength: 256, required: false },
     ]);
-    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'bool', label: { EN: 'A' } }] }).success).toBe(false);
+    expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'bool', label: { en: 'A' } }] }).success).toBe(false);
     expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'bool', label: {} }] }).success).toBe(false);
     expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A', type: 'enum', label: 'x', options: [] }] }).success).toBe(false);
     expect(ScriptParams.safeParse({ schemaVersion: 1, params: [{ key: 'A1_', type: 'int', label: 'x', min: 1.5 }] }).success).toBe(false);

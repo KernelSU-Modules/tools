@@ -12,12 +12,12 @@ const EXAMPLE = `{
     {
       "key": "ENABLE_FASTBOOT",
       "type": "bool",
-      "label": { "en": "Also enable fastboot", "zh-CN": "同时开启 Fastboot" },
+      "label": "Also enable fastboot",
       "description": "Optional longer help text",
       "default": true
     },
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
-      "options": [ { "value": "a", "label": { "en": "A" } }, { "value": "b" } ] },
+      "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
       "pattern": "^[a-z]*$", "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
@@ -84,7 +84,7 @@ describe('parseParams', () => {
         { key: 'T', type: 'color', label: 'x' },
         { key: 'L', type: 'bool', label: '' },
         { key: 'M', type: 'bool', label: {} },
-        { key: 'N', type: 'bool', label: { EN: 'x' } },
+        { key: 'N', type: 'bool', label: { en: 'x' } },
         { key: 'O', type: 'enum', label: 'x', options: [] },
         { key: 'P', type: 'enum', label: 'x', options: [{ value: 'a b' }] },
         { key: 'Q', type: 'string', label: 'x', maxLength: 2000 },

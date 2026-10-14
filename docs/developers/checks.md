@@ -612,7 +612,7 @@ possible, the field (`params[2].default`, …):
 - an object key repeated within one object (Android's JSON parser rejects such files);
 - `schemaVersion` missing or not `1`;
 - a schema violation: `key` not matching `^[A-Z][A-Z0-9_]{0,31}$`, unknown `type`, empty or too
-  long `label`, a locale key such as `EN` instead of `en`, more than 16 parameters, 0 or more than 32
+  long `label`, a `label` / `description` that is not a string, more than 16 parameters, 0 or more than 32
   `options`, `maxLength` outside 1–1024, a non-integer `int` value, …;
 - the same `key` declared twice, or the same option `value` twice in one `enum`;
 - a `pattern` that is not a valid JavaScript regular expression;

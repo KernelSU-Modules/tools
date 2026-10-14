@@ -16,7 +16,6 @@ export const SUPPORTED_PARAMS_VERSIONS = [1] as const;
 export const PARAMS_MAX_BYTES = 64 * 1024;
 export const PARAMS_MAX = 16;
 export const PARAM_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,31}$/;
-export const PARAM_LOCALE_PATTERN = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 export const PARAM_TEXT_MAX = 200;
 export const PARAM_OPTION_VALUE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 export const PARAM_OPTIONS_MAX = 32;
@@ -27,26 +26,15 @@ export const PARAM_STRING_DEFAULT_MAX_LENGTH = 256;
 export const PARAM_INT_MIN = -2147483648;
 export const PARAM_INT_MAX = 2147483647;
 
+/** Labels and descriptions are single-language, like module content. */
 const Text = z.string().trim().min(1).max(PARAM_TEXT_MAX);
-
-/**
- * A non-empty string, or a map locale → string with at least one entry. Clients pick the exact locale, then the
- * language only, then "en", then the first entry.
- */
-export const LocalizedText = z.union([
-  Text,
-  z
-    .record(z.string().regex(PARAM_LOCALE_PATTERN, 'locale keys must look like "en" or "zh-CN"'), Text)
-    .refine((o) => Object.keys(o).length > 0, 'must have at least one locale'),
-]);
-export type LocalizedText = z.infer<typeof LocalizedText>;
 
 const ParamInt = z.number().int().min(PARAM_INT_MIN).max(PARAM_INT_MAX);
 
 const common = {
   key: z.string().regex(PARAM_KEY_PATTERN, 'must match ^[A-Z][A-Z0-9_]{0,31}$'),
-  label: LocalizedText,
-  description: LocalizedText.optional(),
+  label: Text,
+  description: Text.optional(),
 };
 
 export const BoolParam = z.object({
@@ -57,7 +45,7 @@ export const BoolParam = z.object({
 
 export const EnumOption = z.object({
   value: z.string().regex(PARAM_OPTION_VALUE_PATTERN, 'must match ^[A-Za-z0-9._-]{1,64}$'),
-  label: LocalizedText.optional(),
+  label: Text.optional(),
 });
 
 export const EnumParam = z.object({

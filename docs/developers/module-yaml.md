@@ -152,12 +152,12 @@ Optional, at the ZIP root, UTF-8 JSON, at most 64 KiB. JSON Schema: `schemas/par
     {
       "key": "ENABLE_FASTBOOT",
       "type": "bool",
-      "label": { "en": "Also enable fastboot", "zh-CN": "同时开启 Fastboot" },
+      "label": "Also enable fastboot",
       "description": "Optional longer help text",
       "default": true
     },
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
-      "options": [ { "value": "a", "label": { "en": "A" } }, { "value": "b" } ] },
+      "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
       "pattern": "^[a-z]*$", "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
@@ -171,8 +171,8 @@ Optional, at the ZIP root, UTF-8 JSON, at most 64 KiB. JSON Schema: `schemas/par
 | `params` | Up to 16 parameters. |
 | `key` | `^[A-Z][A-Z0-9_]{0,31}$`, unique. The value reaches the script as `KSU_PARAM_<key>`. |
 | `type` | `bool`, `enum`, `string` or `int`. |
-| `label` | Required. Localized text: a non-empty string (≤ 200 chars) or an object locale → string with at least one entry; locale keys match `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$` (`en`, `zh-CN`). The manager picks the exact locale, then the language only, then `en`, then the first entry. |
-| `description` | Optional localized text, same rules as `label`. |
+| `label` | Required. A non-empty string (≤ 200 chars). Single-language, like module content. |
+| `description` | Optional string, same rules as `label`. |
 
 Per type:
 

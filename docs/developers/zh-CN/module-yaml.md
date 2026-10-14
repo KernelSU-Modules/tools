@@ -120,12 +120,12 @@ release:
     {
       "key": "ENABLE_FASTBOOT",
       "type": "bool",
-      "label": { "en": "Also enable fastboot", "zh-CN": "同时开启 Fastboot" },
+      "label": "Also enable fastboot",
       "description": "Optional longer help text",
       "default": true
     },
     { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
-      "options": [ { "value": "a", "label": { "en": "A" } }, { "value": "b" } ] },
+      "options": [ { "value": "a", "label": "A" }, { "value": "b" } ] },
     { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
       "pattern": "^[a-z]*$", "required": false },
     { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
@@ -139,8 +139,8 @@ release:
 | `params` | 最多 16 个参数。 |
 | `key` | `^[A-Z][A-Z0-9_]{0,31}$`，不能重复。脚本通过 `KSU_PARAM_<key>` 获得该值。 |
 | `type` | `bool`、`enum`、`string` 或 `int`。 |
-| `label` | 必填。本地化文本：非空字符串（≤ 200 个字符），或“语言 → 字符串”的对象（至少一项）；语言键须匹配 `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$`（如 `en`、`zh-CN`）。管理器依次选择完全匹配的语言、仅语言部分、`en`、第一项。 |
-| `description` | 可选的本地化文本，规则同 `label`。 |
+| `label` | 必填。非空字符串（≤ 200 个字符）。与模块内容一样只有一种语言。 |
+| `description` | 可选字符串，规则同 `label`。 |
 
 各类型：
 
