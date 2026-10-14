@@ -53,6 +53,7 @@ release:
 | `support` | 否 | 用于反馈问题 / 获取帮助的 URL（issues 页面、论坛帖子、聊天群）。`http://` 可以使用，但会产生警告。 |
 | `tags` | 否 | 最多 10 个由字母、数字和 `-` 组成的标签（最长 32 个字符，以字母或数字开头）。标签不区分大小写，统一保存为小写（`Root` → `root`）。 |
 | `icon` | 否 | 图标相对于仓库的路径。 |
+| `kind` | 否 | `module`（默认）或 `script`：管理器运行一次而不安装的[一次性脚本](#脚本条目kind-script)。须与 `module.prop` 中的 `oneshot=1`/`true` 一致（[`manifest-kind-mismatch`](checks.md#manifest-kind-mismatch)）；`script` 不能与 `metamodule: true` 同时使用。 |
 | `metamodule` | 否 | 若为 KernelSU metamodule 则设为 `true`。默认 `false`。须与 `module.prop` 中的 `metamodule=1`/`true` 一致，KernelSU 实际依据的是后者（[`manifest-metamodule-mismatch`](checks.md#manifest-metamodule-mismatch)）。 |
 | `authors` | 否 | 1–20 个 `{name, url?}` 条目；`name` 1–64 个字符，`url` 必须是 `https://`。该列表就是**完整的**作者列表：增删作者直接编辑它即可。省略时，站点和 API 显示**模块仓库的所有者**（其 GitHub 用户名，链接到个人主页）。仅用于展示，权限来自 GitHub 仓库管理员身份，而非此列表。 |
 | `starsRepository` | 否 | 一个 GitHub 仓库的 `owner/name`，显示它的 Star 数而不是模块仓库的，例如模块改为从[闭源 release 仓库](closed-source.md)发布之前的开源仓库。只有当该仓库是公开仓库，**并且**与模块仓库属于同一所有者，**或**安装了 KernelSU Modules GitHub App（以此证明你控制该仓库）时才会使用；否则显示模块仓库自身的 Star 数，并报告警告（[`stars-repo-unverified`](checks.md#stars-repo-unverified)）。 |
@@ -78,6 +79,103 @@ release:
 | `assetPattern` | 用于在 release 资源中匹配模块 ZIP 的 glob。仅支持 `*` 和 `?` 通配符，不能含 `/` 或 `\`，最长 128 个字符。未设置时，release 必须包含**恰好一个** `.zip` 资源；设置后，必须有**恰好一个**资源匹配。 |
 
 当 release 中包含多个 ZIP（例如调试版或源码包）时，请设置 `assetPattern`。[module-release action](releasing.md) 生成的资源名为 `{id}-{versionCode}-{version}.zip`（`version` 会按文件名规则清理），因此 `"{id}-*.zip"` 是个不错的模式。
+
+## 脚本条目（`kind: script`）
+
+条目可以是**一次性脚本**而不是模块。托管方式完全相同（一个包含单个 ZIP 的不可变 GitHub release，按模块的规则检查），但 KernelSU 管理器不会安装它：管理器下载 ZIP，询问 `params.json` 中声明的参数，展示 `action.sh` 源码，并在 root shell 中**运行一次**。不会留下任何已安装的内容。适用于“开启某个隐藏设置”“导出日志”这类任务；需要在开机时运行或修改系统分区的内容应当做成模块。
+
+在 `module.yaml` 中设置 `kind: script`，并在 `module.prop` 中设置 `oneshot=true`：
+
+```text
+<id>-<version>.zip
+├── module.prop      # 常规字段 + oneshot=true
+├── action.sh        # 必需：管理器运行的脚本
+├── params.json      # 可选：参数声明（见下文）
+├── customize.sh     # 可选：仅在旧版管理器把 ZIP 当作模块安装时使用
+└── 其他文件          # 脚本通过 $MODPATH 读取的数据
+```
+
+`oneshot` 的读取方式与 `metamodule` 相同：忽略首尾空白后值为 `1` 或 `true`（不区分大小写）；其他任何值或没有 `oneshot` 行都表示普通模块。不认识脚本条目的旧版管理器会把 ZIP 当作普通模块安装，其**操作**按钮会运行 `action.sh`，请让 `action.sh` 在这种情况下也能正常工作。
+
+脚本条目的 release 检查（均为错误，见[检查](checks.md#脚本条目)）：
+
+- 当且仅当 `module.prop` 含有 `oneshot=1`/`true` 时设置 `kind: script`（[`manifest-kind-mismatch`](checks.md#manifest-kind-mismatch)）；
+- ZIP 根目录有 `action.sh`（[`script-missing-action`](checks.md#script-missing-action)）；
+- ZIP 根目录没有仅模块使用的文件 `post-fs-data.sh`、`post-mount.sh`、`service.sh`、`boot-completed.sh`、`uninstall.sh`、`metamount.sh`、`metainstall.sh`、`metauninstall.sh`、`system.prop`、`sepolicy.rule`、`skip_mount`，也没有目录 `system/`、`vendor/`、`product/`、`system_ext/`、`odm/`、`webroot/`、`zygisk/`（[`script-forbidden-file`](checks.md#script-forbidden-file)）；
+- 不是元模块：`module.yaml` 中的 `metamodule: true` 是 [`manifest-schema`](checks.md#manifest-schema) 错误，`module.prop` 中的 `metamodule=1` 是 [`script-metamodule`](checks.md#script-metamodule)；
+- 存在 `params.json` 时它必须有效（[`script-params-invalid`](checks.md#script-params-invalid)）。
+
+普通模块的 ZIP 根目录含有 `params.json` 时会产生警告 [`params-ignored`](checks.md#params-ignored)。
+
+在 API（`api/v1/modules.json` 和 `api/v1/modules/{id}.json`）中，每个条目都有 `kind: "module" | "script"`；客户端把缺失的值视为 `module`，并隐藏 kind 未知的条目。
+
+### `params.json`
+
+可选，位于 ZIP 根目录，UTF-8 JSON，最大 64 KiB。JSON Schema：`schemas/params.schema.json`。
+
+```json
+{
+  "schemaVersion": 1,
+  "params": [
+    {
+      "key": "ENABLE_FASTBOOT",
+      "type": "bool",
+      "label": { "en": "Also enable fastboot", "zh-CN": "同时开启 Fastboot" },
+      "description": "Optional longer help text",
+      "default": true
+    },
+    { "key": "MODE", "type": "enum", "label": "Mode", "default": "a",
+      "options": [ { "value": "a", "label": { "en": "A" } }, { "value": "b" } ] },
+    { "key": "NAME", "type": "string", "label": "Name", "default": "", "maxLength": 64,
+      "pattern": "^[a-z]*$", "required": false },
+    { "key": "COUNT", "type": "int", "label": "Count", "default": 1, "min": 0, "max": 10 }
+  ]
+}
+```
+
+| 字段 | 规则 |
+| --- | --- |
+| `schemaVersion` | 必须为 `1`。 |
+| `params` | 最多 16 个参数。 |
+| `key` | `^[A-Z][A-Z0-9_]{0,31}$`，不能重复。脚本通过 `KSU_PARAM_<key>` 获得该值。 |
+| `type` | `bool`、`enum`、`string` 或 `int`。 |
+| `label` | 必填。本地化文本：非空字符串（≤ 200 个字符），或“语言 → 字符串”的对象（至少一项）；语言键须匹配 `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$`（如 `en`、`zh-CN`）。管理器依次选择完全匹配的语言、仅语言部分、`en`、第一项。 |
+| `description` | 可选的本地化文本，规则同 `label`。 |
+
+各类型：
+
+| 类型 | 字段 |
+| --- | --- |
+| `bool` | `default`：`true` / `false`（默认 `false`）。以 `true` / `false` 传入。 |
+| `enum` | `options`：1–32 个 `{value, label?}`；`value` 匹配 `^[A-Za-z0-9._-]{1,64}$` 且不能重复。`default` 必须是其中一个值（默认为第一个选项）。 |
+| `string` | `default`（默认 `""`）、`maxLength` 1–1024（默认 256）、可选的 `pattern`（必须能编译的 JavaScript 正则表达式；管理器要求**完全**匹配，请只使用 ECMAScript 与 Java 共有的语法）、`required`（默认 `false`：空值总是允许，`pattern` 只作用于非空值）。值不能包含 NUL 或换行符。 |
+| `int` | 可选的 `min` / `max`、`default`（默认为 `min`，没有 `min` 时为 `0`）；`min ≤ default ≤ max`；32 位有符号整数。以十进制传入。 |
+
+每个参数的 `default` 都必须满足它自身的约束。未知字段会产生警告并被忽略；其他任何问题（无效的 JSON、同一对象中重复的键、未知的 `schemaVersion`、重复的 key 或选项值、无法编译的 pattern、违反约束的默认值）都是 [`script-params-invalid`](checks.md#script-params-invalid)。
+
+### 管理器如何运行 `action.sh`
+
+管理器校验下载内容（sha256 和大小，与模块相同），检查 `module.prop` 为 `oneshot` 且 `id` 与注册的 ID 一致、`action.sh` 存在，然后把 ZIP 解压到私有目录，并在全局挂载命名空间中新开的 root shell 里运行（与模块的操作按钮相同）：
+
+```sh
+cd <dir> && <env> /data/adb/ksu/bin/busybox sh ./action.sh
+```
+
+环境变量如下（没有标准输入）：
+
+| 变量 | 值 |
+| --- | --- |
+| `ASH_STANDALONE` | `1` |
+| `KSU` | `true` |
+| `KSU_VER`、`KSU_VER_CODE`、`KSU_KERNEL_VER_CODE` | KernelSU 版本，与模块相同 |
+| `KSU_LATE_LOAD` | 仅在 late-load 模式下为 `1` |
+| `KSU_MODULE` | 条目 ID |
+| `KSU_ONESHOT` | `1`（`action.sh` 可据此区分一次性运行与已安装模块的操作按钮） |
+| `MODPATH` | 解压目录（从这里读取数据文件） |
+| `PATH` | `$PATH:/data/adb/ksu/bin` |
+| `KSU_PARAM_<KEY>` | 每个参数一个：`bool` → `true`/`false`，`int` → 十进制，`enum` → 选项值，`string` → 用户输入 |
+
+退出码 `0` 表示成功，`2` 表示“不适用于此设备”（以提示而非失败的形式显示），其他值表示失败。输出与操作按钮的输出界面相同，可以保存。管理器只记录最近一次运行（版本与退出码）；没有已安装状态，也没有更新检查。
 
 ## 路径
 

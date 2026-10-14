@@ -214,6 +214,19 @@ KernelSU treats a module as a metamodule only when `module.prop` has `metamodule
 **Fix:** set `metamodule: true` in `module.yaml` exactly when `module.prop` has `metamodule=1` (or
 `true`). Fixing `module.yaml` only needs a push; fixing `module.prop` needs a new release.
 
+### manifest-kind-mismatch
+
+**Cause:** `kind` in `module.yaml` disagrees with the release's `module.prop`. A
+[script entry](module-yaml.md#script-entries-kind-script) (`kind: script`) needs `oneshot=1` or
+`oneshot=true` in `module.prop` (case-insensitive, surrounding whitespace ignored), and a
+`module.prop` with `oneshot` needs `kind: script`. The release is rejected: managers would install a
+script or run a module.
+
+**Fix:** set `kind: script` in `module.yaml` exactly when `module.prop` has `oneshot=1` (or `true`);
+for a regular module omit `kind` (or set `kind: module`) and remove `oneshot`. Fixing `module.prop`
+needs a new release; when switching an existing entry between module and script, push the
+`module.yaml` change before publishing the release.
+
 ### stars-repo-unverified
 
 **Cause (warning):** `starsRepository` in `module.yaml` names a repository whose stars cannot be
@@ -555,3 +568,68 @@ module-release action also reports this when `module.prop` and `module.yaml` dis
 **Cause:** `versionCode` is outside 1 … 2147483647 (int32).
 
 **Fix:** use a positive versionCode not greater than 2147483647.
+
+## Script entries
+
+Checks of [script entries](module-yaml.md#script-entries-kind-script) (`kind: script`, `oneshot=true`
+in `module.prop`). They run on every release, in the sync job and in the module-release action.
+
+### script-missing-action
+
+**Cause:** the ZIP has no `action.sh` at its root (or it is a directory). The manager runs this
+script; a script entry without it cannot do anything.
+
+**Fix:** put `action.sh` at the top level of the ZIP (zip the contents of the module directory, not
+the directory itself) and publish a new release.
+
+### script-forbidden-file
+
+**Cause:** the ZIP contains, at its root, a file or directory that only an installed module uses:
+`post-fs-data.sh`, `post-mount.sh`, `service.sh`, `boot-completed.sh`, `uninstall.sh`,
+`metamount.sh`, `metainstall.sh`, `metauninstall.sh`, `system.prop`, `sepolicy.rule`, `skip_mount`,
+or `system/`, `vendor/`, `product/`, `system_ext/`, `odm/`, `webroot/`, `zygisk/`. A script is run
+once and never installed, so these would silently have no effect. The same names in sub-directories
+are fine.
+
+**Fix:** remove them from the ZIP (the script can read data files from `$MODPATH` under other
+names), or publish the entry as a regular module: omit `kind` in `module.yaml` and remove `oneshot`
+from `module.prop`.
+
+### script-metamodule
+
+**Cause:** a script entry declares `metamodule=1` or `metamodule=true` in `module.prop`. Scripts are
+never installed, so they cannot be metamodules. (`kind: script` together with `metamodule: true` in
+`module.yaml` is reported as [`manifest-schema`](#manifest-schema).)
+
+**Fix:** remove `metamodule` from `module.prop`, or publish the entry as a module.
+
+### script-params-invalid
+
+**Cause:** the script's `params.json` is not valid. The message names the problem and, where
+possible, the field (`params[2].default`, …):
+
+- not UTF-8, larger than 64 KiB, not stored/deflated, or not valid JSON;
+- an object key repeated within one object (Android's JSON parser rejects such files);
+- `schemaVersion` missing or not `1`;
+- a schema violation: `key` not matching `^[A-Z][A-Z0-9_]{0,31}$`, unknown `type`, empty or too
+  long `label`, a locale key such as `EN` instead of `en`, more than 16 parameters, 0 or more than 32
+  `options`, `maxLength` outside 1–1024, a non-integer `int` value, …;
+- the same `key` declared twice, or the same option `value` twice in one `enum`;
+- a `pattern` that is not a valid JavaScript regular expression;
+- a `default` that violates its own constraints: an `enum` default that is not an option, a string
+  longer than `maxLength`, containing NUL or a line break, or not fully matching `pattern` (an empty
+  default is always allowed), an `int` default outside `min`/`max` (without `default` it is `min`,
+  or `0`), or `min` greater than `max`.
+
+Unknown fields are reported with the same code as a **warning** and ignored.
+
+**Fix:** correct `params.json` as described in the message (see the
+[params.json reference](module-yaml.md#paramsjson)) and publish a new release.
+
+### params-ignored
+
+**Cause (warning):** the ZIP of a regular module (no `kind: script`) has a `params.json` at its root.
+Only script entries use it; managers ignore it for modules.
+
+**Fix:** remove `params.json`, or, if the entry is meant to be a one-shot script, set `kind: script`
+in `module.yaml` and `oneshot=true` in `module.prop`.

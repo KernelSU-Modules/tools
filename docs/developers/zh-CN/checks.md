@@ -168,6 +168,12 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **修复**：当且仅当 `module.prop` 含有 `metamodule=1`（或 `true`）时，在 `module.yaml` 中设置 `metamodule: true`。修改 `module.yaml` 只需推送；修改 `module.prop` 需要发布新 release。
 
+### manifest-kind-mismatch
+
+**原因**：`module.yaml` 中的 `kind` 与 release 中的 `module.prop` 不一致。[脚本条目](module-yaml.md#脚本条目kind-script)（`kind: script`）要求 `module.prop` 含有 `oneshot=1` 或 `oneshot=true`（不区分大小写，忽略首尾空白）；含有 `oneshot` 的 `module.prop` 则要求 `kind: script`。该 release 会被拒绝：否则管理器会安装脚本或运行模块。
+
+**修复**：当且仅当 `module.prop` 含有 `oneshot=1`（或 `true`）时，在 `module.yaml` 中设置 `kind: script`；普通模块省略 `kind`（或设为 `kind: module`）并去掉 `oneshot`。修改 `module.prop` 需要发布新 release；把已有条目在模块与脚本之间切换时，请先推送 `module.yaml` 的修改，再发布 release。
+
 ### stars-repo-unverified
 
 **原因（警告**）：`module.yaml` 中的 `starsRepository` 指向的仓库无法用于显示 Star：仓库不存在、是私有仓库，或属于其他账号且没有安装 KernelSU Modules App。模块页面会改为显示模块自身仓库的 Star 数。该警告不会阻止 release 或上架，只会出现在内容 Check Run 中，并作为提示显示在开发者门户。
@@ -464,3 +470,47 @@ KernelSU 把 `module.prop` 当作 Java properties 文件读取，KernelSU Module
 **原因**：`versionCode` 超出 1 … 2147483647（int32）范围。
 
 **修复**：使用不超过 2147483647 的正数 versionCode。
+
+## 脚本条目
+
+针对[脚本条目](module-yaml.md#脚本条目kind-script)（`kind: script`，`module.prop` 中 `oneshot=true`）的检查。每个 release 都会在同步任务和 module-release action 中执行这些检查。
+
+### script-missing-action
+
+**原因**：ZIP 根目录没有 `action.sh`（或它是一个目录）。管理器运行的就是这个脚本，没有它脚本条目什么也做不了。
+
+**修复**：把 `action.sh` 放在 ZIP 的顶层（压缩模块目录中的内容，而不是目录本身），然后发布新 release。
+
+### script-forbidden-file
+
+**原因**：ZIP 根目录包含只有已安装模块才会用到的文件或目录：`post-fs-data.sh`、`post-mount.sh`、`service.sh`、`boot-completed.sh`、`uninstall.sh`、`metamount.sh`、`metainstall.sh`、`metauninstall.sh`、`system.prop`、`sepolicy.rule`、`skip_mount`，或 `system/`、`vendor/`、`product/`、`system_ext/`、`odm/`、`webroot/`、`zygisk/`。脚本只运行一次且不会被安装，这些内容会悄无声息地失效。子目录中的同名文件不受影响。
+
+**修复**：从 ZIP 中移除它们（脚本可以从 `$MODPATH` 读取其他名称的数据文件），或把条目作为普通模块发布：在 `module.yaml` 中省略 `kind`，并从 `module.prop` 中去掉 `oneshot`。
+
+### script-metamodule
+
+**原因**：脚本条目在 `module.prop` 中声明了 `metamodule=1` 或 `metamodule=true`。脚本不会被安装，因此不能是元模块。（`module.yaml` 中 `kind: script` 与 `metamodule: true` 同时出现会报告为 [`manifest-schema`](#manifest-schema)。）
+
+**修复**：从 `module.prop` 中去掉 `metamodule`，或把条目作为模块发布。
+
+### script-params-invalid
+
+**原因**：脚本的 `params.json` 无效。消息会说明问题，并尽可能指出字段（如 `params[2].default`）：
+
+- 不是 UTF-8、超过 64 KiB、不是 stored/deflate 压缩，或不是有效的 JSON；
+- 同一个对象中出现重复的键（Android 的 JSON 解析器会拒绝这样的文件）；
+- 缺少 `schemaVersion` 或其值不是 `1`；
+- 不符合 schema：`key` 不匹配 `^[A-Z][A-Z0-9_]{0,31}$`、未知的 `type`、`label` 为空或过长、语言键写成 `EN` 而不是 `en`、超过 16 个参数、`options` 为 0 个或超过 32 个、`maxLength` 不在 1–1024 之间、`int` 的值不是整数等；
+- 同一个 `key` 声明了两次，或同一个 `enum` 中出现重复的选项 `value`；
+- `pattern` 不是有效的 JavaScript 正则表达式；
+- `default` 违反自身约束：`enum` 的默认值不是选项之一；字符串超过 `maxLength`、包含 NUL 或换行符、或不能完全匹配 `pattern`（空的默认值总是允许）；`int` 的默认值超出 `min`/`max`（未设置 `default` 时为 `min`，或 `0`）；或 `min` 大于 `max`。
+
+未知字段会以同一代码报告为**警告**并被忽略。
+
+**修复**：按消息修正 `params.json`（见 [params.json 参考](module-yaml.md#paramsjson)），然后发布新 release。
+
+### params-ignored
+
+**原因（警告**）：普通模块（没有 `kind: script`）的 ZIP 根目录含有 `params.json`。只有脚本条目使用它，管理器对模块会忽略它。
+
+**修复**：删除 `params.json`；如果该条目本应是一次性脚本，请在 `module.yaml` 中设置 `kind: script`，并在 `module.prop` 中设置 `oneshot=true`。
