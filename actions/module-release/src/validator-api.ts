@@ -60,6 +60,8 @@ export interface ZipInspection {
   files: string[];
   /** Root params.json (script entries): its text, or why it could not be read. */
   paramsJson?: { text: string } | { error: string };
+  /** Compression methods of the file entries (script entries are limited to stored / deflate / deflate64). */
+  methods?: number[];
 }
 
 export interface Validator {
@@ -71,7 +73,7 @@ export interface Validator {
   rangeReaderFromUrl(url: string, opts?: { fetch?: typeof fetch; headers?: Record<string, string>; size?: number }): Promise<RangeReader>;
   inspectZip(reader: RangeReader, limits: ZipLimits): Promise<Result<ZipInspection>>;
   /** Entry-kind rules (module.yaml kind vs module.prop oneshot, script ZIP rules, params.json). */
-  checkReleaseKind(input: { kind: ModuleManifest['kind'] | undefined; props: Record<string, string>; zip: Pick<ZipInspection, 'files' | 'paramsJson'> }): Issue[];
+  checkReleaseKind(input: { kind: ModuleManifest['kind'] | undefined; props: Record<string, string>; zip: Pick<ZipInspection, 'files' | 'paramsJson' | 'methods'> }): Issue[];
   selectAsset(release: ReleaseLike, assetPattern?: string): Result<ReleaseAssetLike>;
   globMatch(pattern: string, name: string): boolean;
 }

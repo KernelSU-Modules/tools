@@ -21,6 +21,11 @@ export const SCRIPT_FORBIDDEN_FILES = [
   'sepolicy.rule',
   'skip_mount',
 ] as const;
+/**
+ * Compression methods the manager can extract a script with (stored, deflate, deflate64). It extracts scripts
+ * itself instead of through ksud, and its ZIP library has no LZMA (14) or XZ (95) support.
+ */
+export const SCRIPT_EXTRACTABLE_METHODS: ReadonlySet<number> = new Set([0, 8, 9]);
 /** Root-level directories a one-shot script must not ship (partition overlays, WebUI, Zygisk). */
 export const SCRIPT_FORBIDDEN_DIRS = ['system', 'vendor', 'product', 'system_ext', 'odm', 'webroot', 'zygisk'] as const;
 
@@ -29,15 +34,16 @@ export interface ReleaseKindInput {
   kind: ManifestKind | undefined;
   /** module.prop key/values (parseModuleProp). */
   props: Record<string, string>;
-  /** From inspectZip. */
-  zip: Pick<ZipInspection, 'files' | 'paramsJson'>;
+  /** From inspectZip (`methods` may be omitted when unknown). */
+  zip: Pick<ZipInspection, 'files' | 'paramsJson'> & Partial<Pick<ZipInspection, 'methods'>>;
 }
 
 /**
  * Entry-kind rules for one release ZIP (sync and the author-side action):
  *  - manifest-kind-mismatch: module.yaml kind and module.prop `oneshot` (isOneshotProp) disagree;
  *  - script entries: root action.sh required (script-missing-action), no module-only files (script-forbidden-file),
- *    not a metamodule (script-metamodule), a valid params.json when present (script-params-invalid);
+ *    not a metamodule (script-metamodule), a valid params.json when present (script-params-invalid), only
+ *    SCRIPT_EXTRACTABLE_METHODS (zip-unsupported-method);
  *  - module entries: a root params.json is ignored (params-ignored, warning).
  * The script rules apply when module.yaml says `script` (or, with kind unknown, when module.prop is oneshot).
  */
@@ -81,6 +87,15 @@ export function checkReleaseKind(input: ReleaseKindInput): Issue[] {
   for (const d of SCRIPT_FORBIDDEN_DIRS) if (files.some((p) => p.startsWith(`${d}/`))) forbidden.push(`${d}/`);
   for (const f of forbidden)
     issues.push(issue('script-forbidden-file', `The ZIP contains ${f} at its root; script entries are run once and never installed, so it would have no effect.`, 'error', f));
+  for (const m of input.zip.methods ?? [])
+    if (!SCRIPT_EXTRACTABLE_METHODS.has(m))
+      issues.push(
+        issue(
+          'zip-unsupported-method',
+          `The ZIP uses compression method ${m}; the manager extracts script entries itself and only supports ${[...SCRIPT_EXTRACTABLE_METHODS].join(', ')} (stored, deflate, deflate64).`,
+          'error',
+        ),
+      );
   if (isMetamoduleProp(input.props))
     issues.push(issue('script-metamodule', 'module.prop declares metamodule=1/true; a script entry cannot be a metamodule.', 'error', 'metamodule'));
 

@@ -81,7 +81,7 @@ export function rangeReaderFromBytes(bytes: Uint8Array): RangeReader;
 export function rangeReaderFromUrl(url: string, opts?: { fetch?: typeof fetch; headers?: Record<string, string>; size?: number }): Promise<RangeReader>; // HTTP Range
 export interface ZipLimits { zipMaxBytes: number; uncompressedMaxBytes: number; maxCompressionRatio: number; maxEntries: number; modulePropMaxBytes: number }
 export function inspectZip(reader: RangeReader, limits: ZipLimits): Promise<Result<{ entries: number; uncompressedTotal: number; moduleProp: string;
-  files: string[] /* extracted paths, directories end with "/" */; paramsJson?: { text: string } | { error: string } /* root params.json, not an issue by itself */ }>>;
+  files: string[] /* extracted paths, directories end with "/" */; paramsJson?: { text: string } | { error: string } /* root params.json, not an issue by itself */; methods: number[] /* compression methods of file entries */ }>>;
 // rejects: absolute paths, '..', backslash-traversal, duplicate module.prop, encrypted entries, zip64 lies,
 // total uncompressed > limit, ratio > limit, too many entries, missing root module.prop
 
@@ -99,7 +99,7 @@ export function validateReleaseAsset(input: { reader: RangeReader; expectedId: s
 // manifest-kind-mismatch (module.yaml kind vs isOneshotProp; kind undefined = decided by oneshot, no mismatch),
 // script-missing-action, script-forbidden-file (root files / dirs only), script-metamodule, script-params-invalid
 // (parseParams), params-ignored (warning: params.json in a module).
-export function checkReleaseKind(input: { kind: 'module' | 'script' | undefined; props: Record<string, string>; zip: { files: string[]; paramsJson?: { text: string } | { error: string } } }): Issue[];
+export function checkReleaseKind(input: { kind: 'module' | 'script' | undefined; props: Record<string, string>; zip: { files: string[]; paramsJson?: { text: string } | { error: string }; methods?: number[] /* script entries: 0, 8, 9 only */ } }): Issue[];
 export function parseParams(text: string, opts?: { maxBytes?: number }): Result<ScriptParams>; // defaults resolved; all issues script-params-invalid
 
 export const ISSUE_CODES: Record<string, string>; // code -> human description (used for Check Run docs)

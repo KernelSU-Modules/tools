@@ -379,7 +379,7 @@ KernelSU Modules 只读取 ZIP 的中央目录和 `module.prop`，从不解压�
 
 ### zip-unsupported-method
 
-**原因**：某个条目使用了 KernelSU 无法解压的压缩方法。KernelSU 支持 stored (0)、deflate (8)、deflate64 (9)、LZMA (14) 和 XZ (95)；其他方法（BZip2、Zstandard、PPMd、Implode 等）会导致安装失败，因此对每个条目都是错误。`module.prop` 本身必须是 stored 或 deflate，因为 KernelSU Modules 需要读取它。
+**原因**：某个条目使用了 KernelSU 无法解压的压缩方法。KernelSU 支持 stored (0)、deflate (8)、deflate64 (9)、LZMA (14) 和 XZ (95)；其他方法（BZip2、Zstandard、PPMd、Implode 等）会导致安装失败，因此对每个条目都是错误。`module.prop` 本身必须是 stored 或 deflate，因为 KernelSU Modules 需要读取它。脚本条目（`kind: script`）由管理器而不是 ksud 解压，只能使用 stored、deflate 或 deflate64。
 
 **修复**：使用 deflate 或不压缩重新创建 ZIP。
 

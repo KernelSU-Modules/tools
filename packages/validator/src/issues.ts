@@ -132,7 +132,7 @@ export const ISSUE_DEFS = {
     fix: 'Remove metamodule from module.prop, or publish the entry as a module (kind: module, no oneshot).',
   },
   'script-params-invalid': {
-    summary: 'params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a pattern that does not compile, a default that violates its own constraints); unknown fields are warnings.',
+    summary: 'params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a default that violates its own constraints); unknown fields are warnings.',
     fix: 'Fix params.json as described in the message (see the params.json reference in the module.yaml docs) and publish a new release.',
   },
   'params-ignored': {
@@ -270,7 +270,7 @@ export const ISSUE_DEFS = {
     fix: 'Create the ZIP without a password.',
   },
   'zip-unsupported-method': {
-    summary: 'A ZIP entry uses a compression method KernelSU cannot extract (supported: 0 stored, 8 deflate, 9 deflate64, 14 LZMA, 95 XZ), or module.prop is not stored/deflated.',
+    summary: 'A ZIP entry uses a compression method KernelSU cannot extract (supported: 0 stored, 8 deflate, 9 deflate64, 14 LZMA, 95 XZ; script entries: 0, 8, 9 only), or module.prop is not stored/deflated.',
     fix: 'Re-create the ZIP using deflate or no compression.',
   },
   'zip-entry-corrupt': {

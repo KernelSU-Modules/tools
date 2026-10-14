@@ -16,6 +16,17 @@ describe('checkReleaseKind', () => {
     expect(checkReleaseKind(script({ zip: { files: ['module.prop', 'action.sh', 'params.json', 'customize.sh', 'data/x'], paramsJson: { text: PARAMS } } }))).toEqual([]);
   });
 
+  it('zip-unsupported-method: script entries are limited to stored, deflate and deflate64', () => {
+    expect(checkReleaseKind(script({ zip: { files: ['module.prop', 'action.sh'], methods: [0, 8, 9] } }))).toEqual([]);
+    const is = checkReleaseKind(script({ zip: { files: ['module.prop', 'action.sh'], methods: [8, 14, 95] } }));
+    expect(is).toMatchObject([
+      { code: 'zip-unsupported-method', severity: 'error', message: expect.stringContaining('method 14') },
+      { code: 'zip-unsupported-method', severity: 'error', message: expect.stringContaining('method 95') },
+    ]);
+    // Modules are extracted by ksud, which handles LZMA and XZ.
+    expect(checkReleaseKind({ kind: 'module', props: { id: 'x' }, zip: { files: ['module.prop'], methods: [14, 95] } })).toEqual([]);
+  });
+
   it('a regular module passes', () => {
     expect(checkReleaseKind({ kind: 'module', props: { id: 'x' }, zip: { files: ['module.prop', 'service.sh', 'system/bin/x'] } })).toEqual([]);
   });

@@ -7624,6 +7624,7 @@ __export(src_exports, {
   REQUIRED_PROP_FIELDS: () => REQUIRED_PROP_FIELDS,
   RESERVED_ID_SUFFIXES: () => RESERVED_ID_SUFFIXES,
   RangeFetchError: () => RangeFetchError,
+  SCRIPT_EXTRACTABLE_METHODS: () => SCRIPT_EXTRACTABLE_METHODS,
   SCRIPT_FORBIDDEN_DIRS: () => SCRIPT_FORBIDDEN_DIRS,
   SCRIPT_FORBIDDEN_FILES: () => SCRIPT_FORBIDDEN_FILES,
   checkAsset: () => checkAsset,
@@ -7766,7 +7767,7 @@ var ISSUE_DEFS = {
     fix: "Remove metamodule from module.prop, or publish the entry as a module (kind: module, no oneshot)."
   },
   "script-params-invalid": {
-    summary: "params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a pattern that does not compile, a default that violates its own constraints); unknown fields are warnings.",
+    summary: "params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a default that violates its own constraints); unknown fields are warnings.",
     fix: "Fix params.json as described in the message (see the params.json reference in the module.yaml docs) and publish a new release."
   },
   "params-ignored": {
@@ -7901,7 +7902,7 @@ var ISSUE_DEFS = {
     fix: "Create the ZIP without a password."
   },
   "zip-unsupported-method": {
-    summary: "A ZIP entry uses a compression method KernelSU cannot extract (supported: 0 stored, 8 deflate, 9 deflate64, 14 LZMA, 95 XZ), or module.prop is not stored/deflated.",
+    summary: "A ZIP entry uses a compression method KernelSU cannot extract (supported: 0 stored, 8 deflate, 9 deflate64, 14 LZMA, 95 XZ; script entries: 0, 8, 9 only), or module.prop is not stored/deflated.",
     fix: "Re-create the ZIP using deflate or no compression."
   },
   "zip-entry-corrupt": {
@@ -29129,7 +29130,8 @@ async function inspect(reader, limits, iss) {
     iss.fatal("prop-encoding", "module.prop is not valid UTF-8.");
   }
   const files = entries.filter((x) => x.path !== "").map((x) => x.isDir ? `${x.path}/` : x.path);
-  const value = { entries: entries.length, uncompressedTotal, moduleProp, files };
+  const methods = [...new Set(entries.filter((x) => !x.isDir).map((x) => x.method))].sort((a, b) => a - b);
+  const value = { entries: entries.length, uncompressedTotal, moduleProp, files, methods };
   const params = entries.find((x) => x.path === PARAMS_JSON);
   if (params) value.paramsJson = await readParamsJson(reader, params, cdOffset);
   return value;
@@ -29425,6 +29427,7 @@ var SCRIPT_FORBIDDEN_FILES = [
   "sepolicy.rule",
   "skip_mount"
 ];
+var SCRIPT_EXTRACTABLE_METHODS = /* @__PURE__ */ new Set([0, 8, 9]);
 var SCRIPT_FORBIDDEN_DIRS = ["system", "vendor", "product", "system_ext", "odm", "webroot", "zygisk"];
 function checkReleaseKind(input2) {
   const issues = [];
@@ -29464,6 +29467,15 @@ function checkReleaseKind(input2) {
   for (const d of SCRIPT_FORBIDDEN_DIRS) if (files.some((p) => p.startsWith(`${d}/`))) forbidden.push(`${d}/`);
   for (const f of forbidden)
     issues.push(issue("script-forbidden-file", `The ZIP contains ${f} at its root; script entries are run once and never installed, so it would have no effect.`, "error", f));
+  for (const m of input2.zip.methods ?? [])
+    if (!SCRIPT_EXTRACTABLE_METHODS.has(m))
+      issues.push(
+        issue(
+          "zip-unsupported-method",
+          `The ZIP uses compression method ${m}; the manager extracts script entries itself and only supports ${[...SCRIPT_EXTRACTABLE_METHODS].join(", ")} (stored, deflate, deflate64).`,
+          "error"
+        )
+      );
   if (isMetamoduleProp(input2.props))
     issues.push(issue("script-metamodule", "module.prop declares metamodule=1/true; a script entry cannot be a metamodule.", "error", "metamodule"));
   const pj = input2.zip.paramsJson;

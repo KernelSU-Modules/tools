@@ -462,7 +462,8 @@ KernelSU would silently overwrite one with the other.
 **Cause:** an entry uses a compression method KernelSU cannot extract. KernelSU supports stored
 (0), deflate (8), deflate64 (9), LZMA (14) and XZ (95); anything else (BZip2, Zstandard, PPMd,
 Implode, …) makes the installation fail, so it is an error for every entry. `module.prop` itself
-must be stored or deflated, because KernelSU Modules reads it.
+must be stored or deflated, because KernelSU Modules reads it. Script entries (`kind: script`) are
+extracted by the manager rather than ksud and may only use stored, deflate or deflate64.
 
 **Fix:** re-create the ZIP with deflate or no compression.
 

@@ -27,6 +27,8 @@ export interface ZipInspection {
    * issue here: whether it matters depends on the entry kind (see checkReleaseKind).
    */
   paramsJson?: { text: string } | { error: string };
+  /** Compression methods of the file entries (distinct, ascending). */
+  methods: number[];
 }
 
 /** Ratio checks only apply above this many uncompressed bytes (small text files compress extremely well). */
@@ -501,7 +503,8 @@ async function inspect(reader: RangeReader, limits: ZipLimits, iss: Issues): Pro
     iss.fatal('prop-encoding', 'module.prop is not valid UTF-8.');
   }
   const files = entries.filter((x) => x.path !== '').map((x) => (x.isDir ? `${x.path}/` : x.path));
-  const value: ZipInspection = { entries: entries.length, uncompressedTotal, moduleProp, files };
+  const methods = [...new Set(entries.filter((x) => !x.isDir).map((x) => x.method))].sort((a, b) => a - b);
+  const value: ZipInspection = { entries: entries.length, uncompressedTotal, moduleProp, files, methods };
   const params = entries.find((x) => x.path === PARAMS_JSON);
   if (params) value.paramsJson = await readParamsJson(reader, params, cdOffset);
   return value;
