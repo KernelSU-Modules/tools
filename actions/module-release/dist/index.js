@@ -27727,7 +27727,6 @@ var SUPPORTED_PARAMS_VERSIONS = [1];
 var PARAMS_MAX_BYTES = 64 * 1024;
 var PARAMS_MAX = 16;
 var PARAM_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,31}$/;
-var PARAM_LOCALE_PATTERN = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 var PARAM_TEXT_MAX = 200;
 var PARAM_OPTION_VALUE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 var PARAM_OPTIONS_MAX = 32;
@@ -27737,15 +27736,11 @@ var PARAM_STRING_DEFAULT_MAX_LENGTH = 256;
 var PARAM_INT_MIN = -2147483648;
 var PARAM_INT_MAX = 2147483647;
 var Text = external_exports.string().trim().min(1).max(PARAM_TEXT_MAX);
-var LocalizedText = external_exports.union([
-  Text,
-  external_exports.record(external_exports.string().regex(PARAM_LOCALE_PATTERN, 'locale keys must look like "en" or "zh-CN"'), Text).refine((o) => Object.keys(o).length > 0, "must have at least one locale")
-]);
 var ParamInt = external_exports.number().int().min(PARAM_INT_MIN).max(PARAM_INT_MAX);
 var common = {
   key: external_exports.string().regex(PARAM_KEY_PATTERN, "must match ^[A-Z][A-Z0-9_]{0,31}$"),
-  label: LocalizedText,
-  description: LocalizedText.optional()
+  label: Text,
+  description: Text.optional()
 };
 var BoolParam = external_exports.object({
   ...common,
@@ -27754,7 +27749,7 @@ var BoolParam = external_exports.object({
 });
 var EnumOption = external_exports.object({
   value: external_exports.string().regex(PARAM_OPTION_VALUE_PATTERN, "must match ^[A-Za-z0-9._-]{1,64}$"),
-  label: LocalizedText.optional()
+  label: Text.optional()
 });
 var EnumParam = external_exports.object({
   ...common,
