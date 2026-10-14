@@ -15,6 +15,7 @@
     "@kernelsu-modules/render": "workspace:*",
     "@kernelsu-modules/schema": "workspace:*",
     "@kernelsu-modules/site": "workspace:*",
+    "@kernelsu-modules/validator": "workspace:*",
     "htmlparser2": "^12.0.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"

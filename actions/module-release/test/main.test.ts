@@ -144,6 +144,11 @@ describe('refuses to publish', () => {
     await expectFail(t, 'manifest-schema');
   });
 
+  it('when module.yaml kind disagrees with module.prop oneshot', async () => {
+    await expectFail(setup({ manifest: { ...MANIFEST, kind: 'script' } }), 'manifest-kind-mismatch');
+    await expectFail(setup({ zip: moduleZip({ ...PROP, oneshot: 'true' }) }), 'manifest-kind-mismatch');
+  });
+
   it('when module.prop lacks fields', async () => {
     const t = setup({ zip: moduleZip({ id: 'demo_mod', versionCode: 3 }) });
     await expectFail(t, 'prop-missing-field');

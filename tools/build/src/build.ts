@@ -23,6 +23,7 @@ import {
   type Policy,
   type RegistryRecord,
 } from '@kernelsu-modules/schema';
+import { isOneshotProp } from '@kernelsu-modules/validator';
 import { buildSearchIndex, searchPath, SITE_DATA_SCHEMA, UI_LOCALES, type SiteData, type SiteModule } from '@kernelsu-modules/site';
 import { buildSite } from '@kernelsu-modules/site/build';
 import { BuildCache, sha256, type LastGood } from './cache.ts';
@@ -596,6 +597,11 @@ class Builder {
     const readme = readmeHtml.trim() ? readmeHtml : null;
 
     const healthStatus: 'ok' | 'stale' = stale ? 'stale' : 'ok';
+    // module.yaml kind. Sync rejects releases whose module.prop `oneshot` disagrees with it, but module.yaml can change
+    // after the stable release was accepted: the API kind must describe the ZIP clients download, so it follows the
+    // stable module.prop then (until a matching release is published).
+    const zipKind = isOneshotProp(stable.prop) ? 'script' : 'module';
+    if (zipKind !== m.kind) this.log('warn', `${id}: module.yaml kind is ${m.kind} but the stable release ${stable.tag} is a ${zipKind}; using ${zipKind}`);
     const detailRaw = {
       id,
       name: m.name,
@@ -603,6 +609,7 @@ class Builder {
       authors: moduleAuthors(m.authors, fullName),
       tags: m.tags ?? [],
       metamodule: m.metamodule,
+      kind: zipKind,
       icon,
       stable: { version: stable.version, versionCode: stable.versionCode, publishedAt: stable.publishedAt },
       stars: ml.stars?.count ?? null,

@@ -342,6 +342,7 @@ export async function syncModule(
         candidates,
         assetPattern: manifest.release?.assetPattern,
         metamodule: manifest.metamodule,
+        kind: manifest.kind,
         now: d.now,
         checks: d.checks,
         appId: d.modulesAppId,

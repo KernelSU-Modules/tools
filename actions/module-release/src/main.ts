@@ -25,7 +25,7 @@ import {
   type TargetState,
 } from './external.ts';
 import { collectDir, createZip } from './zip.ts';
-import type { Issue, ModuleProp, ReleaseLike, Validator, ZipLimits } from './validator-api.ts';
+import type { Issue, ModuleProp, ReleaseLike, Validator, ZipInspection, ZipLimits } from './validator-api.ts';
 
 export const DOCS_BASE = 'https://developers.kernelsu.org/docs';
 export const IMMUTABILITY_DOCS =
@@ -189,13 +189,13 @@ function report(log: Logger, issues: Issue[]): void {
 const hasErrors = (issues: Issue[]) => issues.some((i) => i.severity === 'error');
 
 /** Precheck the ZIP: structure/limits, root module.prop. */
-async function precheckZip(v: Validator, bytes: Uint8Array): Promise<{ issues: Issue[]; prop?: ModuleProp }> {
+async function precheckZip(v: Validator, bytes: Uint8Array): Promise<{ issues: Issue[]; prop?: ModuleProp; zip?: ZipInspection }> {
   const zipRes = await v.inspectZip(v.rangeReaderFromBytes(bytes), zipLimits());
   const issues = [...zipRes.issues];
   if (!zipRes.ok || !zipRes.value) return { issues };
   const propRes = v.parseModuleProp(zipRes.value.moduleProp);
   issues.push(...propRes.issues);
-  return { issues, prop: propRes.ok ? propRes.value : undefined };
+  return { issues, prop: propRes.ok ? propRes.value : undefined, zip: zipRes.value };
 }
 
 /** Parse module.yaml and check referenced files exist in the workspace. */
@@ -278,7 +278,7 @@ export async function run(ctx: RunContext): Promise<RunResult> {
 
   // 2. Local precheck with the shared validator.
   const issues: Issue[] = [];
-  const { issues: zipIssues, prop } = await log.group('Precheck ZIP and module.prop', () => precheckZip(v, bytes));
+  const { issues: zipIssues, prop, zip } = await log.group('Precheck ZIP and module.prop', () => precheckZip(v, bytes));
   issues.push(...zipIssues);
   const { issues: manIssues, manifest } = precheckManifest(v, cfg, log);
   issues.push(...manIssues);
@@ -288,6 +288,11 @@ export async function run(ctx: RunContext): Promise<RunResult> {
     issues.push(...meta.issues);
   }
 
+  if (prop && zip) {
+    // Entry kind (script entries): module.yaml kind vs module.prop oneshot, action.sh, forbidden files, params.json.
+    // Without a valid module.yaml, module.prop oneshot decides which rules apply.
+    issues.push(...v.checkReleaseKind({ kind: manifest?.kind, props: prop.props, zip }));
+  }
   if (prop) {
     if (manifest && manifest.id !== prop.id) {
       issues.push({

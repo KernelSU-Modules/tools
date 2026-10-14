@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FatalError, serializeLock } from '../src/data.ts';
-import { FakeGitHub, moduleZip, sha256 } from './fake-github.ts';
+import { FakeGitHub, makeZip, moduleZip, scriptZip, sha256 } from './fake-github.ts';
 import { T0, goodContent, makeDataDir, manifestYaml, readLock, readStatus, record, run, setupRepo, withRequest, writeRecord } from './helpers.ts';
 
 const later = (ms: number) => new Date(T0.getTime() + ms);
@@ -396,6 +396,65 @@ describe('sync: release rejections', () => {
     const dir = await makeDataDir([record('demo.mod', repo)]);
     const { report } = await run(gh, dir);
     expect(report.modules[0]!.releases[0]).toMatchObject({ result: 'accepted', issues: [] });
+  });
+
+  // Script entries: module.yaml kind vs module.prop oneshot (same reading as metamodule) + the script ZIP rules.
+  const kindRun = async (yamlExtra: string, zip: Uint8Array) => {
+    const gh = new FakeGitHub();
+    const repo = gh.addRepo({ id: 101, fullName: 'demo/demo.mod', ownerId: 9, defaultBranch: 'main', branches: {}, commits: {} });
+    gh.installations.set(101, 601);
+    const commit = gh.commit(repo, { ...goodContent('demo.mod'), 'module.yaml': manifestYaml('demo.mod', yamlExtra) });
+    const rel = gh.addRelease(repo, { tag: 'v1', zip, commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    const { report } = await run(gh, dir);
+    return { gh, rel, dir, out: report.modules[0]!.releases[0]! };
+  };
+
+  it('accepts a script entry with params.json', async () => {
+    const params = JSON.stringify({ schemaVersion: 1, params: [{ key: 'MODE', type: 'enum', label: 'Mode', options: [{ value: 'a' }, { value: 'b' }] }] });
+    const { out, dir } = await kindRun('kind: script\n', scriptZip('demo.mod', 1, { 'params.json': params }, 'oneshot= TRUE \n'));
+    expect(out).toMatchObject({ result: 'accepted', issues: [] });
+    expect((await readLock(dir)).modules['demo.mod']!.stable).toMatchObject({ tag: 'v1', prop: { oneshot: 'TRUE ' } });
+  });
+
+  it.each([
+    ['module.prop says oneshot, module.yaml does not', '', scriptZip('demo.mod', 1), /module\.yaml has kind: module/],
+    ['module.yaml says script, module.prop does not', 'kind: script\n', scriptZip('demo.mod', 1, {}, 'oneshot=yes\n'), /does not set oneshot=1 or true/],
+  ])('rejects when %s (manifest-kind-mismatch)', async (_l, yamlExtra, zip, msg) => {
+    const { out, gh, rel, dir } = await kindRun(yamlExtra, zip);
+    expect(out.result).toBe('rejected');
+    expect(out.issues).toContainEqual(expect.objectContaining({ code: 'manifest-kind-mismatch', severity: 'error', message: expect.stringMatching(msg) }));
+    expect((await readLock(dir)).modules['demo.mod']!.seen[String(rel.id)]).toMatchObject({ ok: false, code: 'manifest-kind-mismatch' });
+    const check = gh.checkRuns.find((c) => c.external_id.startsWith('release:'))!;
+    expect(check.conclusion).toBe('failure');
+    expect(check.output.summary).toContain('manifest-kind-mismatch');
+  });
+
+  it.each([
+    ['script-missing-action', scriptZip('demo.mod', 1, { 'action.sh': null, 'bin/action.sh': 'x' })],
+    ['script-forbidden-file', scriptZip('demo.mod', 1, { 'service.sh': 'x', 'system/bin/x': 'y' })],
+    ['script-metamodule', scriptZip('demo.mod', 1, {}, 'oneshot=1\nmetamodule=1\n')],
+    ['script-params-invalid', scriptZip('demo.mod', 1, { 'params.json': '{"schemaVersion":1,"params":[{"key":"x","type":"bool","label":"x"}]}' })],
+  ])('rejects a script release with %s', async (code, zip) => {
+    const { out } = await kindRun('kind: script\n', zip);
+    expect(out.result).toBe('rejected');
+    expect(out.issues.map((i) => i.code)).toContain(code);
+  });
+
+  it('warns about params.json in a regular module (params-ignored)', async () => {
+    const prop = 'id=demo.mod\nname=Demo\nversion=v1\nversionCode=1\nauthor=Demo Author\ndescription=Demo module\n';
+    const { out } = await kindRun('', makeZip([{ name: 'module.prop', data: prop }, { name: 'params.json', data: '{' }]));
+    expect(out).toMatchObject({ result: 'accepted', issues: [{ code: 'params-ignored', severity: 'warning' }] });
+  });
+
+  it('validates the kind of an open request (submit)', async () => {
+    const gh = new FakeGitHub();
+    const p = setupRepo(gh, 'pend.mod', 202);
+    gh.addRelease(p.repo, { tag: 'v1', zip: scriptZip('pend.mod', 1), commit: p.commit });
+    const dir = await makeDataDir([record('pend.mod', p.repo, 'pending')]);
+    const r = await run(gh, dir);
+    expect(r.report.requests).toMatchObject([{ id: 'pend.mod', kind: 'submit', ok: false }]);
+    expect((await readStatus(dir)).modules['pend.mod']!.request).toMatchObject({ ok: false, issues: [{ code: 'manifest-kind-mismatch', severity: 'error' }] });
   });
 
   it('enforces the download size cap before downloading', async () => {

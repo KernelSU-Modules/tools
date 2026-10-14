@@ -53,6 +53,24 @@ describe.skipIf(!available)('with the real validator', () => {
     expect((res as ActionFailed).issues.map((i) => i.code)).toContain('zip-path-traversal');
   });
 
+  it('publishes a script entry (kind: script, oneshot, action.sh, params.json)', async () => {
+    const params = JSON.stringify({ schemaVersion: 1, params: [{ key: 'COUNT', type: 'int', label: 'Count', min: 1, max: 3 }] });
+    const zip = moduleZip({ ...PROP, oneshot: 'true' }, { 'action.sh': 'echo $KSU_PARAM_COUNT', 'params.json': params });
+    const { res, lines } = await go({ yaml: JSON.stringify({ ...MANIFEST, kind: 'script' }), zip });
+    expect(res, lines.join('\n')).toMatchObject({ published: true });
+  });
+
+  it('rejects script entry problems before publishing', async () => {
+    const params = JSON.stringify({ schemaVersion: 1, params: [{ key: 'MODE', type: 'string', label: 'Mode', pattern: '(' }] });
+    const zip = moduleZip({ ...PROP, oneshot: 'true' }, { 'service.sh': 'x', 'params.json': params });
+    const { res, gh } = await go({ yaml: JSON.stringify({ ...MANIFEST, kind: 'script' }), zip });
+    expect(res).toBeInstanceOf(ActionFailed);
+    expect((res as ActionFailed).issues.map((i) => i.code)).toEqual(['script-missing-action', 'script-forbidden-file', 'script-params-invalid']);
+    expect(gh.writes()).toEqual([]);
+    const mismatch = await go({ yaml: JSON.stringify(MANIFEST), zip: moduleZip({ ...PROP, oneshot: '1' }, { 'action.sh': 'x' }) });
+    expect((mismatch.res as ActionFailed).issues.map((i) => i.code)).toEqual(['manifest-kind-mismatch']);
+  });
+
   it('rejects invalid module.yaml', async () => {
     const { res } = await go({ yaml: 'schemaVersion: 1\nid: demo_mod\n', zip: moduleZip() });
     expect(res).toBeInstanceOf(ActionFailed);

@@ -52,6 +52,16 @@ export interface ModuleProp {
   description: string;
 }
 
+export interface ZipInspection {
+  entries: number;
+  uncompressedTotal: number;
+  moduleProp: string;
+  /** Extracted paths; directories end with "/". */
+  files: string[];
+  /** Root params.json (script entries): its text, or why it could not be read. */
+  paramsJson?: { text: string } | { error: string };
+}
+
 export interface Validator {
   checkModuleId(id: string, policy: Policy, existingIds?: Iterable<string>): Issue[];
   parseManifest(text: string, opts?: { maxBytes?: number }): Result<ModuleManifest>;
@@ -59,7 +69,9 @@ export interface Validator {
   parseModuleProp(text: string): Result<ModuleProp>;
   rangeReaderFromBytes(bytes: Uint8Array): RangeReader;
   rangeReaderFromUrl(url: string, opts?: { fetch?: typeof fetch; headers?: Record<string, string>; size?: number }): Promise<RangeReader>;
-  inspectZip(reader: RangeReader, limits: ZipLimits): Promise<Result<{ entries: number; uncompressedTotal: number; moduleProp: string }>>;
+  inspectZip(reader: RangeReader, limits: ZipLimits): Promise<Result<ZipInspection>>;
+  /** Entry-kind rules (module.yaml kind vs module.prop oneshot, script ZIP rules, params.json). */
+  checkReleaseKind(input: { kind: ModuleManifest['kind'] | undefined; props: Record<string, string>; zip: Pick<ZipInspection, 'files' | 'paramsJson'> }): Issue[];
   selectAsset(release: ReleaseLike, assetPattern?: string): Result<ReleaseAssetLike>;
   globMatch(pattern: string, name: string): boolean;
 }

@@ -21,6 +21,7 @@ export const COMMITS = {
   nostable: '5'.repeat(40),
   collide: '6'.repeat(40),
   noauthor: '7'.repeat(40),
+  script: '8'.repeat(40),
 };
 
 /** Fixture repositories served by fake-net at their locked content commit. */
@@ -28,6 +29,7 @@ export const REPO_COMMITS: Record<string, string> = {
   'demo/toolbox': COMMITS.toolbox,
   'demo/collide': COMMITS.collide,
   'demo/noauthor': COMMITS.noauthor,
+  'demo/script': COMMITS.script,
 };
 
 /** path -> sha256 of fixture repository files (content.files). */

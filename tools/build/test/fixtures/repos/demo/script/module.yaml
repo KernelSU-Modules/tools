@@ -1,0 +1,6 @@
+schemaVersion: 1
+id: demo.script
+name: Demo Script
+summary: A one-shot script entry; the manager runs action.sh once
+description: README.md
+kind: script

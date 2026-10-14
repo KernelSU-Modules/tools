@@ -10,7 +10,9 @@ What it does:
    files are skipped, symlinks are skipped with a warning; the archive is reproducible).
 2. Prechecks with `@kernelsu-modules/validator`: ZIP structure and limits, root `module.prop` (required
    fields, id, int32 versionCode), `module.yaml` schema and referenced files, `id` equality between
-   `module.prop` and `module.yaml`, the asset name against `release.assetPattern`.
+   `module.prop` and `module.yaml`, the asset name against `release.assetPattern`, and the entry
+   kind: `kind: script` in `module.yaml` exactly when `module.prop` has `oneshot=true`; script entries
+   need a root `action.sh`, must not ship module-only files and may carry a valid `params.json`.
 3. Reads existing releases (read-only): refuses if a published release for the tag exists; reads
    `module.prop` of the newest stable release (HTTP Range, only the ZIP index) and refuses unless
    the new `versionCode` is greater; warns if the latest release is not immutable.

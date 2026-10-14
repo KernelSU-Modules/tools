@@ -139,6 +139,7 @@ describe('build (fixtures, offline)', () => {
     expect(d.updatedAt).toBe('2026-10-02T00:00:00Z');
     const meta = ApiModuleDetail.parse(readJson(out1, 'api/v1/modules/demo.meta.json'));
     expect(meta.metamodule).toBe(true);
+    expect([meta.kind, d.kind]).toEqual(['module', 'module']);
     expect(meta.health.status).toBe('stale');
     expect(meta.source.commit).toBe(COMMITS.metaOld);
   });
@@ -206,6 +207,46 @@ describe('build (fixtures, offline)', () => {
     const res2 = await run({ dataDir: data2, outDir: path.join(tmp, 'dist-stars') });
     expect(res2.buildId).not.toBe(r1.buildId);
     expect(ApiModuleDetail.parse(readJson(path.join(tmp, 'dist-stars'), 'api/v1/modules/demo.toolbox.json')).stars).toBe(1300);
+  }, 240_000);
+
+  it('kind: script entries from module.yaml; the stable module.prop wins when module.yaml changed since', async () => {
+    const files = repoFiles('demo/script', ['module.yaml', 'README.md']);
+    const data = dataWith(
+      'data-script',
+      (lock) => {
+        const t = lock.modules['demo.toolbox']!;
+        const script = structuredClone(t);
+        script.stable!.prop = { ...script.stable!.prop, oneshot: 'true' };
+        lock.modules['demo.script'] = {
+          ...script,
+          id: 'demo.script',
+          repositoryId: 1008,
+          fullName: 'demo/script',
+          content: { ref: 'main', commit: COMMITS.script, fetchedAt: '2026-10-02T00:00:00Z', manifestPath: 'module.yaml', files },
+        };
+        // demo.toolbox: module.yaml says module, but its stable ZIP is a one-shot script.
+        t.stable!.prop = { ...t.stable!.prop, oneshot: '1' };
+      },
+      {
+        'demo.script': {
+          id: 'demo.script',
+          status: 'listed',
+          source: { host: 'github', repositoryId: 1008, ownerId: 508, fullName: 'demo/script' },
+          createdAt: '2026-08-01T00:00:00Z',
+          updatedAt: '2026-08-01T00:00:00Z',
+        },
+      },
+    );
+    const out = path.join(tmp, 'dist-script');
+    const res = await run({ dataDir: data, outDir: out });
+    expect(res.outcomes.find((x) => x.id === 'demo.script')).toMatchObject({ status: 'ok' });
+    expect(ApiModuleDetail.parse(readJson(out, 'api/v1/modules/demo.script.json')).kind).toBe('script');
+    const list = ApiModules.parse(readJson(out, 'api/v1/modules.json'));
+    expect(list.modules.map((m) => [m.id, m.kind])).toEqual([['demo.meta', 'module'], ['demo.script', 'script'], ['demo.toolbox', 'script']]);
+    expect(res.warnings).toContainEqual(expect.stringContaining('demo.toolbox: module.yaml kind is module but the stable release v1.2.0 is a script; using script'));
+    expect(read(out, 'en/modules/demo.script/index.html')).toMatch(/badge-script"[^>]*>\s*Script\s*</);
+    expect(read(out, 'zh-CN/index.html')).toMatch(/data-id="demo\.script"[^>]*data-kind="script"/);
+    expect(read(out1, 'en/index.html')).not.toContain('badge-script');
   }, 240_000);
 
   it('update.json points at the site-hosted raw changelog of the stable release', () => {

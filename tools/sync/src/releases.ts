@@ -1,6 +1,6 @@
 // Release stage: eligibility -> asset selection -> download + sha256 -> ZIP validation -> version rules.
 import type { GitHubClient } from '@kernelsu-modules/github';
-import type { LockedRelease, ModuleLock, Policy } from '@kernelsu-modules/schema';
+import type { LockedRelease, ManifestKind, ModuleLock, Policy } from '@kernelsu-modules/schema';
 import {
   checkReleaseEligibility,
   isMetamoduleProp,
@@ -53,6 +53,8 @@ export interface ReleaseStageInput {
   assetPattern: string | undefined;
   /** module.yaml `metamodule` (cross-checked with module.prop as ksud reads it). */
   metamodule?: boolean;
+  /** module.yaml `kind` (entry-kind rules incl. the cross-check with module.prop `oneshot`, see checkReleaseKind). */
+  kind?: ManifestKind;
   now: Date;
   checks: boolean;
   appId?: number;
@@ -218,7 +220,7 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
         if (digest && digest !== dl.sha256) {
           out.issues.push(err('asset-digest-mismatch', `sha256 ${dl.sha256} does not match the GitHub digest ${digest}.`));
         } else {
-          const v = await validateReleaseAsset({ reader: rangeReaderFromBytes(dl.bytes), expectedId: i.id, limits });
+          const v = await validateReleaseAsset({ reader: rangeReaderFromBytes(dl.bytes), expectedId: i.id, limits, kind: i.kind });
           out.issues.push(...v.issues);
           if (v.ok && v.value) {
             validated = v.value;

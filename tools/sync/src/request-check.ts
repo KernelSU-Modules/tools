@@ -170,6 +170,7 @@ export async function checkRequest(
       candidates: [newest],
       assetPattern: content.manifest.release?.assetPattern,
       metamodule: content.manifest.metamodule,
+      kind: content.manifest.kind,
       now: d.now,
       checks: d.checks,
       appId: d.modulesAppId,

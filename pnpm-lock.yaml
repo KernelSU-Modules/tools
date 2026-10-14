@@ -215,6 +215,9 @@ importers:
       '@kernelsu-modules/site':
         specifier: workspace:*
         version: link:../../site
+      '@kernelsu-modules/validator':
+        specifier: workspace:*
+        version: link:../../packages/validator
       htmlparser2:
         specifier: ^12.0.0
         version: 12.0.0

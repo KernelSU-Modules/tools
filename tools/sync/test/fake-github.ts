@@ -62,6 +62,16 @@ export function moduleZip(id: string, versionCode: number, version = `v${version
   ]);
 }
 
+/**
+ * A one-shot script entry ZIP: module.prop (+ `propLines`, default oneshot=true) and action.sh; `extra` adds or
+ * replaces root files (null removes one).
+ */
+export function scriptZip(id: string, versionCode: number, extra: Record<string, string | null> = {}, propLines = 'oneshot=true\n'): Uint8Array {
+  const prop = `id=${id}\nname=Demo\nversion=v${versionCode}\nversionCode=${versionCode}\nauthor=Demo Author\ndescription=Demo script\n${propLines}`;
+  const files: Record<string, string | null> = { 'module.prop': prop, 'action.sh': '#!/system/bin/sh\necho done\n', ...extra };
+  return makeZip(Object.entries(files).flatMap(([name, data]) => (data === null ? [] : [{ name, data }])));
+}
+
 export interface FakeAsset {
   id: number;
   name: string;

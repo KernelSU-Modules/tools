@@ -54,7 +54,7 @@ var require_identity = __commonJS({
     var NODE_TYPE = /* @__PURE__ */ Symbol.for("yaml.node.type");
     var isAlias = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === ALIAS;
     var isDocument = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === DOC;
-    var isMap2 = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === MAP;
+    var isMap3 = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === MAP;
     var isPair = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === PAIR;
     var isScalar = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === SCALAR;
     var isSeq = (node2) => !!node2 && typeof node2 === "object" && node2[NODE_TYPE] === SEQ;
@@ -90,7 +90,7 @@ var require_identity = __commonJS({
     exports.isAlias = isAlias;
     exports.isCollection = isCollection;
     exports.isDocument = isDocument;
-    exports.isMap = isMap2;
+    exports.isMap = isMap3;
     exports.isNode = isNode;
     exports.isPair = isPair;
     exports.isScalar = isScalar;
@@ -4202,9 +4202,9 @@ var require_resolve_flow_collection = __commonJS({
     var blockMsg = "Block collections are not allowed within flow collections";
     var isBlock = (token) => token && (token.type === "block-map" || token.type === "block-seq");
     function resolveFlowCollection({ composeNode, composeEmptyNode }, ctx, fc, onError, tag) {
-      const isMap2 = fc.start.source === "{";
-      const fcName = isMap2 ? "flow map" : "flow sequence";
-      const NodeClass = tag?.nodeClass ?? (isMap2 ? YAMLMap.YAMLMap : YAMLSeq.YAMLSeq);
+      const isMap3 = fc.start.source === "{";
+      const fcName = isMap3 ? "flow map" : "flow sequence";
+      const NodeClass = tag?.nodeClass ?? (isMap3 ? YAMLMap.YAMLMap : YAMLSeq.YAMLSeq);
       const coll = new NodeClass(ctx.schema);
       coll.flow = true;
       const atRoot = ctx.atRoot;
@@ -4240,7 +4240,7 @@ var require_resolve_flow_collection = __commonJS({
             offset = props.end;
             continue;
           }
-          if (!isMap2 && ctx.options.strict && utilContainsNewline.containsNewline(key))
+          if (!isMap3 && ctx.options.strict && utilContainsNewline.containsNewline(key))
             onError(
               key,
               // checked by containsNewline()
@@ -4280,7 +4280,7 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap2 && !sep2 && !props.found) {
+        if (!isMap3 && !sep2 && !props.found) {
           const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
@@ -4303,7 +4303,7 @@ var require_resolve_flow_collection = __commonJS({
             startOnNewline: false
           });
           if (valueProps.found) {
-            if (!isMap2 && !props.found && ctx.options.strict) {
+            if (!isMap3 && !props.found && ctx.options.strict) {
               if (sep2)
                 for (const st of sep2) {
                   if (st === valueProps.found)
@@ -4335,7 +4335,7 @@ var require_resolve_flow_collection = __commonJS({
           const pair = new Pair.Pair(keyNode, valueNode);
           if (ctx.options.keepSourceTokens)
             pair.srcToken = collItem;
-          if (isMap2) {
+          if (isMap3) {
             const map2 = coll;
             if (utilMapIncludes.mapIncludes(ctx, map2.items, keyNode))
               onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
@@ -4351,7 +4351,7 @@ var require_resolve_flow_collection = __commonJS({
           offset = valueNode ? valueNode.range[2] : valueProps.end;
         }
       }
-      const expectedEnd = isMap2 ? "}" : "]";
+      const expectedEnd = isMap3 ? "}" : "]";
       const [ce, ...ee] = fc.end;
       let cePos = offset;
       if (ce?.source === expectedEnd)
@@ -7624,16 +7624,22 @@ __export(src_exports, {
   REQUIRED_PROP_FIELDS: () => REQUIRED_PROP_FIELDS,
   RESERVED_ID_SUFFIXES: () => RESERVED_ID_SUFFIXES,
   RangeFetchError: () => RangeFetchError,
+  SCRIPT_FORBIDDEN_DIRS: () => SCRIPT_FORBIDDEN_DIRS,
+  SCRIPT_FORBIDDEN_FILES: () => SCRIPT_FORBIDDEN_FILES,
   checkAsset: () => checkAsset,
   checkModuleId: () => checkModuleId,
   checkReleaseEligibility: () => checkReleaseEligibility,
+  checkReleaseKind: () => checkReleaseKind,
   compareWithLocked: () => compareWithLocked,
+  compileParamPattern: () => compileParamPattern,
   cp437: () => cp437,
   crc32: () => crc32,
+  duplicateJsonKeys: () => duplicateJsonKeys,
   globMatch: () => globMatch,
   hasErrors: () => hasErrors,
   inspectZip: () => inspectZip,
   isMetamoduleProp: () => isMetamoduleProp,
+  isOneshotProp: () => isOneshotProp,
   isRepoReleaseDownloadUrl: () => isRepoReleaseDownloadUrl,
   issue: () => issue,
   manifestReferencedPaths: () => manifestReferencedPaths,
@@ -7642,6 +7648,7 @@ __export(src_exports, {
   parseJavaProperties: () => parseJavaProperties,
   parseManifest: () => parseManifest,
   parseModuleProp: () => parseModuleProp,
+  parseParams: () => parseParams,
   rangeReaderFromBytes: () => rangeReaderFromBytes,
   rangeReaderFromUrl: () => rangeReaderFromUrl,
   reservedMatch: () => reservedMatch,
@@ -7741,6 +7748,31 @@ var ISSUE_DEFS = {
   "manifest-metamodule-mismatch": {
     summary: "(caller, sync) metamodule in module.yaml disagrees with module.prop as KernelSU reads it (metamodule=1 or true, case-insensitive, trimmed).",
     fix: "Set metamodule: true in module.yaml exactly when module.prop has metamodule=1 (or true), or vice versa."
+  },
+  "manifest-kind-mismatch": {
+    summary: "(caller, sync and author action) kind in module.yaml disagrees with module.prop: kind: script requires oneshot=1 or true (case-insensitive, trimmed), and oneshot requires kind: script.",
+    fix: "Set kind: script in module.yaml exactly when module.prop has oneshot=1 (or true); otherwise omit kind (or set kind: module) and remove oneshot."
+  },
+  /* ---------------- script entries (kind: script) ---------------- */
+  "script-missing-action": {
+    summary: "A script entry (kind: script) has no action.sh at the ZIP root; it is the script the manager runs.",
+    fix: "Put action.sh at the top level of the ZIP and publish a new release."
+  },
+  "script-forbidden-file": {
+    summary: "A script entry ships a root file or directory that only an installed module uses (boot scripts, metamodule hooks, system.prop, sepolicy.rule, skip_mount, system/, vendor/, product/, system_ext/, odm/, webroot/, zygisk/).",
+    fix: "Remove the file from the ZIP, or publish the entry as a regular module (kind: module, no oneshot in module.prop)."
+  },
+  "script-metamodule": {
+    summary: "A script entry declares metamodule=1/true in module.prop; scripts are never installed, so they cannot be metamodules.",
+    fix: "Remove metamodule from module.prop, or publish the entry as a module (kind: module, no oneshot)."
+  },
+  "script-params-invalid": {
+    summary: "params.json of a script entry is not valid (JSON syntax, schema, duplicate keys or option values, a pattern that does not compile, a default that violates its own constraints); unknown fields are warnings.",
+    fix: "Fix params.json as described in the message (see the params.json reference in the module.yaml docs) and publish a new release."
+  },
+  "params-ignored": {
+    summary: "(warning) The ZIP of a regular module (kind: module) has a root params.json; only script entries use it.",
+    fix: "Remove params.json, or set kind: script in module.yaml and oneshot=true in module.prop if the entry is a one-shot script."
   },
   /* ---------------- release selection ---------------- */
   "release-none": {
@@ -27650,6 +27682,8 @@ var ReleaseConfig = external_exports.object({
   assetPattern: external_exports.string().min(1).max(128).regex(/^[^/\\]+$/).optional()
 });
 var GitHubFullName = external_exports.string().trim().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/, 'must be "owner/name" of a GitHub repository').refine((v) => !/\/\.{1,2}$/.test(v), 'must be "owner/name" of a GitHub repository');
+var MANIFEST_KINDS = ["module", "script"];
+var ManifestKind = external_exports.enum(MANIFEST_KINDS);
 var MANIFEST_NAME_MAX = 100;
 var MANIFEST_SUMMARY_MAX = 500;
 var ModuleManifest = external_exports.object({
@@ -27666,6 +27700,8 @@ var ModuleManifest = external_exports.object({
   tags: external_exports.array(Tag).max(10).optional(),
   icon: ManifestPath.optional(),
   metamodule: external_exports.boolean().default(false),
+  /** `script` = one-shot script entry (must not be a metamodule; the validator reports that combination). */
+  kind: ManifestKind.default("module"),
   /** Complete author list; when omitted the site shows the owner of the bound repository. */
   authors: external_exports.array(Author).min(1).max(20).optional(),
   /**
@@ -27684,6 +27720,80 @@ var MANIFEST_KNOWN_KEYS = {
   release: Object.keys(ReleaseConfig.shape)
 };
 var SUPPORTED_MANIFEST_VERSIONS = [1];
+
+// ../../packages/schema/src/params.ts
+var PARAMS_SCHEMA_VERSION = 1;
+var SUPPORTED_PARAMS_VERSIONS = [1];
+var PARAMS_MAX_BYTES = 64 * 1024;
+var PARAMS_MAX = 16;
+var PARAM_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,31}$/;
+var PARAM_LOCALE_PATTERN = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+var PARAM_TEXT_MAX = 200;
+var PARAM_OPTION_VALUE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+var PARAM_OPTIONS_MAX = 32;
+var PARAM_STRING_MAX_LENGTH = 1024;
+var PARAM_PATTERN_MAX = 256;
+var PARAM_STRING_DEFAULT_MAX_LENGTH = 256;
+var PARAM_INT_MIN = -2147483648;
+var PARAM_INT_MAX = 2147483647;
+var Text = external_exports.string().trim().min(1).max(PARAM_TEXT_MAX);
+var LocalizedText = external_exports.union([
+  Text,
+  external_exports.record(external_exports.string().regex(PARAM_LOCALE_PATTERN, 'locale keys must look like "en" or "zh-CN"'), Text).refine((o) => Object.keys(o).length > 0, "must have at least one locale")
+]);
+var ParamInt = external_exports.number().int().min(PARAM_INT_MIN).max(PARAM_INT_MAX);
+var common = {
+  key: external_exports.string().regex(PARAM_KEY_PATTERN, "must match ^[A-Z][A-Z0-9_]{0,31}$"),
+  label: LocalizedText,
+  description: LocalizedText.optional()
+};
+var BoolParam = external_exports.object({
+  ...common,
+  type: external_exports.literal("bool"),
+  default: external_exports.boolean().default(false)
+});
+var EnumOption = external_exports.object({
+  value: external_exports.string().regex(PARAM_OPTION_VALUE_PATTERN, "must match ^[A-Za-z0-9._-]{1,64}$"),
+  label: LocalizedText.optional()
+});
+var EnumParam = external_exports.object({
+  ...common,
+  type: external_exports.literal("enum"),
+  options: external_exports.array(EnumOption).min(1).max(PARAM_OPTIONS_MAX),
+  /** One of the option values; default: the first option. */
+  default: external_exports.string().optional()
+});
+var StringParam = external_exports.object({
+  ...common,
+  type: external_exports.literal("string"),
+  default: external_exports.string().default(""),
+  maxLength: external_exports.number().int().min(1).max(PARAM_STRING_MAX_LENGTH).default(PARAM_STRING_DEFAULT_MAX_LENGTH),
+  /** JavaScript RegExp source; clients require a full match. Keep to the common ECMAScript / Java subset. */
+  pattern: external_exports.string().min(1).max(PARAM_PATTERN_MAX).optional(),
+  /** false: the empty string is always accepted (the pattern only applies to non-empty values). */
+  required: external_exports.boolean().default(false)
+});
+var IntParam = external_exports.object({
+  ...common,
+  type: external_exports.literal("int"),
+  /** Default: `min`, or 0 without `min`. */
+  default: ParamInt.optional(),
+  min: ParamInt.optional(),
+  max: ParamInt.optional()
+});
+var ScriptParam = external_exports.discriminatedUnion("type", [BoolParam, EnumParam, StringParam, IntParam]);
+var ScriptParams = external_exports.object({
+  schemaVersion: external_exports.literal(PARAMS_SCHEMA_VERSION),
+  params: external_exports.array(ScriptParam).max(PARAMS_MAX)
+});
+var PARAMS_KNOWN_KEYS = {
+  root: Object.keys(ScriptParams.shape),
+  bool: Object.keys(BoolParam.shape),
+  enum: Object.keys(EnumParam.shape),
+  string: Object.keys(StringParam.shape),
+  int: Object.keys(IntParam.shape),
+  option: Object.keys(EnumOption.shape)
+};
 
 // ../../packages/schema/src/registry.ts
 var RecordStatus = external_exports.enum(["pending", "listed", "rejected", "suspended", "archived"]);
@@ -27932,6 +28042,11 @@ var ApiModuleSummary = external_exports.object({
   authors: external_exports.array(external_exports.object({ name: external_exports.string(), url: HttpsUrl.optional() })),
   tags: external_exports.array(external_exports.string()),
   metamodule: external_exports.boolean(),
+  /**
+   * module.yaml `kind`: "module" (install with the manager) or "script" (one-shot: run the ZIP's action.sh once,
+   * nothing is installed). Always emitted; clients treat a missing value as "module" and hide unknown values.
+   */
+  kind: external_exports.enum(["module", "script"]),
   /** Content-hashed icon, "assets/{sha256-prefix}.{ext}". */
   icon: ApiPath.nullable(),
   stable: ApiVersionRef,
@@ -28183,6 +28298,8 @@ function parseManifest(text2, opts) {
     issues.push(issue("manifest-schema", "compatibility.androidMinApi must not be greater than androidMaxApi.", "error", "compatibility"));
   if (m.tags && new Set(m.tags).size !== m.tags.length)
     issues.push(issue("manifest-schema", "tags contains duplicates (tags are case-insensitive).", "warning", "tags"));
+  if (m.kind === "script" && m.metamodule)
+    issues.push(issue("manifest-schema", "kind: script cannot be combined with metamodule: true (scripts are never installed).", "error", "kind"));
   if (c?.architectures && new Set(c.architectures).size !== c.architectures.length)
     issues.push(issue("manifest-schema", "compatibility.architectures contains duplicates.", "warning", "compatibility.architectures"));
   return result(issues, m);
@@ -28369,6 +28486,11 @@ function parseJavaProperties(text2) {
 function isMetamoduleProp(props) {
   if (!Object.prototype.hasOwnProperty.call(props, "metamodule")) return false;
   const t = rustTrim(props.metamodule);
+  return t === "1" || /^true$/i.test(t);
+}
+function isOneshotProp(props) {
+  if (!Object.prototype.hasOwnProperty.call(props, "oneshot")) return false;
+  const t = rustTrim(props.oneshot);
   return t === "1" || /^true$/i.test(t);
 }
 var shown = (s) => JSON.stringify(s.length > 80 ? `${s.slice(0, 80)}\u2026` : s);
@@ -28658,9 +28780,12 @@ var SIG_LOCAL = 67324752;
 var U16_MAX = 65535;
 var U32_MAX = 4294967295;
 var MODULE_PROP = "module.prop";
+var PARAMS_JSON = "params.json";
 var EXTRACTABLE_METHODS = /* @__PURE__ */ new Set([0, 8, 9, 14, 95]);
 var MAX_PER_CODE = 10;
 var Fatal = class extends Error {
+};
+var EntryError = class extends Error {
 };
 var Issues = class {
   list = [];
@@ -28999,13 +29124,55 @@ async function inspect(reader, limits, iss) {
   if (e.uncompressedSize > limits.modulePropMaxBytes)
     iss.fatal("prop-too-large", `module.prop is ${e.uncompressedSize} bytes; the limit is ${limits.modulePropMaxBytes}.`);
   if (e.method === 0 && e.compressedSize !== e.uncompressedSize) throw new Fatal("stored size mismatch");
-  if (e.compressedSize > e.uncompressedSize + (e.uncompressedSize >> 6) + 64)
-    iss.fatal("zip-entry-corrupt", "module.prop compressed size is implausibly large for its declared size.");
+  let data;
+  try {
+    data = await readEntry(reader, e, cdOffset, MODULE_PROP);
+  } catch (err) {
+    if (err instanceof EntryError) iss.fatal("zip-entry-corrupt", err.message);
+    throw err;
+  }
+  let moduleProp;
+  try {
+    moduleProp = utf8Fatal.decode(data);
+  } catch {
+    iss.fatal("prop-encoding", "module.prop is not valid UTF-8.");
+  }
+  const files = entries.filter((x) => x.path !== "").map((x) => x.isDir ? `${x.path}/` : x.path);
+  const value = { entries: entries.length, uncompressedTotal, moduleProp, files };
+  const params = entries.find((x) => x.path === PARAMS_JSON);
+  if (params) value.paramsJson = await readParamsJson(reader, params, cdOffset);
+  return value;
+}
+async function readParamsJson(reader, e, cdOffset) {
+  if (e.isDir) return { error: `${PARAMS_JSON} is a directory, not a file.` };
+  if ((e.flags & 1) !== 0 || (e.flags & 64) !== 0 || e.method === 99) return { error: `${PARAMS_JSON} is encrypted.` };
+  if (e.method !== 0 && e.method !== 8)
+    return { error: `${PARAMS_JSON} uses compression method ${e.method}; it must be stored (0) or deflated (8).` };
+  if (e.uncompressedSize > PARAMS_MAX_BYTES) return { error: `${PARAMS_JSON} is ${e.uncompressedSize} bytes; the limit is ${PARAMS_MAX_BYTES}.` };
+  if (e.method === 0 && e.compressedSize !== e.uncompressedSize) return { error: `${PARAMS_JSON} has inconsistent stored sizes.` };
+  let data;
+  try {
+    data = await readEntry(reader, e, cdOffset, PARAMS_JSON);
+  } catch (err) {
+    if (err instanceof EntryError || err instanceof RangeError) return { error: err.message };
+    throw err;
+  }
+  try {
+    return { text: utf8Fatal.decode(data) };
+  } catch {
+    return { error: `${PARAMS_JSON} is not valid UTF-8.` };
+  }
+}
+async function readEntry(reader, e, cdOffset, label) {
+  const fail = (message) => {
+    throw new EntryError(`${label} ${message}`);
+  };
+  if (e.compressedSize > e.uncompressedSize + (e.uncompressedSize >> 6) + 64) fail("compressed size is implausibly large for its declared size.");
   const maxLocal = cdOffset - e.localOffset;
   const want = Math.min(maxLocal, LOCAL_HEADER + e.nameBytes.length + 64 + e.compressedSize);
   let buf = await reader.read(e.localOffset, want);
   let lv = dv(buf);
-  if (lv.getUint32(0, true) !== SIG_LOCAL) iss.fatal("zip-entry-corrupt", "module.prop local header signature mismatch.");
+  if (lv.getUint32(0, true) !== SIG_LOCAL) fail("local header signature mismatch.");
   const lFlags = lv.getUint16(6, true);
   const lMethod = lv.getUint16(8, true);
   const lCrc = lv.getUint32(14, true);
@@ -29015,39 +29182,29 @@ async function inspect(reader, limits, iss) {
   const lExtraLen = lv.getUint16(28, true);
   const dataStart = LOCAL_HEADER + lNameLen + lExtraLen;
   const dataEnd = dataStart + e.compressedSize;
-  if (e.localOffset + dataEnd > cdOffset) iss.fatal("zip-entry-corrupt", "module.prop data runs into the central directory.");
+  if (e.localOffset + dataEnd > cdOffset) fail("data runs into the central directory.");
   if (dataEnd > buf.length) {
     buf = await reader.read(e.localOffset, dataEnd);
     lv = dv(buf);
   }
-  if (!bytesEqual(buf.subarray(LOCAL_HEADER, LOCAL_HEADER + lNameLen), e.nameBytes))
-    iss.fatal("zip-entry-corrupt", "module.prop local header name differs from the central directory.");
-  if (lMethod !== e.method || (lFlags & 65) !== (e.flags & 65))
-    iss.fatal("zip-entry-corrupt", "module.prop local header method/flags differ from the central directory.");
+  if (!bytesEqual(buf.subarray(LOCAL_HEADER, LOCAL_HEADER + lNameLen), e.nameBytes)) fail("local header name differs from the central directory.");
+  if (lMethod !== e.method || (lFlags & 65) !== (e.flags & 65)) fail("local header method/flags differ from the central directory.");
   if ((lFlags & 8) === 0) {
     const sizesOk = (lComp === U32_MAX || lComp === e.compressedSize) && (lUncomp === U32_MAX || lUncomp === e.uncompressedSize) && lCrc === e.crc;
-    if (!sizesOk) iss.fatal("zip-entry-corrupt", "module.prop local header sizes/CRC differ from the central directory.");
+    if (!sizesOk) fail("local header sizes/CRC differ from the central directory.");
   }
   const raw = buf.subarray(dataStart, dataEnd);
-  let data;
-  if (e.method === 0) data = raw;
-  else {
+  let data = raw;
+  if (e.method !== 0) {
     try {
       data = await inflateLimited(raw, e.uncompressedSize);
     } catch (err) {
-      iss.fatal("zip-entry-corrupt", `module.prop could not be inflated: ${err.message}`);
+      fail(`could not be inflated: ${err.message}`);
     }
   }
-  if (data.length !== e.uncompressedSize)
-    iss.fatal("zip-entry-corrupt", `module.prop inflated to ${data.length} bytes but ${e.uncompressedSize} were declared.`);
-  if (crc32(data) !== e.crc) iss.fatal("zip-entry-corrupt", "module.prop CRC-32 mismatch.");
-  let moduleProp;
-  try {
-    moduleProp = utf8Fatal.decode(data);
-  } catch {
-    iss.fatal("prop-encoding", "module.prop is not valid UTF-8.");
-  }
-  return { entries: entries.length, uncompressedTotal, moduleProp };
+  if (data.length !== e.uncompressedSize) fail(`inflated to ${data.length} bytes but ${e.uncompressedSize} were declared.`);
+  if (crc32(data) !== e.crc) fail("CRC-32 mismatch.");
+  return data;
 }
 
 // ../../packages/validator/src/release.ts
@@ -29139,6 +29296,208 @@ function compareWithLocked(versionCode, lockedStable) {
   return "older";
 }
 
+// ../../packages/validator/src/params.ts
+var CODE = "script-params-invalid";
+var isMap2 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+function fmtPath2(path) {
+  return path.map((p) => typeof p === "number" ? `[${p}]` : String(p)).join(".").replace(/\.\[/g, "[");
+}
+function duplicateJsonKeys(text2) {
+  const out = [];
+  const stack = [];
+  for (let i = 0; i < text2.length; i++) {
+    const c = text2[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (text2[j] !== '"') j += text2[j] === "\\" ? 2 : 1;
+      const top = stack.at(-1);
+      if (top?.expectKey) {
+        const k = JSON.parse(text2.slice(i, j + 1));
+        if (top.keys.has(k)) out.push(k);
+        else top.keys.add(k);
+        top.expectKey = false;
+      }
+      i = j;
+    } else if (c === "{") stack.push({ keys: /* @__PURE__ */ new Set(), expectKey: true });
+    else if (c === "[") stack.push(null);
+    else if (c === "}" || c === "]") stack.pop();
+    else if (c === ",") {
+      const top = stack.at(-1);
+      if (top) top.expectKey = true;
+    }
+  }
+  return out;
+}
+function unknownFieldIssues2(data) {
+  const out = [];
+  const check2 = (obj, known, prefix) => {
+    if (!isMap2(obj)) return;
+    for (const k of Object.keys(obj)) {
+      if (known.includes(k)) continue;
+      const path = prefix ? `${prefix}.${k}` : k;
+      out.push(issue(CODE, `params.json ${path}: unknown field, ignored.`, "warning", path));
+    }
+  };
+  check2(data, PARAMS_KNOWN_KEYS.root, "");
+  if (Array.isArray(data.params))
+    data.params.forEach((p, i) => {
+      if (!isMap2(p) || typeof p.type !== "string" || !Object.prototype.hasOwnProperty.call(PARAMS_KNOWN_KEYS, p.type) || p.type === "root" || p.type === "option")
+        return;
+      check2(p, PARAMS_KNOWN_KEYS[p.type], `params[${i}]`);
+      if (p.type === "enum" && Array.isArray(p.options)) p.options.forEach((o, j) => check2(o, PARAMS_KNOWN_KEYS.option, `params[${i}].options[${j}]`));
+    });
+  return out;
+}
+function compileParamPattern(pattern) {
+  try {
+    new RegExp(pattern);
+    return { re: new RegExp(`^(?:${pattern})$`) };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+var FORBIDDEN_CHARS = /[\u0000\n\r]/;
+function checkParam(p, at, issues) {
+  const err = (path, message) => issues.push(issue(CODE, `params.json ${at}${path ? `.${path}` : ""}: ${message}`, "error", `${at}${path ? `.${path}` : ""}`));
+  switch (p.type) {
+    case "bool":
+      return p;
+    case "enum": {
+      const values = p.options.map((o) => o.value);
+      const dup = [...new Set(values.filter((v, i) => values.indexOf(v) !== i))];
+      if (dup.length) err("options", `duplicate option value${dup.length > 1 ? "s" : ""} ${dup.map((v) => JSON.stringify(v)).join(", ")}.`);
+      const def = p.default ?? values[0];
+      if (!values.includes(def)) err("default", `${JSON.stringify(def)} is not one of the option values (${values.map((v) => JSON.stringify(v)).join(", ")}).`);
+      return { ...p, default: def };
+    }
+    case "string": {
+      let re;
+      if (p.pattern !== void 0) {
+        const c = compileParamPattern(p.pattern);
+        if ("error" in c) err("pattern", `${JSON.stringify(p.pattern)} is not a valid regular expression (${c.error}).`);
+        else re = c.re;
+      }
+      const d = p.default;
+      if (FORBIDDEN_CHARS.test(d)) err("default", "must not contain NUL or newline characters.");
+      if (d.length > p.maxLength) err("default", `is ${d.length} characters long; maxLength is ${p.maxLength}.`);
+      if (d !== "" && re && !re.test(d)) err("default", `${JSON.stringify(d)} does not fully match the pattern ${JSON.stringify(p.pattern)}.`);
+      return p;
+    }
+    case "int": {
+      if (p.min !== void 0 && p.max !== void 0 && p.min > p.max) {
+        err("min", `min ${p.min} is greater than max ${p.max}.`);
+        return p;
+      }
+      const def = p.default ?? p.min ?? 0;
+      const implicit = p.default === void 0 ? ' (implicit; set "default")' : "";
+      if (p.min !== void 0 && def < p.min) err("default", `${def}${implicit} is less than min ${p.min}.`);
+      if (p.max !== void 0 && def > p.max) err("default", `${def}${implicit} is greater than max ${p.max}.`);
+      return { ...p, default: def };
+    }
+  }
+}
+function parseParams(text2, opts) {
+  const issues = [];
+  const maxBytes = opts?.maxBytes ?? PARAMS_MAX_BYTES;
+  const bytes = new TextEncoder().encode(text2).length;
+  if (bytes > maxBytes) return result([issue(CODE, `params.json is ${bytes} bytes; the limit is ${maxBytes} bytes.`)]);
+  const body = text2.replace(/^\uFEFF/, "");
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch (e) {
+    return result([issue(CODE, `params.json is not valid JSON: ${e.message.split("\n")[0]}`)]);
+  }
+  const dups = [...new Set(duplicateJsonKeys(body))];
+  if (dups.length)
+    issues.push(issue(CODE, `params.json repeats the object key${dups.length > 1 ? "s" : ""} ${dups.map((k) => JSON.stringify(k)).join(", ")} within one object.`));
+  if (!isMap2(data)) return result([...issues, issue(CODE, "params.json must be a JSON object.")]);
+  const sv = data.schemaVersion;
+  if (sv !== void 0 && !SUPPORTED_PARAMS_VERSIONS.includes(sv)) {
+    issues.push(
+      issue(CODE, `params.json schemaVersion ${JSON.stringify(sv)} is not supported (supported: ${SUPPORTED_PARAMS_VERSIONS.join(", ")}).`, "error", "schemaVersion")
+    );
+    return result(issues);
+  }
+  issues.push(...unknownFieldIssues2(data));
+  const parsed = ScriptParams.safeParse(data);
+  if (!parsed.success) {
+    for (const zi of parsed.error.issues.slice(0, 20)) {
+      const path = fmtPath2(zi.path);
+      issues.push(issue(CODE, `params.json ${path ? `${path}: ` : ""}${zi.message}`, "error", path || void 0));
+    }
+    return result(issues);
+  }
+  const keys = parsed.data.params.map((p) => p.key);
+  const dupKeys = [...new Set(keys.filter((k, i) => keys.indexOf(k) !== i))];
+  if (dupKeys.length) issues.push(issue(CODE, `params.json declares the key${dupKeys.length > 1 ? "s" : ""} ${dupKeys.join(", ")} more than once.`, "error", "params"));
+  const params = parsed.data.params.map((p, i) => checkParam(p, `params[${i}]`, issues));
+  return result(issues, { ...parsed.data, params });
+}
+
+// ../../packages/validator/src/kind.ts
+var SCRIPT_FORBIDDEN_FILES = [
+  "post-fs-data.sh",
+  "post-mount.sh",
+  "service.sh",
+  "boot-completed.sh",
+  "uninstall.sh",
+  "metamount.sh",
+  "metainstall.sh",
+  "metauninstall.sh",
+  "system.prop",
+  "sepolicy.rule",
+  "skip_mount"
+];
+var SCRIPT_FORBIDDEN_DIRS = ["system", "vendor", "product", "system_ext", "odm", "webroot", "zygisk"];
+function checkReleaseKind(input2) {
+  const issues = [];
+  const oneshot = isOneshotProp(input2.props);
+  const kind = input2.kind ?? (oneshot ? "script" : "module");
+  if (kind === "script" && !oneshot)
+    issues.push(
+      issue(
+        "manifest-kind-mismatch",
+        "module.yaml has kind: script but module.prop does not set oneshot=1 or true, so managers would install it as a regular module.",
+        "error",
+        "kind"
+      )
+    );
+  if (kind === "module" && oneshot)
+    issues.push(
+      issue(
+        "manifest-kind-mismatch",
+        "module.prop declares oneshot=1/true (a one-shot script) but module.yaml has kind: module (or no kind). Set kind: script in module.yaml or remove oneshot from module.prop.",
+        "error",
+        "kind"
+      )
+    );
+  const files = input2.zip.files;
+  const hasFile = (p) => files.includes(p);
+  if (kind === "module") {
+    if (input2.zip.paramsJson)
+      issues.push(issue("params-ignored", "The ZIP has a root params.json, but only script entries (kind: script) use it; it is ignored.", "warning", "params.json"));
+    return issues;
+  }
+  if (!hasFile("action.sh"))
+    issues.push(
+      issue("script-missing-action", files.includes("action.sh/") ? "The ZIP root action.sh is a directory, not a file." : "The ZIP has no action.sh at its root; script entries run it.", "error", "action.sh")
+    );
+  const forbidden = [];
+  for (const f of SCRIPT_FORBIDDEN_FILES) if (hasFile(f) || hasFile(`${f}/`)) forbidden.push(f);
+  for (const d of SCRIPT_FORBIDDEN_DIRS) if (files.some((p) => p.startsWith(`${d}/`))) forbidden.push(`${d}/`);
+  for (const f of forbidden)
+    issues.push(issue("script-forbidden-file", `The ZIP contains ${f} at its root; script entries are run once and never installed, so it would have no effect.`, "error", f));
+  if (isMetamoduleProp(input2.props))
+    issues.push(issue("script-metamodule", "module.prop declares metamodule=1/true; a script entry cannot be a metamodule.", "error", "metamodule"));
+  const pj = input2.zip.paramsJson;
+  if (pj) {
+    if ("error" in pj) issues.push(issue("script-params-invalid", pj.error, "error", "params.json"));
+    else issues.push(...parseParams(pj.text).issues.map((i) => ({ ...i, path: i.path ? `params.json: ${i.path}` : "params.json" })));
+  }
+  return issues;
+}
+
 // ../../packages/validator/src/asset.ts
 async function validateReleaseAsset(input2) {
   const zip = await inspectZip(input2.reader, input2.limits);
@@ -29150,6 +29509,7 @@ async function validateReleaseAsset(input2) {
   const p = prop.value;
   if (p.id !== input2.expectedId)
     issues.push(issue("prop-id-mismatch", `module.prop id "${p.id}" does not equal the registered ID "${input2.expectedId}".`, "error", "id"));
+  issues.push(...checkReleaseKind({ kind: input2.kind, props: p.props, zip: zip.value }));
   return result(issues, {
     props: p.props,
     version: p.version,
@@ -39725,7 +40085,7 @@ async function precheckZip(v, bytes) {
   if (!zipRes.ok || !zipRes.value) return { issues };
   const propRes = v.parseModuleProp(zipRes.value.moduleProp);
   issues.push(...propRes.issues);
-  return { issues, prop: propRes.ok ? propRes.value : void 0 };
+  return { issues, prop: propRes.ok ? propRes.value : void 0, zip: zipRes.value };
 }
 function precheckManifest(v, cfg, log2) {
   const p = resolve(cfg.workspace, cfg.manifestPath);
@@ -39796,7 +40156,7 @@ async function run(ctx) {
     log2.info(`Zipped ${dir}: ${entries.length} entries, ${bytes.length} bytes`);
   }
   const issues = [];
-  const { issues: zipIssues, prop } = await log2.group("Precheck ZIP and module.prop", () => precheckZip(v, bytes));
+  const { issues: zipIssues, prop, zip } = await log2.group("Precheck ZIP and module.prop", () => precheckZip(v, bytes));
   issues.push(...zipIssues);
   const { issues: manIssues, manifest } = precheckManifest(v, cfg, log2);
   issues.push(...manIssues);
@@ -39804,6 +40164,9 @@ async function run(ctx) {
   if (cfg.external && cfg.syncFiles) {
     meta3 = collectMetadata(cfg.workspace, cfg.manifestPath, manifest, DEFAULT_POLICY.limits, cfg.repo, log2);
     issues.push(...meta3.issues);
+  }
+  if (prop && zip) {
+    issues.push(...v.checkReleaseKind({ kind: manifest?.kind, props: prop.props, zip }));
   }
   if (prop) {
     if (manifest && manifest.id !== prop.id) {

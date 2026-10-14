@@ -103,7 +103,12 @@ export const fakeValidator: Validator = {
     const bytes = await reader.read(0, reader.size);
     const p = extractEntry(bytes, 'module.prop');
     if (!p) return { ok: false, issues: [{ code: 'prop-missing', severity: 'error', message: 'no module.prop' }] };
-    return { ok: true, issues: [], value: { entries: 1, uncompressedTotal: p.length, moduleProp: new TextDecoder().decode(p) } };
+    return { ok: true, issues: [], value: { entries: 1, uncompressedTotal: p.length, moduleProp: new TextDecoder().decode(p), files: ['module.prop'] } };
+  },
+  /** Only the kind cross-check (the real rules are covered by the integration test). */
+  checkReleaseKind({ kind, props }) {
+    const oneshot = /^(1|true)$/i.test((props.oneshot ?? '').trim());
+    return kind !== undefined && oneshot !== (kind === 'script') ? [{ code: 'manifest-kind-mismatch', severity: 'error', message: 'kind' }] : [];
   },
   selectAsset(release, pattern) {
     const m = release.assets.filter((a) => (pattern ? globRe(pattern).test(a.name) : a.name.endsWith('.zip')));
