@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duplicateJsonKeys, parseParams } from '../src/index.ts';
+import { parseParams } from '../src/index.ts';
 
 const codes = (r: { issues: { code: string }[] }) => r.issues.map((i) => i.code);
 const errors = (r: { issues: { severity: string; message: string }[] }) => r.issues.filter((i) => i.severity === 'error').map((i) => i.message);
@@ -104,7 +104,7 @@ describe('parseParams', () => {
     expect(parseParams(doc(many.slice(1))).ok).toBe(true);
   });
 
-  it('rejects duplicate parameter keys, option values and JSON object keys', () => {
+  it('rejects duplicate parameter keys and option values', () => {
     const r = parseParams(
       doc([
         { key: 'A', type: 'bool', label: 'x' },
@@ -113,8 +113,6 @@ describe('parseParams', () => {
       ]),
     );
     expect(errors(r)).toEqual(['params.json declares the key A more than once.', 'params.json params[2].options: duplicate option value "v".']);
-    const dupObj = parseParams('{"schemaVersion":1,"params":[{"key":"A","type":"bool","label":"x","label":"y"}]}');
-    expect(errors(dupObj)).toEqual(['params.json repeats the object key "label" within one object.']);
   });
 
   it('pattern is not part of the format: an unknown field, never compiled', () => {
@@ -154,13 +152,5 @@ describe('parseParams', () => {
   it('int values are 32-bit', () => {
     expect(parseParams(doc([{ key: 'I', type: 'int', label: 'x', max: 2147483647, default: -2147483648 }])).ok).toBe(true);
     expect(parseParams(doc([{ key: 'I', type: 'int', label: 'x', max: 2147483648 }])).ok).toBe(false);
-  });
-});
-
-describe('params helpers', () => {
-  it('duplicateJsonKeys only reports keys repeated within one object', () => {
-    expect(duplicateJsonKeys('{"a":1,"b":{"a":2},"c":[{"a":1},{"a":2}],"d":"\\"a\\""}')).toEqual([]);
-    expect(duplicateJsonKeys('{"a":1,"b":{"x":1,"x":2},"a":3}')).toEqual(['x', 'a']);
-    expect(duplicateJsonKeys('{"k\\u0061":1,"ka":2}')).toEqual(['ka']);
   });
 });

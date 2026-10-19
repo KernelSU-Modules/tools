@@ -151,7 +151,9 @@ release:
 | `string` | `default`（默认 `""`）、`maxLength` 1–1024（默认 256）、`required`（默认 `false`：空值总是允许）。值不能包含 NUL 或换行符；没有格式校验（没有 `pattern`），`action.sh` 需要自行校验取值。 |
 | `int` | 可选的 `min` / `max`、`default`（默认为 `min`，没有 `min` 时为 `0`）；`min ≤ default ≤ max`；32 位有符号整数。以十进制传入。 |
 
-每个参数的 `default` 都必须满足它自身的约束。未知字段会产生警告并被忽略；其他任何问题（无效的 JSON、同一对象中重复的键、未知的 `schemaVersion`、重复的 key 或选项值、违反约束的默认值）都是 [`script-params-invalid`](checks.md#script-params-invalid)。
+整数字段（`schemaVersion`、`maxLength`、`min`、`max`、`int` 的 `default`）请写成普通整数字面量：`5`，不要写 `5.0` 或 `5e0`。校验器无法区分它们，但管理器会拒绝后者。
+
+每个参数的 `default` 都必须满足它自身的约束。未知字段会产生警告并被忽略；其他任何问题（无效的 JSON、未知的 `schemaVersion`、重复的 key 或选项值、违反约束的默认值）都是 [`script-params-invalid`](checks.md#script-params-invalid)。
 
 ### 管理器如何运行 `action.sh`
 

@@ -183,8 +183,12 @@ Per type:
 | `string` | `default` (default `""`), `maxLength` 1–1024 (default 256), `required` (default `false`: an empty value is always allowed). Values must not contain NUL or line breaks; there is no format check (no `pattern`), so `action.sh` must validate the value itself. |
 | `int` | Optional `min` / `max`, `default` (default `min`, or `0` without `min`); `min ≤ default ≤ max`; 32-bit signed integers. Passed in decimal. |
 
+Write integer fields (`schemaVersion`, `maxLength`, `min`, `max`, an `int` `default`) as plain
+integer literals: `5`, not `5.0` or `5e0`. The validator cannot tell them apart, but the manager
+rejects the latter.
+
 The `default` of every parameter must satisfy its own constraints. Unknown fields are reported as a
-warning and ignored; any other problem — invalid JSON, a repeated object key, an unknown
+warning and ignored; any other problem — invalid JSON, an unknown
 `schemaVersion`, duplicate keys or option values, a default that
 violates its constraints — is [`script-params-invalid`](checks.md#script-params-invalid).
 

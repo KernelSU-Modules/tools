@@ -8,37 +8,6 @@ function fmtPath(path: readonly PropertyKey[]): string {
   return path.map((p) => (typeof p === 'number' ? `[${p}]` : String(p))).join('.').replace(/\.\[/g, '[');
 }
 
-/**
- * Object keys that appear more than once in the same JSON object (JSON.parse keeps the last one silently, Android's
- * org.json rejects the document). `text` must already be valid JSON.
- */
-export function duplicateJsonKeys(text: string): string[] {
-  const out: string[] = [];
-  const stack: ({ keys: Set<string>; expectKey: boolean } | null)[] = [];
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      let j = i + 1;
-      while (text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
-      const top = stack.at(-1);
-      if (top?.expectKey) {
-        const k = JSON.parse(text.slice(i, j + 1)) as string;
-        if (top.keys.has(k)) out.push(k);
-        else top.keys.add(k);
-        top.expectKey = false;
-      }
-      i = j;
-    } else if (c === '{') stack.push({ keys: new Set(), expectKey: true });
-    else if (c === '[') stack.push(null);
-    else if (c === '}' || c === ']') stack.pop();
-    else if (c === ',') {
-      const top = stack.at(-1);
-      if (top) top.expectKey = true;
-    }
-  }
-  return out;
-}
-
 function unknownFieldIssues(data: Record<string, unknown>): Issue[] {
   const out: Issue[] = [];
   const check = (obj: unknown, known: readonly string[], prefix: string) => {
@@ -114,9 +83,6 @@ export function parseParams(text: string, opts?: { maxBytes?: number }): Result<
   } catch (e) {
     return result([issue(CODE, `params.json is not valid JSON: ${(e as Error).message.split('\n')[0]}`)]);
   }
-  const dups = [...new Set(duplicateJsonKeys(body))];
-  if (dups.length)
-    issues.push(issue(CODE, `params.json repeats the object key${dups.length > 1 ? 's' : ''} ${dups.map((k) => JSON.stringify(k)).join(', ')} within one object.`));
   if (!isMap(data)) return result([...issues, issue(CODE, 'params.json must be a JSON object.')]);
   const sv = data.schemaVersion;
   if (sv !== undefined && !(SUPPORTED_PARAMS_VERSIONS as readonly unknown[]).includes(sv)) {

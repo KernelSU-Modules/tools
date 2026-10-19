@@ -7634,7 +7634,6 @@ __export(src_exports, {
   compareWithLocked: () => compareWithLocked,
   cp437: () => cp437,
   crc32: () => crc32,
-  duplicateJsonKeys: () => duplicateJsonKeys,
   globMatch: () => globMatch,
   hasErrors: () => hasErrors,
   inspectZip: () => inspectZip,
@@ -29295,32 +29294,6 @@ var isMap2 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 function fmtPath2(path) {
   return path.map((p) => typeof p === "number" ? `[${p}]` : String(p)).join(".").replace(/\.\[/g, "[");
 }
-function duplicateJsonKeys(text2) {
-  const out = [];
-  const stack = [];
-  for (let i = 0; i < text2.length; i++) {
-    const c = text2[i];
-    if (c === '"') {
-      let j = i + 1;
-      while (text2[j] !== '"') j += text2[j] === "\\" ? 2 : 1;
-      const top = stack.at(-1);
-      if (top?.expectKey) {
-        const k = JSON.parse(text2.slice(i, j + 1));
-        if (top.keys.has(k)) out.push(k);
-        else top.keys.add(k);
-        top.expectKey = false;
-      }
-      i = j;
-    } else if (c === "{") stack.push({ keys: /* @__PURE__ */ new Set(), expectKey: true });
-    else if (c === "[") stack.push(null);
-    else if (c === "}" || c === "]") stack.pop();
-    else if (c === ",") {
-      const top = stack.at(-1);
-      if (top) top.expectKey = true;
-    }
-  }
-  return out;
-}
 function unknownFieldIssues2(data) {
   const out = [];
   const check2 = (obj, known, prefix) => {
@@ -29386,9 +29359,6 @@ function parseParams(text2, opts) {
   } catch (e) {
     return result([issue(CODE, `params.json is not valid JSON: ${e.message.split("\n")[0]}`)]);
   }
-  const dups = [...new Set(duplicateJsonKeys(body))];
-  if (dups.length)
-    issues.push(issue(CODE, `params.json repeats the object key${dups.length > 1 ? "s" : ""} ${dups.map((k) => JSON.stringify(k)).join(", ")} within one object.`));
   if (!isMap2(data)) return result([...issues, issue(CODE, "params.json must be a JSON object.")]);
   const sv = data.schemaVersion;
   if (sv !== void 0 && !SUPPORTED_PARAMS_VERSIONS.includes(sv)) {

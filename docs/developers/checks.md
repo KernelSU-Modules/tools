@@ -610,7 +610,6 @@ never installed, so they cannot be metamodules. (`kind: script` together with `m
 possible, the field (`params[2].default`, …):
 
 - not UTF-8, larger than 64 KiB, not stored/deflated, or not valid JSON;
-- an object key repeated within one object (Android's JSON parser rejects such files);
 - `schemaVersion` missing or not `1`;
 - a schema violation: `key` not matching `^[A-Z][A-Z0-9_]{0,31}$`, unknown `type`, empty or too
   long `label`, a `label` / `description` that is not a string, more than 16 parameters, 0 or more than 32

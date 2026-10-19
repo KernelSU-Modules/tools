@@ -498,7 +498,6 @@ KernelSU 把 `module.prop` 当作 Java properties 文件读取，KernelSU Module
 **原因**：脚本的 `params.json` 无效。消息会说明问题，并尽可能指出字段（如 `params[2].default`）：
 
 - 不是 UTF-8、超过 64 KiB、不是 stored/deflate 压缩，或不是有效的 JSON；
-- 同一个对象中出现重复的键（Android 的 JSON 解析器会拒绝这样的文件）；
 - 缺少 `schemaVersion` 或其值不是 `1`；
 - 不符合 schema：`key` 不匹配 `^[A-Z][A-Z0-9_]{0,31}$`、未知的 `type`、`label` 为空或过长、`label` / `description` 不是字符串、超过 16 个参数、`options` 为 0 个或超过 32 个、`maxLength` 不在 1–1024 之间、`int` 的值不是整数等；
 - 同一个 `key` 声明了两次，或同一个 `enum` 中出现重复的选项 `value`；
