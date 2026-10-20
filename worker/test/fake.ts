@@ -38,6 +38,8 @@ export interface FakeRepo {
   files: Record<string, string>;
   headSha: string;
   latestRelease: FakeRelease | null;
+  /** Fork of `parent`; `aheadBy` = commits not in the parent's default branch. */
+  fork?: { parent: string; aheadBy: number };
 }
 export interface PagesDeployment {
   id: string;
@@ -294,6 +296,8 @@ export class FakeWorld {
       default_branch: r.default_branch,
       owner: r.owner,
       html_url: `https://github.com/${r.full_name}`,
+      fork: !!r.fork,
+      ...(r.fork ? { parent: { full_name: r.fork.parent, default_branch: 'main' } } : {}),
       ...(u ? { permissions: { admin: r.admins.includes(u.id), push: r.admins.includes(u.id), pull: true } } : {}),
     };
   }
@@ -484,6 +488,12 @@ export class FakeWorld {
     }
 
     // ---- author repo content (installation token of the Modules App) ----
+    if ((m = /^\/repos\/([^/]+\/[^/]+)\/compare\/(.+)$/.exec(p))) {
+      const r = [...this.repos.values()].find((x) => x.full_name === m![1]);
+      const [base, head] = decodeURIComponent(m[2]!).split('...');
+      if (!r?.fork || base !== `${r.fork.parent.replace('/', ':')}:main` || head !== r.default_branch) return json(404, { message: 'Not Found' });
+      return json(200, { ahead_by: r.fork.aheadBy, behind_by: 0 });
+    }
     if ((m = /^\/repos\/([^/]+\/[^/]+)\/(contents|commits|releases)\/?(.*)$/.exec(p))) {
       const r = this.byName(m[1]!);
       if (!r || a?.kind !== 'inst' || !a.inst.repoIds.includes(r.id)) return json(404, { message: 'Not Found' });

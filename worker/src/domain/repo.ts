@@ -9,6 +9,9 @@ export interface RepoInfo {
   owner: { id: number; login: string };
   permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
   html_url: string;
+  fork?: boolean;
+  /** Present on single-repository responses of forks. */
+  parent?: { full_name: string; default_branch: string };
 }
 
 /**

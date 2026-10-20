@@ -48,7 +48,7 @@ const err = (code: string, message: string, severity: Issue['severity'] = 'error
 
 export async function precheck(
   gh: GitHubClient,
-  repo: Pick<RepoInfo, 'full_name' | 'default_branch' | 'private'>,
+  repo: Pick<RepoInfo, 'full_name' | 'default_branch' | 'private' | 'fork' | 'parent'>,
   policy: Policy,
   opts: PrecheckOptions = {},
 ): Promise<PrecheckResult> {
@@ -57,6 +57,8 @@ export async function precheck(
   const ref = opts.ref ?? repo.default_branch;
   const manifestPath = opts.manifestPath ?? 'module.yaml';
   if (repo.private) issues.push(err('repo-private', `${repo.full_name} is private; only public repositories can be listed.`));
+  if (repo.fork && repo.parent && (await forkAheadBy(gh, repo.full_name, ref, repo.parent)) === 0)
+    issues.push(err('repo-fork-unchanged', `${repo.full_name} is a fork of ${repo.parent.full_name} with no changes of its own on ${ref}.`));
 
   let text: string | null = null;
   let tooLarge = false;
@@ -99,6 +101,19 @@ export async function precheck(
   }
   out.ok = !issues.some((i) => i.severity === 'error');
   return out;
+}
+
+/**
+ * Commits on `ref` of a fork that its parent's default branch does not have (cross-repository compare on the fork,
+ * which the Modules App can read). null when the comparison is unavailable (e.g. unrelated histories).
+ */
+async function forkAheadBy(gh: GitHubClient, fullName: string, ref: string, parent: NonNullable<RepoInfo['parent']>): Promise<number | null> {
+  const enc = (s: string) => encodeURIComponent(s).replace(/%2F/g, '/');
+  const [owner, name] = parent.full_name.split('/');
+  const res = await gh.get<{ ahead_by: number }>(`/repos/${fullName}/compare/${enc(owner!)}:${enc(name!)}:${enc(parent.default_branch)}...${enc(ref)}`, {
+    allow: [404, 422],
+  });
+  return res.status === 200 && typeof res.data.ahead_by === 'number' ? res.data.ahead_by : null;
 }
 
 /**

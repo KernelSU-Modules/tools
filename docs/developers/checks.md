@@ -108,6 +108,14 @@ repository, use **Transfer** in the Portal.
 **Fix:** make the repository public. (Reported as a failing Check Run on the head of the tracked
 branch.)
 
+### repo-fork-unchanged
+
+**Cause:** the repository is a fork and its branch has no commits of its own compared to the upstream
+repository's default branch. Reported by the Portal precheck; submissions and transfers are refused.
+
+**Fix:** submit the upstream repository instead (its owner can do so), or commit your own changes to
+the fork.
+
 ### owner-changed
 
 **Cause:** the repository was transferred to a different owner since the module was registered.

@@ -21,13 +21,13 @@
 
 ## 提交收录
 
-输入（或确认）模块 ID。Portal 会检查 ID 是否有效且可用、你是否是该仓库的管理员，以及你的账号是否被封禁。记录进入 **待审核** 状态，并通知维护者。审核只涉及规则：无垃圾或滥用内容、ID 合适、没有抢注他人项目名称，不是代码审计。
+输入（或确认）模块 ID。Portal 会检查 ID 是否有效且可用、你是否是该仓库的管理员、你的账号是否被封禁，以及你的 GitHub 账号注册是否已满一年。仓库必须通过预检且没有错误（警告不影响），否则无法提交。记录进入 **待审核** 状态，并通知维护者。审核只涉及规则：无垃圾或滥用内容、ID 合适、没有抢注他人项目名称，不是代码审计。
 
 ## 转移
 
 将已上架（或被 suspended）的模块转移到另一个仓库，例如重写后的新仓库，或交接给新的维护者。如果你同时是**当前**仓库和**新**仓库的管理员，转移会立即生效；否则由维护者审核。重命名仓库不需要转移：模块绑定的是仓库的数字 ID，而不是名称。但如果把仓库本身转移给其他账号或组织，所有者会发生变化：Check Run 会报告 [`owner-changed`](checks.md#owner-changed)，新所有者需要提交转移申请。
 
-新仓库必须满足同样的要求（已安装 App、`module.yaml` 中 `id` 相同、immutable release 的 `module.prop` 中 `id` 相同）。转移申请处理期间，每次同步都会验证**新**仓库并在其上发布 Check Run。新仓库的 release 必须使用高于 KernelSU Modules 曾为该模块接受过的最高 versionCode；如果新仓库中最新 release 的 versionCode 不更高，申请会显示警告：转移后它不会被发布，请在新仓库发布更高 versionCode 的 release。转移后的首次同步只检查最新的合格 release（及之后发布的 release）。
+新仓库必须通过预检且没有错误；需要审核的转移还要求 GitHub 账号注册已满一年。新仓库必须满足同样的要求（已安装 App、`module.yaml` 中 `id` 相同、immutable release 的 `module.prop` 中 `id` 相同）。转移申请处理期间，每次同步都会验证**新**仓库并在其上发布 Check Run。新仓库的 release 必须使用高于 KernelSU Modules 曾为该模块接受过的最高 versionCode；如果新仓库中最新 release 的 versionCode 不更高，申请会显示警告：转移后它不会被发布，请在新仓库发布更高 versionCode 的 release。转移后的首次同步只检查最新的合格 release（及之后发布的 release）。
 
 ## 我的模块
 

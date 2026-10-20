@@ -144,7 +144,7 @@ export async function handle(s: MockState, method: string, url: URL, headers: He
     const a = idAvailability(s, id);
     if (!a.available) return err(409, 'id-unavailable', a.reason ?? 'ID unavailable');
     const pre = precheckFor(s, r.repositoryId);
-    if (!pre.ok) return err(422, 'precheck-failed', `Precheck failed: ${pre.issues.filter((i) => i.severity === 'error').map((i) => i.code).join(', ')}`);
+    if (!pre.ok) return err(400, 'precheck-failed', `Precheck failed: ${pre.issues.filter((i) => i.severity === 'error').map((i) => i.code).join(', ')}`);
     const submissionId = newSubmissionId(s);
     const source = { host: 'github' as const, repositoryId: r.repositoryId, ownerId: me.id, fullName: r.fullName, manifestPath: 'module.yaml' };
     const request = { submissionId, kind: 'submit' as const, source, submittedBy: me.id, submittedByLogin: me.login, submittedAt: now() };

@@ -50,6 +50,10 @@ export const ISSUE_DEFS = {
     summary: '(caller) The bound repository is private; only public repositories can be listed.',
     fix: 'Make the repository public.',
   },
+  'repo-fork-unchanged': {
+    summary: '(caller) The repository is a fork with no commits of its own compared to its upstream.',
+    fix: 'Submit the upstream repository instead, or commit your own changes to the fork.',
+  },
   'owner-changed': {
     summary: '(caller) The repository owner changed since the module was bound; this is treated as an ownership transfer.',
     fix: 'Request a transfer in the Developer Portal so maintainers can confirm the new owner.',

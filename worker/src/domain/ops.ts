@@ -88,6 +88,31 @@ async function safePrecheck(svc: Services, repo: RepoInfo, snap: Snapshot, expec
   }
 }
 
+/** Requests that go to review (submit, non-auto transfer) need a GitHub account at least this old. */
+const MIN_ACCOUNT_AGE_DAYS = 365;
+
+/**
+ * Precheck gate for every request: the repository must pass the Portal precheck (warnings allowed). An unavailable
+ * precheck fails closed.
+ */
+function requirePrecheck(pre: PrecheckResult | null): PrecheckResult {
+  if (!pre) throw new ApiError(503, 'precheck-unavailable', 'The precheck could not be run; please try again later.');
+  const errs = errorsOf(pre.issues);
+  if (errs.length)
+    throw new ApiError(400, 'precheck-failed', `The repository does not pass the precheck (${[...new Set(errs.map((i) => i.code))].join(', ')}); fix the errors and run the precheck again.`, { issues: errs });
+  return pre;
+}
+
+/** Account age gate for requests that go to review; returns the account creation time for the review message. */
+async function requireAccountAge(svc: Services, user: UserCtx): Promise<string> {
+  const createdAt = await accountCreatedAt(user);
+  const t = createdAt ? Date.parse(createdAt) : NaN;
+  if (Number.isNaN(t)) throw new ApiError(503, 'account-age-unknown', 'Could not determine your GitHub account creation date; please try again later.');
+  if (svc.now() - t < MIN_ACCOUNT_AGE_DAYS * 86_400_000)
+    throw new ApiError(403, 'account-too-new', `GitHub accounts must be at least ${MIN_ACCOUNT_AGE_DAYS} days old to submit requests for review (yours was created ${createdAt!.slice(0, 10)}).`);
+  return createdAt!;
+}
+
 async function accountCreatedAt(user: UserCtx): Promise<string | null> {
   try {
     const r = await user.gh.get<{ created_at?: string }>(`/user/${user.id}`);
@@ -173,6 +198,7 @@ export async function createSubmission(svc: Services, user: UserCtx, body: { rep
   const pre = await safePrecheck(svc, repo, snap, id);
   if (pre?.manifest && pre.manifest.id !== id)
     throw new ApiError(400, 'manifest-id-mismatch', `module.yaml declares id "${pre.manifest.id}", not "${id}".`);
+  requirePrecheck(pre);
   return openRequest(svc, user, { kind: 'submit', id, repo, pre }, defer);
 }
 
@@ -189,7 +215,7 @@ export async function createTransfer(svc: Services, user: UserCtx, body: { repos
   const bound = findBinding(recordsForRepo(snap, repo.id), repo.id, snap.policy, now, cur.id);
   if (bound) throw new ApiError(409, 'repo-bound', `${repo.full_name} is already bound to module "${bound.id}".`);
   const oldAdmin = cur.source.repositoryId === repo.id ? true : await isRepoAdmin(user.gh, cur.source.repositoryId);
-  const pre = await safePrecheck(svc, repo, snap, cur.id);
+  const pre = requirePrecheck(await safePrecheck(svc, repo, snap, cur.id));
   return openRequest(
     svc,
     user,
@@ -204,11 +230,11 @@ async function openRequest(
   o: { kind: OpenRequest['kind']; id: string; repo: RepoInfo; pre: PrecheckResult | null; auto?: boolean; previousFullName?: string; previousRepositoryId?: number },
   defer?: Defer,
 ) {
+  const createdAt = o.auto ? null : await requireAccountAge(svc, user);
   const submissionId = randomId(10);
   const source = sourceFrom(o.repo);
   let telegram: { chatId: number; messageId: number } | null = null;
   if (!o.auto && svc.telegram.enabled) {
-    const createdAt = await accountCreatedAt(user);
     telegram = await svc.telegram.send(
       reviewMessage({
         kind: o.kind,

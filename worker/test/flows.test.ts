@@ -108,6 +108,50 @@ describe('submission', () => {
     expect(((await banned.json()) as any).error.code).toBe('banned');
   });
 
+  it('a repository that fails the precheck cannot be submitted; nothing is committed or sent', async () => {
+    const { h, alice, demo } = await world1();
+    h.world.publishModule(demo, 'demo.toolbox', { immutable: false });
+    const before = h.world.ref;
+    const { r, body } = await submit(h, alice, 501, 'demo.toolbox');
+    expect(r.status).toBe(400);
+    expect(body.error.code).toBe('precheck-failed');
+    expect(body.error.issues.map((i: any) => i.code)).toContain('release-not-immutable');
+    expect(h.world.ref).toBe(before);
+    expect(h.world.telegram).toHaveLength(0);
+    expect(h.world.dispatches).toHaveLength(0);
+  });
+
+  it('a fork without changes of its own fails the precheck and cannot be submitted', async () => {
+    const { h, bob } = await world1();
+    const fork = h.world.addRepo({ id: 602, full_name: 'bob/demo', owner: { id: 2, login: 'bob' }, fork: { parent: 'alice/demo', aheadBy: 0 } });
+    h.world.install(20, { id: 2, login: 'bob' }, [601, 602]);
+    h.world.publishModule(fork, 'bob.demo');
+    const c = await login(h, bob);
+    const pre = (await (await c.post('/api/precheck', { repositoryId: 602 })).json()) as any;
+    expect(pre.ok).toBe(false);
+    expect(pre.issues.map((i: any) => i.code)).toEqual(['repo-fork-unchanged']);
+    const r = (await (await c.post('/api/submissions', { repositoryId: 602, id: 'bob.demo' })).json()) as any;
+    expect(r.error.code).toBe('precheck-failed');
+    fork.fork!.aheadBy = 3;
+    expect((await c.post('/api/submissions', { repositoryId: 602, id: 'bob.demo' })).status).toBe(201);
+  });
+
+  it('GitHub accounts younger than a year cannot submit for review', async () => {
+    const { h } = await world1();
+    const carol = h.world.addUser(3, 'carol', '2025-11-01T00:00:00Z');
+    const repo = h.world.addRepo({ id: 701, full_name: 'carol/mod', owner: { id: 3, login: 'carol' } });
+    h.world.install(30, { id: 3, login: 'carol' }, [701]);
+    h.world.publishModule(repo, 'carol.mod');
+    const before = h.world.ref;
+    const { r, body } = await submit(h, carol, 701, 'carol.mod');
+    expect(r.status).toBe(403);
+    expect(body.error.code).toBe('account-too-new');
+    expect(h.world.ref).toBe(before);
+    expect(h.world.telegram).toHaveLength(0);
+    h.world.users.get(3)!.created_at = '2025-10-09T00:00:00Z';
+    expect((await submit(h, carol, 701, 'carol.mod')).r.status).toBe(201);
+  });
+
   it('GET /api/ids and /api/repos reflect the data repo', async () => {
     const { h, alice } = await world1();
     const { c, body } = await submit(h, alice, 501, 'demo.toolbox');
@@ -339,6 +383,24 @@ describe('request replacement and transfers', () => {
     expect(h.world.record('other.mod').source).toMatchObject({ repositoryId: 502, fullName: 'alice/other' });
     expect(h.world.record('other.mod').review).toMatchObject({ kind: 'transfer', decidedVia: 'auto' });
     expect(h.world.dispatches.map((d) => d.inputs)).toEqual([{ reason: 'transfer', module: 'other.mod' }]);
+  });
+
+  it('transfer: precheck must pass; account age only gates transfers that need review', async () => {
+    const { h, alice, bob, other } = await world1();
+    await listed(h, 'other.mod', 501, 'alice/demo', 1);
+    await listed(h, 'demo.toolbox', 501, 'alice/demo', 1);
+    h.world.publishModule(other, 'other.mod', { immutable: false });
+    const a = await login(h, alice);
+    const failed = (await (await a.post('/api/transfers', { id: 'other.mod', repositoryId: 502 })).json()) as any;
+    expect(failed.error.code).toBe('precheck-failed');
+    h.world.publishModule(other, 'other.mod');
+    h.world.users.get(1)!.created_at = '2026-09-01T00:00:00Z';
+    expect(await (await a.post('/api/transfers', { id: 'other.mod', repositoryId: 502 })).json()).toMatchObject({ autoApproved: true });
+    h.world.users.get(2)!.created_at = '2026-09-01T00:00:00Z';
+    const b = await login(h, bob);
+    const young = (await (await b.post('/api/transfers', { id: 'demo.toolbox', repositoryId: 601 })).json()) as any;
+    expect(young.error.code).toBe('account-too-new');
+    expect(h.world.record('demo.toolbox').request).toBeUndefined();
   });
 
   it('transfer: admin of new repo only needs review; approve swaps the source', async () => {

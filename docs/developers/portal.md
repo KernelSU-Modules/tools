@@ -30,7 +30,9 @@ From each repository you can:
 ## Submit
 
 Enter (or confirm) the module ID. The Portal checks that the ID is valid and available, that you
-are an admin of the repository and that your account is not banned. The record becomes
+are an admin of the repository, that your account is not banned and that your GitHub account is at
+least one year old. The repository must pass the [precheck](#my-repositories) with no errors
+(warnings are fine); otherwise the submission is refused. The record becomes
 **pending** and maintainers are notified. Review covers rules only: no spam or abusive content, an
 appropriate ID, no squatting of someone else's project name. It is not a code audit.
 
@@ -43,7 +45,8 @@ need a transfer: modules are bound to the repository's numeric ID, not its name.
 repository itself to another account or organization, however, changes its owner — the check run
 reports [`owner-changed`](checks.md#owner-changed) and the new owner should request a transfer.
 
-The new repository must meet the same requirements (App installed, `module.yaml` with the same
+The new repository must pass the precheck with no errors, and a transfer that needs review also
+requires a GitHub account at least one year old. The new repository must meet the same requirements (App installed, `module.yaml` with the same
 `id`, immutable releases whose `module.prop` has the same `id`). While the transfer is open, every
 sync validates the **new** repository and posts Check Runs there. Its releases must use a versionCode
 higher than the highest one KernelSU Modules ever accepted for this module — if the newest release in the

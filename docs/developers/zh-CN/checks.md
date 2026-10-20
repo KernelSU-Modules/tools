@@ -82,6 +82,12 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 **修复**： 将仓库设为公开。（以失败的 Check Run 报告在被跟踪分支的最新 commit 上。）
 
+### repo-fork-unchanged
+
+**原因**： 仓库是 fork，且其分支相对上游仓库的默认分支没有任何自己的 commit。由 Portal 预检报告；此时无法提交收录或转移。
+
+**修复**： 改为提交上游仓库（由其所有者提交），或在 fork 中提交你自己的修改。
+
 ### owner-changed
 
 **原因**： 模块注册后，仓库被转移给了其他所有者。这会被视为所有权变更。

@@ -244,11 +244,15 @@ GET  /api/me                      {user:{id,login,avatarUrl}|null, isMaintainer,
 GET  /api/repos                   {repos: [{repositoryId, fullName, private, defaultBranch, installationId, isAdmin, registeredId|null}], truncated}
                                   ≤30 GitHub requests; truncated=true when installations/repositories were cut
 POST /api/precheck                {repositoryId, ref?, id?} -> PrecheckResult {ok, issues: Issue[], manifest?, latestRelease?: {tag, immutable, url?, asset?: {name, size, digest, url}}}
-                                  API-only, never downloads the ZIP: parseManifest, referenced paths exist at the ref, checkModuleId
+                                  API-only, never downloads the ZIP: forks need commits of their own vs the parent's default
+                                  branch (compare; repo-fork-unchanged), parseManifest, referenced paths exist at the ref, checkModuleId
                                   (skipped when the ID already has a record), latest release: immutable, checkReleaseEligibility,
                                   selectAsset (+ size <= zipMaxBytes). No version/versionCode (module.prop is read only by the sync).
 GET  /api/ids/:id                 {id, available, reason?, status?}
 POST /api/submissions             {repositoryId, id} -> {submissionId, status}
+                                  Submit and transfer require a precheck without errors (400 precheck-failed {issues};
+                                  503 precheck-unavailable). Requests that go to review (submit, non-auto transfer) require a
+                                  GitHub account >= 365 days old (403 account-too-new; 503 account-age-unknown).
                                   After any submit/transfer request is recorded: dispatch sync {reason: submit, module: <id>}
                                   (auto-approved transfer: {reason: transfer, module}) -> Actions does the full ZIP
                                   validation and writes the Check Run. Releases are never reviewed (webhook -> sync -> build -> deploy).

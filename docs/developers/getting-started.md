@@ -81,7 +81,8 @@ before anything is published:
 
 ## 7. Submit
 
-In the Portal: **My repositories → Submit**, confirm the ID. Your module becomes **pending** and a
+In the Portal: **My repositories → Submit**, confirm the ID. The precheck must pass without errors
+and your GitHub account must be at least one year old. Your module becomes **pending** and a
 maintainer reviews it — usually within a few days. The review only checks that the module follows
 the rules (no spam, no abuse, an appropriate ID, not squatting someone else's name); it is not a
 code audit.
