@@ -184,6 +184,8 @@ export interface QueueItem {
   precheck?: { ok: boolean; issues: Issue[] };
   /** Sync validation (full ZIP) of this request's source; present only when it matches the open request. */
   check?: RequestCheck | null;
+  /** status.json's current name of the repository the sync follows (bound source, else the requested one). */
+  sync?: Pick<ModuleStatus, 'repositoryId' | 'fullName'>;
 }
 
 export interface RejectRequest {

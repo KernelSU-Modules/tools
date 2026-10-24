@@ -5,6 +5,7 @@ import { useAction, useApp, useAsync, useDocumentTitle } from '../../context.tsx
 import { Alert, Badge, DL, Empty, ErrorBox, ExternalLink, Field, Loading, PageHeader, IssueList, RequestCheckView, StatusBadge } from '../../components/ui.tsx';
 import { formatDate, formatRelative, githubRepoUrl, githubUserUrl } from '../../lib/format.ts';
 import { REASON_CODES, rejectNeedsText } from '../../lib/admin.ts';
+import { repoFullName } from '../../lib/status.ts';
 import type { QueueItem, ReasonCode } from '../../api/types.ts';
 import type { MessageKey } from '../../i18n/index.ts';
 import { ArrowLeft, Check, ExternalLinkIcon, Eye, Inbox, RefreshCw, X } from '../../components/icons.tsx';
@@ -45,31 +46,34 @@ export function Queue() {
               </tr>
             </thead>
             <tbody>
-              {q.data.map((it) => (
-                <tr key={it.request.submissionId}>
-                  <td>
-                    <Badge tone="info">{t(`kind.${it.request.kind}` as MessageKey)}</Badge>
-                  </td>
-                  <td>
-                    <code>{it.id}</code>
-                  </td>
-                  <td>
-                    <ExternalLink href={githubRepoUrl(it.request.source.fullName)}>{it.request.source.fullName}</ExternalLink>
-                  </td>
-                  <td>{it.request.submittedByLogin ? <ExternalLink href={githubUserUrl(it.request.submittedByLogin)}>@{it.request.submittedByLogin}</ExternalLink> : `#${it.request.submittedBy}`}</td>
-                  <td class="nowrap">
-                    <time dateTime={it.request.submittedAt} title={formatDate(it.request.submittedAt, lang)}>
-                      {formatRelative(it.request.submittedAt, lang)}
-                    </time>
-                  </td>
-                  <td>{it.check ? <Badge tone={it.check.ok ? 'success' : 'danger'}>{t(it.check.ok ? 'check.passed' : 'check.failed')}</Badge> : <span class="small muted">{t('check.pending')}</span>}</td>
-                  <td>
-                    <Link class="btn sm" href={`/admin/requests/${it.request.submissionId}`}>
-                      {t('admin.review')}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {q.data.map((it) => {
+                const repo = repoFullName(it, it.request.source);
+                return (
+                  <tr key={it.request.submissionId}>
+                    <td>
+                      <Badge tone="info">{t(`kind.${it.request.kind}` as MessageKey)}</Badge>
+                    </td>
+                    <td>
+                      <code>{it.id}</code>
+                    </td>
+                    <td>
+                      <ExternalLink href={githubRepoUrl(repo)}>{repo}</ExternalLink>
+                    </td>
+                    <td>{it.request.submittedByLogin ? <ExternalLink href={githubUserUrl(it.request.submittedByLogin)}>@{it.request.submittedByLogin}</ExternalLink> : `#${it.request.submittedBy}`}</td>
+                    <td class="nowrap">
+                      <time dateTime={it.request.submittedAt} title={formatDate(it.request.submittedAt, lang)}>
+                        {formatRelative(it.request.submittedAt, lang)}
+                      </time>
+                    </td>
+                    <td>{it.check ? <Badge tone={it.check.ok ? 'success' : 'danger'}>{t(it.check.ok ? 'check.passed' : 'check.failed')}</Badge> : <span class="small muted">{t('check.pending')}</span>}</td>
+                    <td>
+                      <Link class="btn sm" href={`/admin/requests/${it.request.submissionId}`}>
+                        {t('admin.review')}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -124,6 +128,8 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
     );
   }
   const r = item.request;
+  const requested = repoFullName(item, r.source);
+  const current = item.source && repoFullName(item, item.source);
   const needsText = rejectNeedsText(reasonCode || undefined);
   const canReject = !!reasonCode && (!needsText || reason.trim().length > 0) && reason.length <= 500;
   const busy = approve.pending || reject.pending;
@@ -143,8 +149,8 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
           items={[
             [t('admin.kind'), t(`kind.${r.kind}` as MessageKey)],
             [t('common.status'), <StatusBadge status={item.status} />],
-            [t('admin.requestedRepo'), <ExternalLink href={githubRepoUrl(r.source.fullName)}>{r.source.fullName}</ExternalLink>],
-            ...(item.source ? ([[t('admin.currentRepo'), <ExternalLink href={githubRepoUrl(item.source.fullName)}>{item.source.fullName}</ExternalLink>]] as [string, ComponentChildren][]) : []),
+            [t('admin.requestedRepo'), <ExternalLink href={githubRepoUrl(requested)}>{requested}</ExternalLink>],
+            ...(current ? ([[t('admin.currentRepo'), <ExternalLink href={githubRepoUrl(current)}>{current}</ExternalLink>]] as [string, ComponentChildren][]) : []),
             [
               t('admin.submitter'),
               r.submittedByLogin ? (
@@ -159,10 +165,10 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
           ]}
         />
         <div class="row-actions">
-          <Link class="btn sm" href={`/repos/${r.source.repositoryId}/preview?repo=${encodeURIComponent(r.source.fullName)}`}>
+          <Link class="btn sm" href={`/repos/${r.source.repositoryId}/preview?repo=${encodeURIComponent(requested)}`}>
             <Eye size={14} /> {t('action.preview')}
           </Link>
-          <ExternalLink class="btn sm" href={`${githubRepoUrl(r.source.fullName)}/releases`}>
+          <ExternalLink class="btn sm" href={`${githubRepoUrl(requested)}/releases`}>
             <ExternalLinkIcon size={14} /> {t('admin.releases')}
           </ExternalLink>
         </div>

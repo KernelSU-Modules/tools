@@ -280,6 +280,7 @@ describe('decisions', () => {
     expect(q).toHaveLength(1);
     expect(q[0]).toMatchObject({ id: 'demo.toolbox', status: 'pending', request: { submissionId: body.submissionId, kind: 'submit' } });
     expect(q[0].check).toBeUndefined();
+    expect(q[0].sync).toBeUndefined();
   });
 
   it('status.json drives "my modules", the queue check and admin status (missing file = empty)', async () => {
@@ -317,6 +318,7 @@ describe('decisions', () => {
     const m = await login(h, h.world.users.get(MAINTAINER.id)!);
     const q = (await (await m.get('/api/admin/queue')).json()) as any[];
     expect(q[0].check).toEqual(check(body.submissionId));
+    expect(q[0].sync).toEqual({ repositoryId: 501, fullName: 'alice/demo' });
     h.world.workflowRuns = [
       { id: 2, status: 'completed', conclusion: 'failure', event: 'workflow_dispatch', created_at: '2026-10-10T00:30:00Z', updated_at: '2026-10-10T00:31:00Z', html_url: 'u2' },
       { id: 1, status: 'completed', conclusion: 'success', event: 'workflow_dispatch', created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:02:00Z', html_url: 'u1' },

@@ -40,13 +40,16 @@ admin.get('/queue', async (c) => {
   const status = open.length ? await c.var.svc.data.status(snap) : null;
   const items = open
     .map((r) => {
+      const entry = status?.modules[r.id];
       // The sync's validation of this request's source (status.json), only when it belongs to this request.
-      const check = status?.modules[r.id]?.request;
+      const check = entry?.request;
       return {
         id: r.id,
         status: r.status,
         request: r.request!,
         ...(r.source ? { source: r.source } : {}),
+        // Current name of the repository the sync follows by id (renames); the record keeps the name at submit time.
+        ...(entry ? { sync: { repositoryId: entry.repositoryId, fullName: entry.fullName } } : {}),
         ...(check && check.submissionId === r.request!.submissionId ? { check } : {}),
         expired: requestExpired(r.request!, snap.policy, now),
       };

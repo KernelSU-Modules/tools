@@ -263,7 +263,8 @@ GET  /api/modules/:id             same shape
 POST /api/modules/:id/sync        listed/suspended or any record with an open request; rate-limited (1 / 10 min / module, Cache API) -> dispatch
 POST /api/preview                 {repositoryId} -> {markdown, ctx: {fullName, commit, docPath}}  raw description Markdown (≤512 KiB, else 400
                                   content-too-large); the SPA renders it with @kernelsu-modules/render inside the sandboxed iframe
-GET  /api/admin/queue             open requests [{id, status, request, source?, expired, check?: ModuleStatus['request']}]
+GET  /api/admin/queue             open requests [{id, status, request, source?, expired, check?: ModuleStatus['request'],
+                                  sync?: {repositoryId, fullName} (status.json: current name, follows renames)}]
 GET  /api/admin/requests/:submissionId                one request, open or decided: RegistryRecord & {open}
 POST /api/admin/requests/:submissionId/approve        {}
 POST /api/admin/requests/:submissionId/reject         {reasonCode, reason?}

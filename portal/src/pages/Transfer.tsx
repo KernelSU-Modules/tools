@@ -4,6 +4,7 @@ import { useAction, useApp, useAsync, useDocumentTitle } from '../context.tsx';
 import { Alert, DL, Empty, ErrorBox, Field, Loading, PageHeader, TruncatedReposNotice } from '../components/ui.tsx';
 import { getModules, getRepos, invalidate } from '../store.ts';
 import { ArrowLeftRight, Package } from '../components/icons.tsx';
+import { repoFullName } from '../lib/status.ts';
 import type { TransferResponse } from '../api/types.ts';
 
 /** Move a module (listed|suspended) to another repository the user administers. */
@@ -51,7 +52,7 @@ export function Transfer({ initialId, initialRepositoryId }: { initialId?: strin
   const onSubmit = async (e: Event) => {
     e.preventDefault();
     if (!ready) return;
-    if (!confirm(t('transfer.confirm', { id, from: current.source?.fullName ?? '?', to: target.fullName }))) return;
+    if (!confirm(t('transfer.confirm', { id, from: current.source ? repoFullName(current, current.source) : '?', to: target.fullName }))) return;
     const r = await action.run();
     if (r) {
       invalidate('repos', 'modules');
@@ -72,7 +73,7 @@ export function Transfer({ initialId, initialRepositoryId }: { initialId?: strin
               <option value="">{t('common.choose')}</option>
               {movable.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.id} — {m.source?.fullName ?? ''}
+                  {m.id} — {m.source ? repoFullName(m, m.source) : ''}
                 </option>
               ))}
             </select>
