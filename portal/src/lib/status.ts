@@ -1,4 +1,4 @@
-import type { Issue, MyModule, RecordStatus, RequestCheck, SyncHealth } from '../api/types.ts';
+import type { Issue, MyModule, RecordStatus, RequestCheck, Source, SyncHealth } from '../api/types.ts';
 
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -44,6 +44,14 @@ export function isPublic(m: Pick<MyModule, 'status' | 'sync'>): boolean {
  */
 export function canSync(m: Pick<MyModule, 'status' | 'request'>): boolean {
   return m.status === 'listed' || m.status === 'suspended' || !!m.request;
+}
+
+/**
+ * Current owner/name of a repository the record points at. The record's `fullName` is frozen at submit / transfer
+ * time; the sync looks repositories up by id, so status.json follows renames (only for that same repository id).
+ */
+export function repoFullName(m: Pick<MyModule, 'sync'>, source: Pick<Source, 'repositoryId' | 'fullName'>): string {
+  return m.sync?.repositoryId === source.repositoryId ? m.sync.fullName : source.fullName;
 }
 
 /** status.json's validation of the record's open request (only when it is for that very request). */

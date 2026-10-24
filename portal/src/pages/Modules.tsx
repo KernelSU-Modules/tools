@@ -4,7 +4,7 @@ import { Alert, Badge, DL, Empty, ErrorBox, ExternalLink, HealthBadge, Loading, 
 import { SyncButton } from '../components/SyncButton.tsx';
 import { ExternalLinkIcon, FolderGit2, Package, RefreshCw, TriangleAlert } from '../components/icons.tsx';
 import { formatDate, formatRelative, githubRepoUrl, publicModuleUrl } from '../lib/format.ts';
-import { attention, canSync, isPublic, requestCheckOf } from '../lib/status.ts';
+import { attention, canSync, isPublic, repoFullName, requestCheckOf } from '../lib/status.ts';
 import { getModules } from '../store.ts';
 import type { MyModule } from '../api/types.ts';
 import type { MessageKey } from '../i18n/index.ts';
@@ -50,6 +50,8 @@ function ModuleCard({ m }: { m: MyModule }) {
   const sync = m.sync;
   const stable = sync?.stable;
   const notes = attention(m);
+  const src = m.source ?? m.request?.source;
+  const repo = src && repoFullName(m, src);
   return (
     <li class="card item-card">
       <div class="item-head">
@@ -67,11 +69,7 @@ function ModuleCard({ m }: { m: MyModule }) {
         items={[
           [
             t('modules.repo'),
-            m.source ? (
-              <ExternalLink href={githubRepoUrl(m.source.fullName)}>{m.source.fullName}</ExternalLink>
-            ) : m.request ? (
-              <ExternalLink href={githubRepoUrl(m.request.source.fullName)}>{m.request.source.fullName}</ExternalLink>
-            ) : (
+            repo ? <ExternalLink href={githubRepoUrl(repo)}>{repo}</ExternalLink> : (
               '—'
             ),
           ],

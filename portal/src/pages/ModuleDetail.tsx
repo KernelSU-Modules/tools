@@ -4,7 +4,7 @@ import { Badge, DL, ErrorBox, ExternalLink, HealthBadge, Loading, PageHeader, St
 import { SyncButton } from '../components/SyncButton.tsx';
 import { Activity, ArrowLeft, ArrowLeftRight, ExternalLinkIcon, Eye, FolderGit2, ListChecks, Tag } from '../components/icons.tsx';
 import { formatDate, githubRepoUrl, publicModuleUrl } from '../lib/format.ts';
-import { canSync, isPublic } from '../lib/status.ts';
+import { canSync, isPublic, repoFullName } from '../lib/status.ts';
 import { ReasonNotes } from './Modules.tsx';
 
 export function ModuleDetail({ id }: { id: string }) {
@@ -15,10 +15,11 @@ export function ModuleDetail({ id }: { id: string }) {
   if (mod.error) return <ErrorBox error={mod.error} onRetry={mod.reload} />;
   const m = mod.data!;
   const src = m.source ?? m.request?.source;
+  const repo = src && repoFullName(m, src);
   const sync = m.sync;
   const stable = sync?.stable;
   // The sync's view of the bound repository (status.json follows `source`, not a pending transfer target).
-  const syncRepo = sync?.fullName ?? src?.fullName;
+  const syncRepo = sync?.fullName ?? repo;
   return (
     <div class="page">
       <PageHeader
@@ -27,7 +28,7 @@ export function ModuleDetail({ id }: { id: string }) {
             <code class="title-code">{m.id}</code> <StatusBadge status={m.status} />
           </>
         }
-        subtitle={src ? <ExternalLink href={githubRepoUrl(src.fullName)}>{src.fullName}</ExternalLink> : undefined}
+        subtitle={repo ? <ExternalLink href={githubRepoUrl(repo)}>{repo}</ExternalLink> : undefined}
         actions={
           <>
             {canSync(m) && <SyncButton id={m.id} onDone={() => setTimeout(mod.reload, 1500)} />}
@@ -109,7 +110,7 @@ export function ModuleDetail({ id }: { id: string }) {
           </h2>
           <DL
             items={[
-              [t('modules.repo'), <ExternalLink href={githubRepoUrl(src.fullName)}>{src.fullName}</ExternalLink>],
+              [t('modules.repo'), <ExternalLink href={githubRepoUrl(repo!)}>{repo}</ExternalLink>],
               ['repositoryId', <code>{src.repositoryId}</code>],
               [t('modules.ref'), <code>{src.ref ?? t('modules.defaultBranch')}</code>],
               [t('modules.manifestPath'), <code>{src.manifestPath}</code>],

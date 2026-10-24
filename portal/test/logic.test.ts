@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODULE_ID_PATTERN as SCHEMA_PATTERN } from '@kernelsu-modules/schema';
-import { attention, canSync, groupIssues, healthTone, isPublic, moderationActions, RECORD_STATUSES, requestCheckOf, statusKey, statusTone } from '../src/lib/status.ts';
+import { attention, canSync, groupIssues, healthTone, isPublic, moderationActions, RECORD_STATUSES, repoFullName, requestCheckOf, statusKey, statusTone } from '../src/lib/status.ts';
 import { idFormatError, MODULE_ID_PATTERN, suggestId } from '../src/lib/ids.ts';
 import { parseLogin, parseTelegramId, rejectNeedsText, telegramOwner } from '../src/lib/admin.ts';
 import { healthSummary, runTone, sortByHealth } from '../src/lib/dashboard.ts';
@@ -61,6 +61,13 @@ describe('status mapping', () => {
     expect(requestCheckOf({ request, sync: status('ok', 'present', { request: stale }) })).toBeNull();
     expect(attention({ id: 'r', status: 'pending', request, sync: status('ok', 'present', { request: stale }) })).toEqual([]);
     expect(requestCheckOf({ sync: status('ok', 'present', { request: check }) })).toBeNull();
+  });
+  it('shows the synced repository name after a rename (same repository id only)', () => {
+    const source = { repositoryId: 1, fullName: 'x/old' };
+    expect(repoFullName({ sync: status('ok') }, source)).toBe('x/y');
+    expect(repoFullName({}, source)).toBe('x/old');
+    // a pending transfer target is a different repository: keep its own name
+    expect(repoFullName({ sync: status('ok') }, { repositoryId: 2, fullName: 'z/new' })).toBe('z/new');
   });
   it('groups issues by severity preserving order', () => {
     const g = groupIssues([
