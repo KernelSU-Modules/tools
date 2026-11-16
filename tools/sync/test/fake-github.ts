@@ -133,7 +133,7 @@ export class FakeGitHub {
   /** Status to return for installation-token creation (401 to simulate auth failure). */
   tokenStatus = 201;
   /** Injected failures: first matching rule answers instead of the normal route. */
-  failures: { method?: string; match: RegExp; status: number; body?: unknown; headers?: Record<string, string>; times?: number }[] = [];
+  failures: { method?: string; match: RegExp; status: number; body?: unknown; raw?: string; headers?: Record<string, string>; times?: number }[] = [];
   private nextId = 1000;
   private blobs = new Map<string, Uint8Array>();
   private tagObjects = new Map<string, string>();
@@ -263,6 +263,7 @@ export class FakeGitHub {
     const f = this.failures.find((x) => (!x.method || x.method === method) && x.match.test(p) && (x.times === undefined || x.times > 0));
     if (f) {
       if (f.times !== undefined) f.times--;
+      if (f.raw !== undefined) return new Response(f.status === 204 || f.status === 304 ? null : f.raw, { status: f.status, headers: f.headers });
       return json(f.body ?? { message: 'injected' }, f.status, f.headers);
     }
     let m: RegExpMatchArray | null;
@@ -290,6 +291,10 @@ export class FakeGitHub {
       // Renamed repositories: GitHub answers 301 to /repositories/{id}; fetch follows it.
       const r = this.repoByFull(m[1]!, m[2]!) ?? this.repos.get(this.renamed.get(`${m[1]}/${m[2]}`.toLowerCase()) ?? -1);
       return r ? repoJson(r) : notFound();
+    }
+    if ((m = p.match(/^\/repositories\/(\d+)\/releases\/(\d+)$/))) {
+      const rel = this.repos.get(Number(m[1]))?.releases.find((x) => x.id === Number(m![2]));
+      return rel ? json(rel) : notFound();
     }
     if ((m = p.match(/^\/repositories\/(\d+)\/releases$/))) {
       const r = this.repos.get(Number(m[1]));

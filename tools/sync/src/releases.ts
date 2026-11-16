@@ -46,8 +46,11 @@ export interface ReleaseStageInput {
   /**
    * bound: releases of a bound source (results are locked).
    * request: validating an open request's repository; nothing is locked, version rules are only a warning.
+   * restore: re-validating releases that were accepted before (seen ok) but are missing from the lock (Sync now
+   *   repair, see restoreCandidates): the release id and its immutable asset are unchanged, so the versionCode
+   *   high-water mark does not apply; a failure leaves the recorded `seen` result untouched.
    */
-  mode?: 'bound' | 'request';
+  mode?: 'bound' | 'request' | 'restore';
   /** Create Check Runs even when an identical one exists (Sync now / Re-run). */
   freshChecks?: boolean;
   assetPattern: string | undefined;
@@ -105,6 +108,30 @@ export function pickCandidates(releases: GhRelease[], seen: ModuleLock['seen'], 
 const publishedKey = (r: GhRelease) => `${r.published_at ?? ''}\u0000${String(r.id).padStart(20, '0')}`;
 
 /**
+ * Sync now repair: releases accepted before (seen ok, not a first-sync skip) that are still published but missing
+ * from the lock — e.g. dropped by a bad releases-list read. Only releases newer than everything still locked are
+ * considered (older ones may simply have been trimmed by history.keepReleases); the newest `keep` of them, oldest
+ * first (processing order). A release once judged "same version" also qualifies; it is re-judged "same" and not locked.
+ */
+export function restoreCandidates(releases: GhRelease[], seen: ModuleLock['seen'], locked: LockedRelease[], keep: number): GhRelease[] {
+  const lockedIds = new Set(locked.map((r) => r.releaseId));
+  const newestLocked = locked.reduce<string | null>((m, r) => {
+    const k = `${r.publishedAt}\u0000${String(r.releaseId).padStart(20, '0')}`;
+    return m === null || k > m ? k : m;
+  }, null);
+  return releases
+    .filter((r) => !r.draft && !lockedIds.has(r.id))
+    .filter((r) => {
+      const s = seen[String(r.id)];
+      return !!s && s.ok && !s.skipped;
+    })
+    .filter((r) => newestLocked === null || publishedKey(r) > newestLocked)
+    .sort((a, b) => publishedKey(b).localeCompare(publishedKey(a)))
+    .slice(0, keep)
+    .reverse();
+}
+
+/**
  * First sync of a binding (no lock for this repository yet): only the newest eligible stable release (immutable,
  * published, not a prerelease — cheap API-only checks) and releases published after it and after the binding are
  * examined; everything older is recorded as seen without download or Check Run. Without any eligible release the
@@ -160,6 +187,7 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
   let max = i.maxVersionCode;
   const locked = [...i.locked];
   const request = i.mode === 'request';
+  const restore = i.mode === 'restore';
   const limits = zipLimits(i.policy);
 
   for (const rel of i.candidates) {
@@ -167,6 +195,7 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
     const out: ReleaseOutcome = { releaseId: rel.id, tag: rel.tag_name, result: 'rejected', issues: [] };
     outcomes.push(out);
     const markSeen = (ok: boolean, issue?: Issue) => {
+      if (restore && !ok) return; // keep the original (accepted) record
       seen[String(rel.id)] = { ok, ...(issue ? { code: issue.code, message: issue.message.slice(0, 500) } : {}), checkedAt: i.now.toISOString() };
     };
 
@@ -261,7 +290,7 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
         conclusion = 'success';
         checkTitle = `${label} is valid`;
         lines.push(`**${validated.version}** (versionCode ${validated.versionCode}) passed all checks. It is used for the pending request.`, `Asset \`${asset.name}\`, sha256 \`${sha256}\`.`);
-      } else if (d.kind === 'older') {
+      } else if (d.kind === 'older' && !restore) {
         out.issues.push(err('version-not-newer', d.message));
       } else if (d.kind === 'same') {
         out.result = 'same';
@@ -269,6 +298,7 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
         checkTitle = `${label} already published`;
         lines.push(`versionCode ${validated.versionCode} equals the published ${d.ref.tag}; the listed version is not updated.`);
       } else {
+        // newer, or (restore) a previously accepted release whose versionCode is at or below the high-water mark
         const lockedRel: LockedRelease = {
           releaseId: rel.id,
           tag: rel.tag_name,
@@ -286,19 +316,28 @@ export async function processReleases(i: ReleaseStageInput): Promise<ReleaseStag
         };
         accepted.push(lockedRel);
         locked.push(lockedRel);
-        max = validated.versionCode;
+        if (max === null || validated.versionCode > max) max = validated.versionCode;
         out.result = 'accepted';
         conclusion = 'success';
-        checkTitle = `${label} accepted${rel.prerelease ? ' as prerelease' : ''}`;
-        lines.push(`Accepted **${validated.version}** (versionCode ${validated.versionCode})${rel.prerelease ? ' as a prerelease' : ''}.`, `Asset \`${asset.name}\`, sha256 \`${sha256}\`.`);
+        checkTitle = `${label} ${d.kind === 'newer' ? 'accepted' : 'restored'}${rel.prerelease ? ' as prerelease' : ''}`;
+        lines.push(
+          d.kind === 'newer'
+            ? `Accepted **${validated.version}** (versionCode ${validated.versionCode})${rel.prerelease ? ' as a prerelease' : ''}.`
+            : `Restored **${validated.version}** (versionCode ${validated.versionCode}): this release was accepted before and had been dropped from the lock.`,
+          `Asset \`${asset.name}\`, sha256 \`${sha256}\`.`,
+        );
       }
     }
 
     const firstError = out.issues.find((x) => x.severity === 'error');
     if (out.result === 'rejected') {
       markSeen(false, firstError ?? err('release-rejected', 'rejected'));
-      checkTitle = `Release rejected: ${firstError?.code ?? 'error'}`;
-      lines.push('This release was **not** accepted. Immutable releases cannot be changed; publish a new release with a higher versionCode after fixing the problem.');
+      checkTitle = `Release ${restore ? 'not restored' : 'rejected'}: ${firstError?.code ?? 'error'}`;
+      lines.push(
+        restore
+          ? 'This previously accepted release failed re-validation and was **not** restored; its earlier result is kept.'
+          : 'This release was **not** accepted. Immutable releases cannot be changed; publish a new release with a higher versionCode after fixing the problem.',
+      );
     } else markSeen(true);
     log.log(out.result === 'rejected' ? 'warn' : 'info', `release ${out.result}`, { versionCode: out.versionCode, code: firstError?.code });
 
@@ -332,7 +371,8 @@ const byNewest = (a: LockedRelease, b: LockedRelease) => b.versionCode - a.versi
 
 /**
  * Merge previously locked + newly accepted releases, refresh mutable fields (name, body, prerelease) from the
- * current releases list, drop releases that were deleted (only when the list is complete), and recompute
+ * current releases list, drop releases confirmed deleted (`gone`: the release itself answered 404 — absence from
+ * the list alone never deletes anything; a draft in the list counts as deleted too), and recompute
  * stable / prerelease / releases and the two high-water marks.
  *
  * stable = the non-prerelease release with the highest versionCode, but never below maxStableVersionCode: deleting
@@ -343,7 +383,7 @@ export function recomputeReleases(
   prev: Pick<ModuleLock, 'stable' | 'prerelease' | 'releases' | 'maxVersionCode' | 'maxStableVersionCode'>,
   accepted: LockedRelease[],
   list: GhRelease[] | null,
-  o: { keep: number; listComplete: boolean; changelogMaxBytes: number },
+  o: { keep: number; gone: ReadonlySet<number>; changelogMaxBytes: number },
 ): Pick<ModuleLock, 'stable' | 'prerelease' | 'releases' | 'maxVersionCode' | 'maxStableVersionCode'> & { note: string | null } {
   const pool = new Map<number, LockedRelease>();
   for (const r of [...prev.releases, prev.stable, prev.prerelease, ...accepted]) if (r) pool.set(r.releaseId, r);
@@ -352,7 +392,7 @@ export function recomputeReleases(
     for (const [id, r] of pool) {
       const cur = byId.get(id);
       if (!cur) {
-        if (o.listComplete) pool.delete(id);
+        if (o.gone.has(id)) pool.delete(id);
         continue;
       }
       if (cur.draft) {

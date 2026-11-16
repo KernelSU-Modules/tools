@@ -568,6 +568,134 @@ describe('sync: mutable fields and channels', () => {
   });
 });
 
+describe('sync: releases list reads never unpublish (issue #1)', () => {
+  const listPath = /^\/repositories\/\d+\/releases$/;
+  const lockedTags = (m: { releases: { tag: string }[] }) => m.releases.map((r) => r.tag);
+
+  async function listed() {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    const v1 = gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    await run(gh, dir);
+    const v2 = gh.addRelease(repo, { tag: 'v2', zip: moduleZip('demo.mod', 2), commit });
+    await run(gh, dir, {}, later(10_000));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect([m.stable!.tag, lockedTags(m)]).toEqual(['v2', ['v2', 'v1']]);
+    return { gh, repo, commit, v1, v2, dir };
+  }
+
+  it.each([
+    ['an empty body', ''],
+    ['a JSON object', '{"message":"weird"}'],
+    ['a non-JSON body', '<html>oops</html>'],
+  ])('a 200 releases list with %s fails the read and keeps the lock', async (_label, raw) => {
+    const { gh, dir } = await listed();
+    const before = (await readLock(dir)).modules['demo.mod']!;
+    gh.failures.push({ method: 'GET', match: listPath, status: 200, raw });
+    const { report } = await run(gh, dir, {}, later(60_000));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(report.modules[0]).toMatchObject({ releasesList: 'failed', health: 'stale' });
+    expect(m.health.message).toMatch(/^github-unavailable: malformed GitHub response while listing releases/);
+    expect([m.stable, m.releases]).toEqual([before.stable, before.releases]);
+  });
+
+  it('a 200 empty list does not delete releases that still exist; the lookup by id decides', async () => {
+    const { gh, v1, v2, dir } = await listed();
+    gh.failures.push({ method: 'GET', match: listPath, status: 200, body: [], times: 1 });
+    const { report } = await run(gh, dir, {}, later(60_000));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect([m.stable!.tag, lockedTags(m), m.health.message]).toEqual(['v2', ['v2', 'v1'], null]);
+    expect(report.modules[0]!.releasesListInfo).toMatchObject({ status: 200, count: 0 });
+    expect(report.modules[0]!.missingReleases).toEqual([
+      { releaseId: v2.id, tag: 'v2', result: 'present' },
+      { releaseId: v1.id, tag: 'v1', result: 'present' },
+    ]);
+    expect(report.changed).toEqual([]);
+  });
+
+  it('a short list still refreshes mutable fields from the lookup (a release turned into a draft is dropped)', async () => {
+    const { gh, repo, v2, dir } = await listed();
+    v2.name = 'Renamed';
+    gh.failures.push({ method: 'GET', match: listPath, status: 200, body: [], times: 1 });
+    await run(gh, dir, {}, later(60_000));
+    let m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stable).toMatchObject({ tag: 'v2', name: 'Renamed' });
+    repo.releases.find((r) => r.id === v2.id)!.draft = true;
+    gh.failures.push({ method: 'GET', match: listPath, status: 200, body: [], times: 1 });
+    await run(gh, dir, {}, later(90_000));
+    m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stable).toBeNull();
+    expect(lockedTags(m)).toEqual(['v1']);
+  });
+
+  it('a failing lookup keeps the release and retries; a 404 deletes it', async () => {
+    const { gh, repo, v2, dir } = await listed();
+    repo.releases.shift(); // v2 really deleted
+    gh.failures.push({ method: 'GET', match: /^\/repositories\/\d+\/releases\/\d+$/, status: 502, times: 3 });
+    const { report } = await run(gh, dir, {}, later(60_000));
+    let m = (await readLock(dir)).modules['demo.mod']!;
+    expect(report.modules[0]!.missingReleases).toEqual([{ releaseId: v2.id, tag: 'v2', result: 'unknown' }]);
+    expect(m.stable!.tag).toBe('v2');
+    expect(m.health).toMatchObject({ status: 'stale', message: expect.stringMatching(/^release-retry: could not confirm/) });
+    await run(gh, dir, {}, later(90_000));
+    m = (await readLock(dir)).modules['demo.mod']!;
+    expect(m.stable).toBeNull();
+    expect(m.health.message).toMatch(/^stable-unavailable:/);
+  });
+
+  it('a 304 never deletes anything', async () => {
+    const { gh, dir } = await listed();
+    gh.failures.push({ method: 'GET', match: listPath, status: 304, raw: '', times: 1 });
+    const { report } = await run(gh, dir, {}, later(60_000));
+    // Without If-None-Match the client treats 304 as an error (it is not 2xx): the read fails, nothing changes.
+    expect(report.modules[0]!.releasesList).toBe('failed');
+    expect((await readLock(dir)).modules['demo.mod']!.stable!.tag).toBe('v2');
+  });
+
+  it('Sync now restores previously accepted releases dropped from the lock, without a new versionCode', async () => {
+    const { gh, v1, v2, dir } = await listed();
+    // The state left behind by the bad sync: releases emptied, stable null, marks and seen kept.
+    const lock = await readLock(dir);
+    const before = structuredClone(lock.modules['demo.mod']!);
+    Object.assign(lock.modules['demo.mod']!, { stable: null, prerelease: null, releases: [] });
+    await writeFile(join(dir, 'sources.lock.json'), serializeLock(lock));
+
+    await run(gh, dir, {}, later(60_000)); // a plain run does not re-examine seen releases
+    expect((await readLock(dir)).modules['demo.mod']!.stable).toBeNull();
+
+    const downloads = gh.downloads.size;
+    const { report } = await run(gh, dir, { module: 'demo.mod' }, later(90_000));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect([m.stable!.tag, lockedTags(m), m.maxVersionCode, m.maxStableVersionCode, m.health.message]).toEqual(['v2', ['v2', 'v1'], 2, 2, null]);
+    expect(m.stable).toEqual(before.stable);
+    expect(m.releases).toEqual(before.releases);
+    expect(m.seen[String(v1.id)]).toMatchObject({ ok: true });
+    expect(report.modules[0]!.releases.map((r) => [r.tag, r.result])).toEqual([
+      ['v1', 'accepted'],
+      ['v2', 'accepted'],
+    ]);
+    expect(gh.checkRuns.filter((c) => c.external_id === `release:${v2.id}`).at(-1)!.output.title).toBe('v2 (2) restored');
+    expect(gh.downloads.size).toBe(downloads); // same asset ids, downloaded again
+    expect(gh.downloads.get(v2.assets[0]!.id)).toBe(2);
+  });
+
+  it('restore keeps the recorded result when re-validation fails, and ignores releases older than the locked ones', async () => {
+    const { gh, repo, v2, dir } = await listed();
+    const lock = await readLock(dir);
+    const ml = lock.modules['demo.mod']!;
+    // Only v2 dropped; v1 (older) still locked -> v2 is newer than everything locked and qualifies.
+    Object.assign(ml, { stable: null, releases: ml.releases.filter((r) => r.tag === 'v1') });
+    await writeFile(join(dir, 'sources.lock.json'), serializeLock(lock));
+    repo.assetBytes.set(v2.assets[0]!.id, moduleZip('demo.mod', 2, 'tampered')); // digest no longer matches
+    const { report } = await run(gh, dir, { module: 'demo.mod' }, later(60_000));
+    const m = (await readLock(dir)).modules['demo.mod']!;
+    expect(report.modules[0]!.releases.map((r) => [r.tag, r.result])).toEqual([['v2', 'rejected']]);
+    expect(m.seen[String(v2.id)]).toMatchObject({ ok: true });
+    expect([m.stable, lockedTags(m)]).toEqual([null, ['v1']]);
+  });
+});
+
 describe('sync: installation and content failures', () => {
   it('missing installation keeps the last lock and marks it stale', async () => {
     const gh = new FakeGitHub();

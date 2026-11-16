@@ -38,6 +38,14 @@ KernelSU Modules **仅**通过名为 **"KernelSU Modules"** 的 GitHub **Check R
 
 提交和转移的**审核**结果（通过 / 拒绝及原因）显示在 [Portal](portal.md) 中，而不是 Check Run 里。
 
+## 模块被隐藏：`stable-unavailable`
+
+这是同步健康状况中的提示（显示在 Portal 中），不是 Check Run 的检查结果。它表示原先作为稳定版本的 release 已不可用：在 GitHub 上被**删除**（同步按 id 单独查询该 release，GitHub 返回了 404）、变回了**草稿**，或被标记为**预发布**。KernelSU Modules 不会回退到更早的 release，因此在新的稳定版本被接受之前，模块会保持隐藏。
+
+仅仅在 GitHub 的 release 列表中缺失，不会被当作删除——每个缺失的 release 都会先按 id 单独查询；查询失败时保留该 release，并在下一次同步时重试。
+
+**修复**：如果是有意删除或降级，发布一个 versionCode 高于提示中数值的新 release。如果你已重新取消"预发布"，或该 release 仍以原样发布着，点击 **立即同步**（Portal）或 **Sync now**（Check Run）：仍在发布、此前已被接受但从锁定记录中缺失的 release 会被重新校验并恢复，无需提升 versionCode。
+
 ## 问题代码
 
 按领域分组。下面引用的限制是 KernelSU Modules 策略（`policy.yaml`）当前的默认值。

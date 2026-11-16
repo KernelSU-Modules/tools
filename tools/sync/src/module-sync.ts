@@ -7,9 +7,20 @@ import { createCheckOnce, type CheckSpec } from './checks.ts';
 import { checkContentAt, trackedUnchanged } from './content.ts';
 import { FatalError } from './data.ts';
 import type { Logger } from './log.ts';
-import { pickCandidates, processReleases, recomputeReleases, selectFirstSync, type ReleaseOutcome } from './releases.ts';
+import { pickCandidates, processReleases, recomputeReleases, restoreCandidates, selectFirstSync, type ReleaseOutcome } from './releases.ts';
 import { STARS_REFRESH_MS, sameStars, starsAgeMs, starsEntry, starsIssue, starsNote, verifyStarsRepo, type StarsVerdict } from './stars.ts';
-import { RELEASES_PAGE, TreeLookup, getRepo, listReleases, resolveCommit, resolveTagCommit, type GhRelease, type RepoInfo } from './repo-api.ts';
+import {
+  MalformedResponseError,
+  TreeLookup,
+  getRelease,
+  getRepo,
+  listReleases,
+  resolveCommit,
+  resolveTagCommit,
+  type GhRelease,
+  type ReleasesListInfo,
+  type RepoInfo,
+} from './repo-api.ts';
 
 export interface ModuleSyncDeps {
   fetch: typeof fetch;
@@ -30,7 +41,14 @@ export interface ModuleReport {
   message: string | null;
   fullName: string;
   content: { commit: string | null; revalidated: boolean; ok: boolean; issues: Issue[]; check?: string } | null;
-  releasesList: 'fetched' | 'skipped' | 'failed';
+  releasesList: 'fetched' | 'not-modified' | 'skipped' | 'failed';
+  /** HTTP status, item count and Content-Length of the releases-list read (absent when it threw before a response). */
+  releasesListInfo?: ReleasesListInfo;
+  /**
+   * Locked releases missing from the list, each looked up by id: deleted (404, dropped from the lock), present (kept
+   * and refreshed — the list read was short) or unknown (lookup failed; kept, retried next run).
+   */
+  missingReleases?: { releaseId: number; tag: string; result: 'deleted' | 'present' | 'unknown' }[];
   releases: ReleaseOutcome[];
   stable: { tag: string; versionCode: number } | null;
   prerelease: { tag: string; versionCode: number } | null;
@@ -82,6 +100,7 @@ export function problemFor(e: unknown, what: string): string {
     return `github-error: HTTP ${e.status} while ${what}`;
   }
   if (e instanceof GitHubNetworkError) return `github-unavailable: network error or timeout while ${what}; will retry`;
+  if (e instanceof MalformedResponseError) return `github-unavailable: malformed GitHub response while ${what}; will retry`;
   return `sync-failed: unexpected error while ${what}`;
 }
 
@@ -287,9 +306,13 @@ export async function syncModule(
     // 4. releases (first page; no ETag: GitHub ETags are bound to the token and every run has a new one)
     stage = 'listing releases';
     let list: GhRelease[];
+    let listed: GhRelease[] | null; // null: 304, nothing to refresh or delete from
     try {
       const l = await listReleases(gh, source.repositoryId);
+      report.releasesListInfo = l.info;
       list = l.notModified ? [] : l.releases;
+      listed = l.notModified ? null : l.releases;
+      report.releasesList = l.notModified ? 'not-modified' : 'fetched';
     } catch (e) {
       fatalIfApp(e);
       report.releasesList = 'failed';
@@ -297,7 +320,7 @@ export async function syncModule(
       problems.push(problemFor(e, 'listing releases'));
       return done();
     }
-    report.releasesList = 'fetched';
+    log.log('debug', 'releases listed', { ...report.releasesListInfo });
     stage = 'checking releases';
     const firstSync = Object.keys(base.seen).length === 0;
     let candidates: GhRelease[];
@@ -310,8 +333,44 @@ export async function syncModule(
     } else candidates = pickCandidates(list, seen, opts.force);
     lock.seen = seen;
     const pool = [...base.releases, base.stable, base.prerelease].filter((x): x is LockedRelease => !!x);
+
+    // A locked release missing from the list is deleted only when GET /releases/{id} answers 404: a list read can
+    // come back short (or empty) with 200, which must never unpublish anything.
+    const gone = new Set<number>();
+    if (listed) {
+      const inList = new Set(listed.map((r) => r.id));
+      const missing = [...new Map(pool.filter((r) => !inList.has(r.releaseId)).map((r) => [r.releaseId, r])).values()];
+      if (missing.length) {
+        log.log('warn', 'locked releases missing from the releases list; looking them up', { missing: missing.map((r) => r.releaseId), ...report.releasesListInfo });
+        report.missingReleases = [];
+        for (const m of missing) {
+          let result: 'deleted' | 'present' | 'unknown';
+          try {
+            const cur = await getRelease(gh, source.repositoryId, m.releaseId);
+            if (cur) {
+              listed.push(cur); // refresh name / body / prerelease / draft from the direct read
+              result = 'present';
+            } else {
+              gone.add(m.releaseId);
+              result = 'deleted';
+            }
+          } catch (e) {
+            fatalIfApp(e);
+            result = 'unknown';
+            log.log('warn', 'release lookup failed; kept', { releaseId: m.releaseId, error: errMsg(e) });
+          }
+          report.missingReleases.push({ releaseId: m.releaseId, tag: m.tag, result });
+        }
+        if (report.missingReleases.some((x) => x.result === 'unknown')) problems.push('release-retry: could not confirm whether locked releases missing from the releases list were deleted; they are kept and checked again on the next run');
+        else if (report.missingReleases.some((x) => x.result === 'present'))
+          log.log('warn', 'releases list was incomplete; kept the locked releases', { present: report.missingReleases.filter((x) => x.result === 'present').map((x) => x.releaseId) });
+      }
+    }
+
+    // Sync now repair: previously accepted releases that are still published but were dropped from the lock.
+    const restore = opts.force && !firstSync ? restoreCandidates(list, lock.seen, pool.filter((r) => !gone.has(r.releaseId)), d.policy.history.keepReleases) : [];
     let accepted: LockedRelease[] = [];
-    if (candidates.length) {
+    if (candidates.length || restore.length) {
       // Asset selection uses release.assetPattern from the last valid content.
       if (!manifest && lock.content) {
         const m = await checkContentAt(gh, {
@@ -329,17 +388,13 @@ export async function syncModule(
         lock.seen = base.seen; // first-sync skips are decided again once releases can be processed
         return done();
       }
-      const r = await processReleases({
+      const common = {
         gh,
         fetch: d.fetch,
         token,
         fullName: repo.fullName,
         id: record.id,
         policy: d.policy,
-        maxVersionCode: lock.maxVersionCode,
-        locked: pool,
-        seen: lock.seen,
-        candidates,
         assetPattern: manifest.release?.assetPattern,
         metamodule: manifest.metamodule,
         kind: manifest.kind,
@@ -348,15 +403,22 @@ export async function syncModule(
         appId: d.modulesAppId,
         freshChecks: opts.force,
         log,
-      });
-      accepted = r.accepted;
-      lock.seen = r.seen;
-      report.releases = r.outcomes;
-      if (r.transient) problems.push('release-retry: some releases could not be checked and will be retried');
+      };
+      let max = lock.maxVersionCode;
+      for (const [mode, cands] of [['bound', candidates], ['restore', restore]] as const) {
+        if (!cands.length) continue;
+        if (mode === 'restore') log.log('info', 'restoring previously accepted releases', { releases: cands.map((r) => r.id) });
+        const r = await processReleases({ ...common, mode, maxVersionCode: max, locked: [...pool, ...accepted], seen: lock.seen, candidates: cands });
+        accepted = [...accepted, ...r.accepted];
+        max = r.maxVersionCode;
+        lock.seen = r.seen;
+        report.releases.push(...r.outcomes);
+        if (r.transient) problems.push('release-retry: some releases could not be checked and will be retried');
+      }
     }
-    const rc = recomputeReleases(lock, accepted, list, {
+    const rc = recomputeReleases(lock, accepted, listed, {
       keep: d.policy.history.keepReleases,
-      listComplete: list.length < RELEASES_PAGE,
+      gone,
       changelogMaxBytes: d.policy.limits.changelogMaxBytes,
     });
     const { note, ...picked } = rc;

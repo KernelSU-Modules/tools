@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { LockedRelease } from '@kernelsu-modules/schema';
 import { DownloadError, downloadAsset, parseDigest } from '../src/download.ts';
-import { capSeen, recomputeReleases, truncateUtf8 } from '../src/releases.ts';
+import { capSeen, recomputeReleases, restoreCandidates, truncateUtf8 } from '../src/releases.ts';
+import type { GhRelease } from '../src/repo-api.ts';
 import { mergeLock, parseLock } from '../src/data.ts';
 import { sha256 } from './fake-github.ts';
 
@@ -73,13 +74,38 @@ const rel = (id: number, versionCode: number, prerelease = false): LockedRelease
 describe('recomputeReleases', () => {
   it('keeps N newest, always keeps stable, prerelease only when newer than stable', () => {
     const accepted = [rel(1, 1), ...Array.from({ length: 5 }, (_, i) => rel(10 + i, 10 + i, true))];
-    const r = recomputeReleases({ stable: null, prerelease: null, releases: [], maxVersionCode: null, maxStableVersionCode: null }, accepted, null, { keep: 3, listComplete: false, changelogMaxBytes: 100 });
+    const r = recomputeReleases({ stable: null, prerelease: null, releases: [], maxVersionCode: null, maxStableVersionCode: null }, accepted, null, { keep: 3, gone: new Set(), changelogMaxBytes: 100 });
     expect(r.stable!.releaseId).toBe(1);
     expect(r.prerelease!.releaseId).toBe(14);
     expect(r.releases.map((x) => x.releaseId)).toEqual([14, 13, 1]);
 
-    const r2 = recomputeReleases({ stable: null, prerelease: null, releases: [], maxVersionCode: null, maxStableVersionCode: null }, [rel(1, 5), rel(2, 4, true)], null, { keep: 10, listComplete: false, changelogMaxBytes: 100 });
+    const r2 = recomputeReleases({ stable: null, prerelease: null, releases: [], maxVersionCode: null, maxStableVersionCode: null }, [rel(1, 5), rel(2, 4, true)], null, { keep: 10, gone: new Set(), changelogMaxBytes: 100 });
     expect(r2.prerelease).toBeNull();
+  });
+});
+
+describe('recomputeReleases deletion', () => {
+  const prev = { stable: rel(2, 2), prerelease: null, releases: [rel(2, 2), rel(1, 1)], maxVersionCode: 2, maxStableVersionCode: 2 };
+  it('absence from the list alone deletes nothing; only confirmed ids are dropped', () => {
+    const kept = recomputeReleases(prev, [], [], { keep: 10, gone: new Set(), changelogMaxBytes: 100 });
+    expect([kept.stable!.releaseId, kept.releases.map((x) => x.releaseId), kept.note]).toEqual([2, [2, 1], null]);
+    const dropped = recomputeReleases(prev, [], [], { keep: 10, gone: new Set([2]), changelogMaxBytes: 100 });
+    expect([dropped.stable, dropped.releases.map((x) => x.releaseId)]).toEqual([null, [1]]);
+    expect(dropped.note).toMatch(/^stable-unavailable:/);
+  });
+});
+
+describe('restoreCandidates', () => {
+  const gh = (id: number, day: number): GhRelease =>
+    ({ id, tag_name: `t${id}`, name: null, body: null, html_url: '', draft: false, prerelease: false, immutable: true, published_at: `2026-10-${String(day).padStart(2, '0')}T00:00:00Z`, assets: [] }) as unknown as GhRelease;
+  const ok = { ok: true, checkedAt: '2026-10-01T00:00:00Z' };
+  it('only seen-ok releases newer than everything locked, newest `keep`, oldest first', () => {
+    const list = [gh(5, 5), gh(4, 4), gh(3, 3), gh(2, 2), gh(1, 1)];
+    const seen = { '1': ok, '2': ok, '3': ok, '4': { ok: false, code: 'version-not-newer', checkedAt: ok.checkedAt }, '5': ok };
+    const locked = [{ ...rel(2, 2), publishedAt: '2026-10-02T00:00:00Z' }];
+    expect(restoreCandidates(list, seen, locked, 10).map((r) => r.id)).toEqual([3, 5]); // 1 is older (trimmed), 4 was rejected
+    expect(restoreCandidates(list, seen, locked, 1).map((r) => r.id)).toEqual([5]);
+    expect(restoreCandidates(list, { ...seen, '5': { ok: false, skipped: true, checkedAt: ok.checkedAt } }, [], 10).map((r) => r.id)).toEqual([1, 2, 3]);
   });
 });
 

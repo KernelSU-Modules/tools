@@ -130,19 +130,64 @@ export interface GhRelease extends ReleaseLike {
   html_url: string;
 }
 
+/** A 2xx response whose body is not what the endpoint documents (empty, truncated, wrong shape). Retried next run. */
+export class MalformedResponseError extends Error {
+  constructor(
+    readonly path: string,
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`GitHub GET ${path} -> ${status}: malformed response (${detail})`);
+    this.name = 'MalformedResponseError';
+  }
+}
+
+/** What a releases-list read looked like on the wire (sync report / logs). */
+export interface ReleasesListInfo {
+  status: number;
+  count: number | null;
+  contentLength: number | null;
+}
+
+const shapeOf = (d: unknown) => (d === null ? 'empty body' : Array.isArray(d) ? 'array' : typeof d === 'object' ? `object with keys ${Object.keys(d).slice(0, 5).join(',') || '(none)'}` : typeof d);
+
 /**
  * First page of the releases list. `etag` is optional and only useful within one token's lifetime: GitHub ETags
  * depend on the exact Authorization header, so an ETag from a previous run (previous installation token) never
  * matches. Sync therefore does not persist ETags.
+ *
+ * Fails closed: a 2xx response that is not a JSON array (empty or non-JSON body, object) throws
+ * MalformedResponseError instead of reading as "no releases". The list is never proof of deletion on its own
+ * either — see getRelease.
  */
 export async function listReleases(
   gh: GitHubClient,
   repositoryId: number,
   etag: string | null = null,
-): Promise<{ notModified: true; etag: string | null } | { notModified: false; etag: string | null; releases: GhRelease[] }> {
-  const r = await gh.get<GhRelease[]>(`/repositories/${repositoryId}/releases`, { query: { per_page: RELEASES_PAGE }, etag });
-  if (r.status === 304) return { notModified: true, etag };
-  return { notModified: false, etag: r.etag, releases: Array.isArray(r.data) ? r.data : [] };
+): Promise<
+  | { notModified: true; etag: string | null; info: ReleasesListInfo }
+  | { notModified: false; etag: string | null; releases: GhRelease[]; info: ReleasesListInfo }
+> {
+  const path = `/repositories/${repositoryId}/releases`;
+  const r = await gh.get<GhRelease[]>(path, { query: { per_page: RELEASES_PAGE }, etag });
+  const len = Number(r.headers.get('content-length'));
+  const info: ReleasesListInfo = { status: r.status, count: Array.isArray(r.data) ? r.data.length : null, contentLength: r.headers.has('content-length') && Number.isFinite(len) ? len : null };
+  if (r.status === 304) return { notModified: true, etag, info };
+  if (!Array.isArray(r.data)) throw new MalformedResponseError(path, r.status, shapeOf(r.data));
+  return { notModified: false, etag: r.etag, releases: r.data, info };
+}
+
+/**
+ * One release by id: null only on 404 (the release is gone). The only proof of deletion sync accepts — a release
+ * missing from the list may be a short or stale read. A 200 that is not the requested release throws.
+ */
+export async function getRelease(gh: GitHubClient, repositoryId: number, releaseId: number): Promise<GhRelease | null> {
+  const path = `/repositories/${repositoryId}/releases/${releaseId}`;
+  const r = await gh.get<GhRelease>(path, { allow: [404] });
+  if (r.status === 404) return null;
+  const d = r.data as unknown;
+  if (!d || typeof d !== 'object' || Array.isArray(d) || (d as GhRelease).id !== releaseId) throw new MalformedResponseError(path, r.status, shapeOf(d));
+  return d as GhRelease;
 }
 
 /** Tag -> commit sha (dereferencing annotated tags); null when the tag does not exist. */
