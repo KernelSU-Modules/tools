@@ -49,8 +49,13 @@ export interface ReviewMessageInput {
   previousFullName?: string | null;
   submitter: { id: number; login: string; createdAt?: string | null };
   precheck?: PrecheckResult | null;
+  /** Submitter's note to the reviewers. */
+  note?: string | null;
   portalUrl: string;
 }
+
+/** Telegram messages are capped at 4096 characters; the rest of the review message stays well below that. */
+const NOTE_PREVIEW = 1500;
 
 function header(i: Pick<ReviewMessageInput, 'kind' | 'id' | 'fullName' | 'previousFullName' | 'submitter'>): string[] {
   const lines = [
@@ -69,12 +74,13 @@ export function reviewMessage(i: ReviewMessageInput): string {
   if (rel) lines.push(`Latest release: ${h(rel.tag)}${rel.immutable ? '' : ' (not immutable)'}${rel.asset ? ` · ${h(rel.asset.name)}` : ''}`);
   else lines.push('Latest release: none');
   lines.push(`Precheck: ${h(precheckSummary(i.precheck ?? null))} (ZIP is validated by the sync Check Run)`);
+  if (i.note) lines.push('', `<b>Note from the submitter</b>:`, `<blockquote>${h(i.note.length > NOTE_PREVIEW ? `${i.note.slice(0, NOTE_PREVIEW)}…` : i.note)}</blockquote>`, '');
   lines.push(`Submission: <code>${h(i.submissionId)}</code> · <a href="${h(requestUrl(i.portalUrl, i.submissionId))}">Portal</a>`);
   return lines.join('\n');
 }
 
 export interface DecisionNote {
-  outcome: 'approved' | 'rejected' | 'expired' | 'closed';
+  outcome: 'approved' | 'rejected' | 'changes requested' | 'expired' | 'closed';
   by: string; // "@login" or "cron"
   via: string;
   at: string;
@@ -89,7 +95,7 @@ export function decidedMessage(id: string, req: OpenRequest, d: DecisionNote, po
     fullName: req.source.fullName,
     submitter: { id: req.submittedBy, login: req.submittedByLogin ?? String(req.submittedBy) },
   });
-  const icon = d.outcome === 'approved' ? '✅' : d.outcome === 'rejected' ? '❌' : '⌛';
+  const icon = d.outcome === 'approved' ? '✅' : d.outcome === 'rejected' ? '❌' : d.outcome === 'changes requested' ? '✏️' : '⌛';
   lines.push('');
   lines.push(`${icon} <b>${h(d.outcome.toUpperCase())}</b> by ${h(d.by)} via ${h(d.via)} at ${h(d.at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'))}`);
   if (d.reason) lines.push(`Reason: ${h(d.reason)}`);

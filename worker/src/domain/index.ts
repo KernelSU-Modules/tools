@@ -7,7 +7,10 @@ import type { Snapshot } from './data.ts';
 type Maintainer = Snapshot['maintainers']['maintainers'][number];
 
 export interface SnapshotIndex {
-  /** repositoryId -> records referencing it via `source` or an open `request` (any status), in record order. */
+  /**
+   * repositoryId -> records referencing it via `source`, an open `request` (any status) or, for changes-requested,
+   * the returned submission's `review.source`; in record order.
+   */
   byRepo: Map<number, RegistryRecord[]>;
   /** repository ownerId -> records referencing a repository of that owner, in record order. */
   byOwner: Map<number, RegistryRecord[]>;
@@ -19,6 +22,8 @@ export interface SnapshotIndex {
   open: RegistryRecord[];
   /** submittedBy -> records with an open request from that user. */
   openBySubmitter: Map<number, RegistryRecord[]>;
+  /** submittedBy -> records sent back to that user for changes (reservation expiry not applied). */
+  returnedBySubmitter: Map<number, RegistryRecord[]>;
   maintainersByGithub: Map<number, Maintainer>;
   maintainersByTelegram: Map<number, Maintainer>;
 }
@@ -41,6 +46,7 @@ export function indexOf(snap: Snapshot): SnapshotIndex {
     reviewedBySubmission: new Map(),
     open: [],
     openBySubmitter: new Map(),
+    returnedBySubmitter: new Map(),
     maintainersByGithub: new Map(),
     maintainersByTelegram: new Map(),
   };
@@ -57,6 +63,13 @@ export function indexOf(snap: Snapshot): SnapshotIndex {
       ix.open.push(r);
     }
     if (r.review) ix.reviewedBySubmission.set(r.review.submissionId, r);
+    if (r.status === 'changes-requested' && r.review) {
+      if (r.review.source) {
+        push(ix.byRepo, r.review.source.repositoryId, r);
+        push(ix.byOwner, r.review.source.ownerId, r);
+      }
+      push(ix.returnedBySubmitter, r.review.submittedBy, r);
+    }
   }
   ix.open.sort((a, b) => Date.parse(a.request!.submittedAt) - Date.parse(b.request!.submittedAt));
   for (const m of snap.maintainers.maintainers) {

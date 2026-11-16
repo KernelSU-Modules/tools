@@ -19,7 +19,24 @@ describe('mock API (keeps fixtures honest with the contract)', () => {
   it('fixtures cover every record status', async () => {
     const s = createState('developer');
     const mods = (await call(s, 'GET', '/api/modules')).body as { status: string }[];
-    expect(new Set(mods.map((m) => m.status))).toEqual(new Set(['pending', 'listed', 'rejected', 'suspended', 'archived']));
+    expect(new Set(mods.map((m) => m.status))).toEqual(new Set(['pending', 'listed', 'rejected', 'changes-requested', 'suspended', 'archived']));
+  });
+  it('submit with a note -> request changes (reason required, submit only) -> resubmit keeps the ID for the submitter', async () => {
+    const s = createState('maintainer');
+    const r = await call(s, 'POST', '/api/submissions', { repositoryId: 100002, id: 'zygisk_assistant', note: '  First version.  ' });
+    expect(r.status).toBe(201);
+    const sid = r.body.submissionId as string;
+    expect((await call(s, 'GET', '/api/admin/queue')).body.find((q: any) => q.request.submissionId === sid).request.note).toBe('First version.');
+    expect((await call(s, 'POST', `/api/admin/requests/${sid}/request-changes`, {})).status).toBe(400);
+    expect((await call(s, 'POST', '/api/admin/requests/tr4nsf3r01/request-changes', { reason: 'no' })).status).toBe(409);
+    expect((await call(s, 'POST', `/api/admin/requests/${sid}/request-changes`, { reason: 'Add a README.' })).status).toBe(200);
+    const mod = (await call(s, 'GET', '/api/modules/zygisk_assistant')).body;
+    expect(mod).toMatchObject({ status: 'changes-requested', review: { decision: 'changes-requested', reason: 'Add a README.', source: { repositoryId: 100002 } } });
+    expect(mod).not.toHaveProperty('request');
+    expect(idAvailability(s, 'zygisk_assistant')).toMatchObject({ available: true, status: 'changes-requested' });
+    const again = await call(s, 'POST', '/api/submissions', { repositoryId: 100002, id: 'zygisk_assistant', note: 'Added it.' });
+    expect(again.status).toBe(201);
+    expect((await call(s, 'GET', '/api/modules/zygisk_assistant')).body).toMatchObject({ status: 'pending', request: { note: 'Added it.' } });
   });
   it('submit -> pending -> approve -> listed', async () => {
     const s = createState('maintainer');

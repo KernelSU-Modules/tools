@@ -1,8 +1,10 @@
 // Record state machine. Pure functions: (current record at base commit) -> next record.
-//   submit:   (none | rejected | pending with an expired request) -> pending + request{submit}
+//   submit:   (none | rejected | pending with an expired request | changes-requested by the same submitter or
+//             past its reservation) -> pending + request{submit}
 //   transfer: listed | suspended -> source swapped (auto-approved) or + request{transfer}
 //   approve:  pending -> listed; transfer -> source swapped
 //   reject:   pending -> rejected; transfer -> unchanged
+//   request changes: pending -> changes-requested (submit requests only; ID + repository reserved for the submitter)
 //   moderate: listed <-> suspended; listed | suspended -> archived
 // Every transition throws PreconditionFailed when the current state does not allow it; callers run these
 // inside commitWithRetry's mutate callback so the check is re-done against the latest commit on retry.
@@ -22,11 +24,28 @@ export function requestExpired(req: Pick<OpenRequest, 'submittedAt'>, policy: Po
   return now - Date.parse(req.submittedAt) > policy.pending.expireDays * DAY;
 }
 
-/** An ID is free when there is no record, it was rejected, or its pending submission expired. */
-export function idIsFree(rec: RegistryRecord | undefined | null, policy: Policy, now: number): boolean {
+/** changes-requested keeps the ID and repository reserved for the submitter for policy.pending.expireDays. */
+export function changesReservationExpired(rec: RegistryRecord, policy: Policy, now: number): boolean {
+  return rec.status === 'changes-requested' && (!rec.review || now - Date.parse(rec.review.decidedAt) > policy.pending.expireDays * DAY);
+}
+
+/** The submitter a changes-requested record is still reserved for, else null. */
+export function reservedFor(rec: RegistryRecord | undefined | null, policy: Policy, now: number): number | null {
+  return rec?.status === 'changes-requested' && rec.review && !changesReservationExpired(rec, policy, now) ? rec.review.submittedBy : null;
+}
+
+/**
+ * An ID is free when there is no record, it was rejected, its pending submission expired, or it was sent back for
+ * changes and the reservation lapsed. `forUser`: a changes-requested ID is also free for its own submitter.
+ */
+export function idIsFree(rec: RegistryRecord | undefined | null, policy: Policy, now: number, forUser?: number): boolean {
   if (!rec) return true;
   if (rec.status === 'rejected') return true;
   if (rec.status === 'pending') return !rec.request || requestExpired(rec.request, policy, now);
+  if (rec.status === 'changes-requested') {
+    const owner = reservedFor(rec, policy, now);
+    return owner === null || owner === forUser;
+  }
   return false;
 }
 
@@ -38,6 +57,7 @@ export function boundRepoIds(rec: RegistryRecord, policy: Policy, now: number): 
   const out: number[] = [];
   if ((rec.status === 'listed' || rec.status === 'suspended') && rec.source) out.push(rec.source.repositoryId);
   if (rec.request && !requestExpired(rec.request, policy, now) && (rec.status !== 'rejected')) out.push(rec.request.source.repositoryId);
+  if (rec.review?.source && reservedFor(rec, policy, now) !== null) out.push(rec.review.source.repositoryId);
   return out;
 }
 
@@ -67,7 +87,13 @@ function openRequestGuard(rec: RegistryRecord, policy: Policy, now: number) {
     throw new PreconditionFailed(`module "${rec.id}" already has an open ${rec.request.kind} request`, 'request-open');
 }
 
-function reviewFrom(req: OpenRequest, decision: Review['decision'], actor: Actor | null, at: string, extra?: { reasonCode?: ReasonCode; reason?: string | null }): Review {
+function reviewFrom(
+  req: OpenRequest,
+  decision: Review['decision'],
+  actor: Actor | null,
+  at: string,
+  extra?: { reasonCode?: ReasonCode; reason?: string | null; source?: Source },
+): Review {
   return {
     submissionId: req.submissionId,
     kind: req.kind,
@@ -79,6 +105,7 @@ function reviewFrom(req: OpenRequest, decision: Review['decision'], actor: Actor
     decidedAt: at,
     ...(extra?.reasonCode ? { reasonCode: extra.reasonCode } : {}),
     reason: extra?.reason ?? null,
+    ...(extra?.source ? { source: extra.source } : {}),
     ...(req.telegram ? { telegram: req.telegram } : {}),
   };
 }
@@ -89,6 +116,7 @@ export interface NewRequest {
   source: Source;
   submittedBy: number;
   submittedByLogin?: string;
+  note?: string;
   telegram?: { chatId: number; messageId: number };
 }
 
@@ -100,14 +128,18 @@ function mkRequest(kind: OpenRequest['kind'], n: NewRequest, at: string): OpenRe
     submittedBy: n.submittedBy,
     ...(n.submittedByLogin ? { submittedByLogin: n.submittedByLogin } : {}),
     submittedAt: at,
+    ...(n.note ? { note: n.note } : {}),
     ...(n.telegram ? { telegram: n.telegram } : {}),
   };
 }
 
-/** submit: no record | rejected | pending older than policy.pending.expireDays -> pending + request{submit}. */
+/**
+ * submit: no record | rejected | pending older than policy.pending.expireDays | changes-requested (same submitter, or
+ * the reservation lapsed) -> pending + request{submit}.
+ */
 export function applySubmit(cur: RegistryRecord | null, n: NewRequest, policy: Policy, now: number): RegistryRecord {
   const at = new Date(now).toISOString();
-  if (cur && !idIsFree(cur, policy, now)) throw new PreconditionFailed(`module ID "${n.id}" is not available (status ${cur.status})`, 'id-taken');
+  if (cur && !idIsFree(cur, policy, now, n.submittedBy)) throw new PreconditionFailed(`module ID "${n.id}" is not available (status ${cur.status})`, 'id-taken');
   return {
     id: n.id,
     status: 'pending',
@@ -161,6 +193,17 @@ export function applyReject(cur: RegistryRecord | null, submissionId: string, re
   const review = reviewFrom(req, 'rejected', actor, at, { reasonCode, reason });
   if (req.kind === 'submit') return { ...rest, status: 'rejected', review, updatedAt: at };
   return { ...rest, review, updatedAt: at };
+}
+
+/** request changes: pending submit -> changes-requested (reason required; ID + repository stay reserved). */
+export function applyRequestChanges(cur: RegistryRecord | null, submissionId: string, reason: string, actor: Actor, now: number): RegistryRecord {
+  requireRequest(cur, submissionId);
+  if (cur.request.kind !== 'submit' || cur.status !== 'pending')
+    throw new PreconditionFailed(`only pending submissions can be sent back for changes (${cur.request.kind}, ${cur.status})`, 'bad-state');
+  if (!reason.trim()) throw new PreconditionFailed('a reason is required', 'bad-request');
+  const at = new Date(now).toISOString();
+  const { request: req, ...rest } = cur;
+  return { ...rest, status: 'changes-requested', review: reviewFrom(req, 'changes-requested', actor, at, { reason, source: req.source }), updatedAt: at };
 }
 
 /** Expire an open request older than policy.pending.expireDays (reasonCode other, reason "expired"). */

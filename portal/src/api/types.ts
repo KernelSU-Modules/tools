@@ -123,6 +123,8 @@ export interface IdAvailability {
 export interface SubmitRequest {
   repositoryId: number;
   id: string;
+  /** Optional note to the reviewers (≤ 1000 characters). */
+  note?: string;
 }
 export interface SubmitResponse {
   submissionId: string;
@@ -133,6 +135,8 @@ export interface SubmitResponse {
 export interface TransferRequest {
   id: string;
   repositoryId: number;
+  /** Optional note to the reviewers (≤ 1000 characters; ignored when the transfer is auto-approved). */
+  note?: string;
 }
 export interface TransferResponse {
   submissionId?: string;
@@ -191,6 +195,11 @@ export interface QueueItem {
 export interface RejectRequest {
   reasonCode: ReasonCode;
   reason?: string;
+}
+
+export interface RequestChangesRequest {
+  /** What the submitter has to change (required, ≤ 500 characters). */
+  reason: string;
 }
 
 export type ModerationAction = 'suspend' | 'unsuspend' | 'archive';

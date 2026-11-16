@@ -4,7 +4,7 @@ import { Badge, DL, ErrorBox, ExternalLink, HealthBadge, Loading, PageHeader, St
 import { SyncButton } from '../components/SyncButton.tsx';
 import { Activity, ArrowLeft, ArrowLeftRight, ExternalLinkIcon, Eye, FolderGit2, ListChecks, Tag } from '../components/icons.tsx';
 import { formatDate, githubRepoUrl, publicModuleUrl } from '../lib/format.ts';
-import { canSync, isPublic, repoFullName } from '../lib/status.ts';
+import { canSync, isPublic, repoFullName, returnedSubmission } from '../lib/status.ts';
 import { ReasonNotes } from './Modules.tsx';
 
 export function ModuleDetail({ id }: { id: string }) {
@@ -14,7 +14,8 @@ export function ModuleDetail({ id }: { id: string }) {
   if (mod.loading && !mod.data) return <Loading />;
   if (mod.error) return <ErrorBox error={mod.error} onRetry={mod.reload} />;
   const m = mod.data!;
-  const src = m.source ?? m.request?.source;
+  // Bound source, else the open request's, else (sent back for changes) the returned submission's.
+  const src = m.source ?? m.request?.source ?? returnedSubmission(m)?.source;
   const repo = src && repoFullName(m, src);
   const sync = m.sync;
   const stable = sync?.stable;

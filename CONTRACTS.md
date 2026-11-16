@@ -139,16 +139,18 @@ Submission: <submissionId>         (when applicable)
 Submitted-by: github:<id>
 Approved-by: github:<id> via telegram|portal|auto      (approve)
 Rejected-by: github:<id> via telegram|portal           (reject)
+Returned-by: github:<id> via portal                    (request-changes)
 Actor: github:<id> via portal|telegram|cron            (other actions)
 Actor: app:<app-slug> via sync|cron                    (automated writes without a human actor;
                                                         sync commits: app:kernelsu-modules-bot via sync)
 ```
 State machine (Worker enforces; precondition = current record state at reader.baseCommit):
-- submit: no record, or record `rejected`, or `pending` older than `policy.pending.expireDays` → `pending` + `request{kind: submit}`.
+- submit: no record, or record `rejected`, or `pending` older than `policy.pending.expireDays`, or `changes-requested` (by its submitter; by anyone once `review.decidedAt` is older than `policy.pending.expireDays`) → `pending` + `request{kind: submit}` (trailer `Resubmits: <sid>` when replacing a returned submission). Requests carry an optional submitter `note` (≤ 1000 chars).
 - Any new request that replaces an expired open request edits the old Telegram message to "expired" (trailer `Expired: <sid>`).
 - transfer: record `listed|suspended` → if user is admin of both old and new repo: update `source` (auto) else `request{kind: transfer}`.
 - approve(submissionId): requires `request.submissionId == submissionId`; submit → `listed`, transfer → swap `source`; clears `request`, writes `review`.
 - reject: same precondition; submit → `rejected`; transfer → unchanged source.
+- request changes: same precondition, submit requests only: `pending` → `changes-requested`, clears `request`, writes `review{decision: changes-requested, reason (required), source}`. While reserved (see submit), the ID counts as taken and `review.source.repositoryId` as bound. Trailer `Returned-by: github:<id> via portal`.
 - suspend: `listed` → `suspended` (+moderation). unsuspend: `suspended` → `listed`. archive: `listed|suspended` → `archived`. An archived record keeps its `source` (required by the schema).
 - Request kinds per status (checked by `check-data`): `submit` only on `pending`, `transfer` only on `listed|suspended`. One active binding per repository across sources and open requests.
 - Only `listed` modules with a non-null `stable` in the lock appear in builds.
@@ -249,14 +251,14 @@ POST /api/precheck                {repositoryId, ref?, id?} -> PrecheckResult {o
                                   (skipped when the ID already has a record), latest release: immutable, checkReleaseEligibility,
                                   selectAsset (+ size <= zipMaxBytes). No version/versionCode (module.prop is read only by the sync).
 GET  /api/ids/:id                 {id, available, reason?, status?}
-POST /api/submissions             {repositoryId, id} -> {submissionId, status}
+POST /api/submissions             {repositoryId, id, note?} -> {submissionId, status}
                                   Submit and transfer require a precheck without errors (400 precheck-failed {issues};
                                   503 precheck-unavailable). Requests that go to review (submit, non-auto transfer) require a
                                   GitHub account >= 365 days old (403 account-too-new; 503 account-age-unknown).
                                   After any submit/transfer request is recorded: dispatch sync {reason: submit, module: <id>}
                                   (auto-approved transfer: {reason: transfer, module}) -> Actions does the full ZIP
                                   validation and writes the Check Run. Releases are never reviewed (webhook -> sync -> build -> deploy).
-POST /api/transfers               {id, repositoryId} -> {submissionId?, autoApproved}
+POST /api/transfers               {id, repositoryId, note?} -> {submissionId?, autoApproved}
 GET  /api/modules                 my modules: [{id, status, source?, request?, review?, moderation?, sync?: ModuleStatus}]
                                   sync = the module's status.json entry; sync.request is null unless it matches the open request's submissionId
 GET  /api/modules/:id             same shape
@@ -268,6 +270,7 @@ GET  /api/admin/queue             open requests [{id, status, request, source?, 
 GET  /api/admin/requests/:submissionId                one request, open or decided: RegistryRecord & {open}
 POST /api/admin/requests/:submissionId/approve        {}
 POST /api/admin/requests/:submissionId/reject         {reasonCode, reason?}
+POST /api/admin/requests/:submissionId/request-changes {reason}   (submit requests only)
 POST /api/admin/modules/:id/(suspend|unsuspend|archive) {reason}
 GET    /api/admin/maintainers            {maintainers: [{githubId, login, name|null, avatarUrl, telegramId|null}]}
                                          name / avatarUrl / current login from GitHub GET /user/{id} (caller's user token; cached
@@ -292,7 +295,7 @@ Telegram review messages show kind, id, repo(s), submitter, latest release tag (
 
 ## 8. Telegram
 
-- Worker sends review messages via Bot API `sendMessage` to `TELEGRAM_CHAT_ID` (HTML parse mode) with inline keyboard; edits them with `editMessageText` after any decision (portal or telegram). Outcomes shown: approved, rejected, expired (cron expiry, or an expired request replaced by a new one), closed (submission aborted / module archived). `TELEGRAM_CHAT_ID` comes from the `production` Environment variable at deploy time.
+- Worker sends review messages via Bot API `sendMessage` to `TELEGRAM_CHAT_ID` (HTML parse mode) with inline keyboard; edits them with `editMessageText` after any decision (portal or telegram). The review message quotes the submitter's note. Outcomes shown: approved, rejected, changes requested (Portal only: needs a written reason), expired (cron expiry, or an expired request replaced by a new one), closed (submission aborted / module archived). `TELEGRAM_CHAT_ID` comes from the `production` Environment variable at deploy time.
 - `callback_data`: `v1:{action}:{submissionId}` where action ∈ `ap` (approve), `rs` (reject spam), `rv` (violation), `ri` (bad-id), `rq` (squatting). ≤ 64 bytes.
 - tgcloud forwarder → `POST {PORTAL_URL}/internal/telegram` (503 while `TG_FORWARD_SECRET` is unset; no timestamp/anti-replay by decision), body = the raw Telegram Update JSON (bytes as received/serialized once), header `X-KernelSU-Signature: sha256=<hex HMAC-SHA256(TG_FORWARD_SECRET, body)>`. Worker responds `200 {"answer": {"text": "...", "show_alert": bool}}` and the forwarder calls `answerCallbackQuery(callback_query.id, answer)`. On forward failure the forwarder answers "Service unavailable, use the Portal".
 - Commands (message updates; privacy mode, so in the group they are sent as `/cmd@ksudevbot`; the Worker accepts `/cmd` and `/cmd@<any>`). Worker replies via Bot API:

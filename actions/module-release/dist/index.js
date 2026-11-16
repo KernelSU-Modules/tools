@@ -27791,7 +27791,7 @@ var PARAMS_KNOWN_KEYS = {
 };
 
 // ../../packages/schema/src/registry.ts
-var RecordStatus = external_exports.enum(["pending", "listed", "rejected", "suspended", "archived"]);
+var RecordStatus = external_exports.enum(["pending", "listed", "rejected", "changes-requested", "suspended", "archived"]);
 var Source = external_exports.object({
   host: external_exports.literal("github"),
   /** Authoritative binding; survives renames. */
@@ -27815,6 +27815,8 @@ var OpenRequest = external_exports.object({
   submittedBy: GitHubId,
   submittedByLogin: external_exports.string().optional(),
   submittedAt: IsoDateTime,
+  /** Free-text note from the submitter to the reviewers (what the module does, what changed since last time...). */
+  note: external_exports.string().min(1).max(1e3).optional(),
   telegram: TelegramRef.optional()
 }).strict();
 var DecidedVia = external_exports.enum(["portal", "telegram", "auto"]);
@@ -27824,12 +27826,14 @@ var Review = external_exports.object({
   kind: RequestKind,
   submittedBy: GitHubId,
   submittedAt: IsoDateTime,
-  decision: external_exports.enum(["approved", "rejected"]),
+  decision: external_exports.enum(["approved", "rejected", "changes-requested"]),
   decidedBy: GitHubId.nullable(),
   decidedVia: DecidedVia,
   decidedAt: IsoDateTime,
   reasonCode: ReasonCode.optional(),
   reason: external_exports.string().max(500).nullable().default(null),
+  /** changes-requested: the source that was submitted (keeps the repository reserved and lets the Portal show it). */
+  source: Source.optional(),
   telegram: TelegramRef.optional()
 }).strict();
 var Moderation = external_exports.object({
@@ -27854,6 +27858,11 @@ var RegistryRecord = external_exports.object({
   if (needSource && !r.source) ctx.addIssue({ code: "custom", path: ["source"], message: `status ${r.status} requires source` });
   if (r.status === "pending" && (!r.request || r.request.kind !== "submit"))
     ctx.addIssue({ code: "custom", path: ["request"], message: "pending requires a submit request" });
+  if (r.status === "changes-requested") {
+    if (r.request) ctx.addIssue({ code: "custom", path: ["request"], message: "changes-requested cannot have an open request" });
+    if (r.review?.decision !== "changes-requested" || !r.review.source || !r.review.reason)
+      ctx.addIssue({ code: "custom", path: ["review"], message: "changes-requested requires a changes-requested review with source and reason" });
+  }
 });
 var Policy = external_exports.object({
   schemaVersion: external_exports.literal(1),

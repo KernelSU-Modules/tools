@@ -77,6 +77,23 @@ describe('schema', () => {
     expect(RegistryRecord.safeParse({ id: 'x.y', status: 'pending', createdAt: now, updatedAt: now }).success).toBe(false);
   });
 
+  it('changes-requested needs a changes-requested review with source and reason, and no open request; notes are bounded', () => {
+    const now = '2026-10-10T00:00:00Z';
+    const source = { host: 'github', repositoryId: 1, ownerId: 2, fullName: 'a/b' };
+    const review = { submissionId: 'abcdefghij', kind: 'submit', submittedBy: 2, submittedAt: now, decision: 'changes-requested', decidedBy: 3, decidedVia: 'portal', decidedAt: now, reason: 'add a README', source };
+    const rec = { id: 'x.y', status: 'changes-requested', review, createdAt: now, updatedAt: now };
+    expect(RegistryRecord.safeParse(rec).success).toBe(true);
+    expect(RegistryRecord.safeParse({ ...rec, review: { ...review, source: undefined } }).success).toBe(false);
+    expect(RegistryRecord.safeParse({ ...rec, review: { ...review, reason: null } }).success).toBe(false);
+    expect(RegistryRecord.safeParse({ ...rec, review: { ...review, decision: 'rejected' } }).success).toBe(false);
+    const request = { submissionId: 'bcdefghijk', kind: 'submit', source, submittedBy: 2, submittedAt: now, note: 'hello' };
+    expect(RegistryRecord.safeParse({ ...rec, request }).success).toBe(false);
+    // resubmitted: pending again, the previous review is kept
+    expect(RegistryRecord.safeParse({ ...rec, status: 'pending', request }).success).toBe(true);
+    expect(RegistryRecord.safeParse({ ...rec, status: 'pending', request: { ...request, note: 'x'.repeat(1001) } }).success).toBe(false);
+    expect(RegistryRecord.safeParse({ ...rec, status: 'pending', request: { ...request, note: '' } }).success).toBe(false);
+  });
+
   it('lock entries require the high-water marks (nullable) and reject unknown fields', () => {
     const base = {
       id: 'x.y', repositoryId: 1, fullName: 'a/b', installationId: null, content: null, stable: null, prerelease: null, releases: [], seen: {},

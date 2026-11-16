@@ -8,7 +8,7 @@ import { REASON_CODES, rejectNeedsText } from '../../lib/admin.ts';
 import { repoFullName } from '../../lib/status.ts';
 import type { QueueItem, ReasonCode } from '../../api/types.ts';
 import type { MessageKey } from '../../i18n/index.ts';
-import { ArrowLeft, Check, ExternalLinkIcon, Eye, Inbox, RefreshCw, X } from '../../components/icons.tsx';
+import { ArrowLeft, Check, ExternalLinkIcon, Eye, Inbox, RefreshCw, Undo2, X } from '../../components/icons.tsx';
 
 export function Queue() {
   const { api, t, lang } = useApp();
@@ -87,11 +87,13 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
   const { api, t, lang } = useApp();
   useDocumentTitle(`${t('admin.request')} ${submissionId}`);
   const q = useAsync(() => api.queue(), [submissionId]);
-  const [decided, setDecided] = useState<'approved' | 'rejected' | null>(null);
+  const [decided, setDecided] = useState<'approved' | 'rejected' | 'changes-requested' | null>(null);
   const [reasonCode, setReasonCode] = useState<ReasonCode | ''>('');
   const [reason, setReason] = useState('');
   const approve = useAction(() => api.approve(submissionId));
   const reject = useAction(() => api.reject(submissionId, reason.trim() ? { reasonCode: reasonCode as ReasonCode, reason: reason.trim() } : { reasonCode: reasonCode as ReasonCode }));
+  const [changes, setChanges] = useState('');
+  const requestChanges = useAction(() => api.requestChanges(submissionId, { reason: changes.trim() }));
 
   if (q.loading && !q.data) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} onRetry={q.reload} />;
@@ -101,7 +103,10 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
     return (
       <div class="page">
         <PageHeader title={`${t('admin.request')} ${submissionId}`} />
-        <Alert tone={decided === 'approved' ? 'success' : 'warning'} title={t(decided === 'approved' ? 'admin.approvedDone' : 'admin.rejectedDone')}>
+        <Alert
+          tone={decided === 'approved' ? 'success' : 'warning'}
+          title={t(decided === 'approved' ? 'admin.approvedDone' : decided === 'rejected' ? 'admin.rejectedDone' : 'admin.changesRequestedDone')}
+        >
           {item && <code>{item.id}</code>}
         </Alert>
         <div class="row-actions">
@@ -132,7 +137,8 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
   const current = item.source && repoFullName(item, item.source);
   const needsText = rejectNeedsText(reasonCode || undefined);
   const canReject = !!reasonCode && (!needsText || reason.trim().length > 0) && reason.length <= 500;
-  const busy = approve.pending || reject.pending;
+  const canRequestChanges = r.kind === 'submit' && changes.trim().length > 0 && changes.length <= 500;
+  const busy = approve.pending || reject.pending || requestChanges.pending;
   return (
     <div class="page">
       <PageHeader
@@ -173,6 +179,12 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
           </ExternalLink>
         </div>
       </section>
+      {r.note && (
+        <section class="card" aria-labelledby="rq-note">
+          <h2 id="rq-note">{t('admin.note')}</h2>
+          <blockquote class="note">{r.note}</blockquote>
+        </section>
+      )}
       <section class="card" aria-labelledby="rq-sync-check">
         <h2 id="rq-sync-check">{t('check.title')}</h2>
         <RequestCheckView check={item.check} />
@@ -185,7 +197,7 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
       )}
       <section class="card" aria-labelledby="rq-decide">
         <h2 id="rq-decide">{t('admin.decide')}</h2>
-        <ErrorBox error={approve.error ?? reject.error} />
+        <ErrorBox error={approve.error ?? reject.error ?? requestChanges.error} />
         <div class="decide">
           <div>
             <button
@@ -225,6 +237,25 @@ export function RequestDetail({ submissionId }: { submissionId: string }) {
               <X size={16} /> {t('admin.reject')}
             </button>
           </form>
+          {r.kind === 'submit' ? (
+            <form
+              class="form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!canRequestChanges) return;
+                if ((await requestChanges.run()) !== undefined) setDecided('changes-requested');
+              }}
+            >
+              <Field label={t('admin.requestChangesLabel')} id="rq-changes" hint={t('admin.requestChangesHint')}>
+                <textarea id="rq-changes" rows={3} maxLength={500} value={changes} onInput={(e) => setChanges((e.target as HTMLTextAreaElement).value)} required />
+              </Field>
+              <button type="submit" class="btn" disabled={!canRequestChanges || busy}>
+                <Undo2 size={16} /> {t('admin.requestChanges')}
+              </button>
+            </form>
+          ) : (
+            <p class="small muted">{t('admin.requestChangesTransfer')}</p>
+          )}
         </div>
       </section>
       <a

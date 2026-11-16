@@ -229,20 +229,21 @@ api.get('/ids/:id', async (c) => {
   const now = svc.now();
   const rec = snap.records[id];
   const errs = checkModuleId(id, snap.policy, activeIds(snap, now)).filter((i) => i.severity === 'error');
-  if (rec && !idIsFree(rec, snap.policy, now)) return c.json({ id, available: false, reason: `taken (${rec.status})`, status: rec.status });
+  // A submission sent back for changes is still free for its own submitter (resubmit).
+  if (rec && !idIsFree(rec, snap.policy, now, c.var.session?.uid)) return c.json({ id, available: false, reason: `taken (${rec.status})`, status: rec.status });
   if (errs.length) return c.json({ id, available: false, reason: errs[0]!.message, ...(rec ? { status: rec.status } : {}) });
   return c.json({ id, available: true, ...(rec ? { status: rec.status } : {}) });
 });
 
 api.post('/submissions', async (c) => {
-  const body = await jsonBody<{ repositoryId: unknown; id: unknown }>(c);
-  const res = await createSubmission(c.var.svc, requireUser(c), { repositoryId: num(body.repositoryId), id: body.id as string }, deferrer(c));
+  const body = await jsonBody<{ repositoryId: unknown; id: unknown; note?: unknown }>(c);
+  const res = await createSubmission(c.var.svc, requireUser(c), { repositoryId: num(body.repositoryId), id: body.id as string, note: body.note }, deferrer(c));
   return c.json({ submissionId: res.submissionId, status: res.status }, 201);
 });
 
 api.post('/transfers', async (c) => {
-  const body = await jsonBody<{ repositoryId: unknown; id: unknown }>(c);
-  const res = await createTransfer(c.var.svc, requireUser(c), { repositoryId: num(body.repositoryId), id: body.id as string }, deferrer(c));
+  const body = await jsonBody<{ repositoryId: unknown; id: unknown; note?: unknown }>(c);
+  const res = await createTransfer(c.var.svc, requireUser(c), { repositoryId: num(body.repositoryId), id: body.id as string, note: body.note }, deferrer(c));
   return c.json({ submissionId: res.submissionId, autoApproved: res.autoApproved }, 201);
 });
 
@@ -276,7 +277,7 @@ api.get('/modules', async (c) => {
   const [list, snap] = await Promise.all([listRepos(c, user), svc.data.snapshot()]);
   // Index lookups (per administered repository + the user's own open requests) instead of a scan over all records.
   const ix = indexOf(snap);
-  const found = new Set<RegistryRecord>(ix.openBySubmitter.get(user.id));
+  const found = new Set<RegistryRecord>([...(ix.openBySubmitter.get(user.id) ?? []), ...(ix.returnedBySubmitter.get(user.id) ?? [])]);
   for (const row of list.rows) if (row.isAdmin) for (const r of ix.byRepo.get(row.repositoryId) ?? []) found.add(r);
   const recs = [...found].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const status = recs.length ? await svc.data.status(snap) : null;
@@ -291,7 +292,10 @@ async function moduleAccess(c: Context<AppEnv>, id: string) {
   const rec = snap.records[id];
   if (!rec) throw new ApiError(404, 'not-found', `Module "${id}" not found.`);
   if (maintainerByGithub(snap, user.id)) return { rec, snap };
-  const repoIds = [rec.source?.repositoryId, rec.request?.source.repositoryId].filter((x): x is number => !!x);
+  // The submitter of a submission sent back for changes (they resubmit from the module page).
+  if (rec.status === 'changes-requested' && rec.review?.submittedBy === user.id) return { rec, snap };
+  const returned = rec.status === 'changes-requested' ? rec.review?.source?.repositoryId : undefined;
+  const repoIds = [rec.source?.repositoryId, rec.request?.source.repositoryId, returned].filter((x): x is number => !!x);
   // The repository list cached by /api/modules (60 s) usually already says so: saves a GitHub request per page view.
   // Only a positive answer is trusted; anything else is re-checked live.
   const cached = await getSecret<RepoList>(svc.deps.cache, c.env.SESSION_KEY, repoListKey(c, user));

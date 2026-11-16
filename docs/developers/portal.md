@@ -36,6 +36,15 @@ least one year old. The repository must pass the [precheck](#my-repositories) wi
 **pending** and maintainers are notified. Review covers rules only: no spam or abusive content, an
 appropriate ID, no squatting of someone else's project name. It is not a code audit.
 
+You can add an optional **note to the reviewers** (up to 1000 characters): what the module does,
+anything they should know, or — when resubmitting — what you changed. Requests for a transfer that
+needs review take a note as well.
+
+If the maintainers **request changes**, the module shows the status `changes-requested` with what to
+change. The ID and the repository stay reserved for you for 30 days: fix the points, then use
+**Resubmit** on the module page (same repository and ID, you may add a new note). After 30 days the
+reservation lapses and anyone may submit the ID.
+
 ## Transfer
 
 Moves a listed (or suspended) module to another repository — e.g. a new home after a rewrite or a
@@ -75,6 +84,7 @@ there is no periodic heartbeat, so an old time on a healthy module is normal.
 | `pending` | Submitted, waiting for review. Expires after 30 days without a decision, which frees the ID. | Wait; keep your release and `module.yaml` valid. |
 | `listed` | Accepted. Shown on the site and in the Manager **once it has a valid stable release**. Updates publish automatically. | Release new versions. |
 | `rejected` | Review declined; the reason is shown (`spam`, `violation`, `bad-id`, `squatting` or a custom note). The ID is free again. | Fix the problem and submit again (another ID if the ID was the issue). |
+| `changes-requested` | Sent back by a maintainer with what to change. The ID and repository stay reserved for you for 30 days, then the ID is free again. | Make the changes and **Resubmit** from the module page. |
 | `suspended` | Removed from the index by maintainers; the ID stays bound to your repository. | Read the reason; contact the maintainers once fixed. |
 | `archived` | Retired (e.g. abandoned). The ID cannot be registered again. | Contact the maintainers. |
 

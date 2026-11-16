@@ -78,9 +78,12 @@ export function idAvailability(s: MockState, id: string): IdAvailability {
   if (!rec) return { id, available: true };
   if (rec.id !== id) return { id, available: false, reason: `id-collision: differs only in case from "${rec.id}"`, status: rec.status };
   if (rec.status === 'rejected') return { id, available: true, status: 'rejected' };
+  // Sent back for changes: reserved for its submitter (the mock user owns every record in s.modules).
+  if (rec.status === 'changes-requested' && mine) return { id, available: true, status: 'changes-requested' };
   const reasons: Record<string, string> = {
     listed: 'already listed',
     pending: 'a submission for this ID is pending review',
+    'changes-requested': 'reserved for the submitter of a submission sent back for changes',
     suspended: 'ID is held by a suspended module',
     archived: 'ID is held by an archived module',
   };
@@ -147,9 +150,11 @@ export async function handle(s: MockState, method: string, url: URL, headers: He
     if (!pre.ok) return err(400, 'precheck-failed', `Precheck failed: ${pre.issues.filter((i) => i.severity === 'error').map((i) => i.code).join(', ')}`);
     const submissionId = newSubmissionId(s);
     const source = { host: 'github' as const, repositoryId: r.repositoryId, ownerId: me.id, fullName: r.fullName, manifestPath: 'module.yaml' };
-    const request = { submissionId, kind: 'submit' as const, source, submittedBy: me.id, submittedByLogin: me.login, submittedAt: now() };
+    const note = typeof b.note === 'string' && b.note.trim() ? b.note.trim().slice(0, 1000) : undefined;
+    const request = { submissionId, kind: 'submit' as const, source, submittedBy: me.id, submittedByLogin: me.login, submittedAt: now(), ...(note ? { note } : {}) };
+    const prev = s.modules.find((x) => x.id === id);
     s.modules = s.modules.filter((x) => x.id !== id);
-    s.modules.push({ id, status: 'pending', request });
+    s.modules.push({ id, status: 'pending', request, ...(prev?.review ? { review: prev.review } : {}) });
     s.queue.push({ id, status: 'pending', request, precheck: { ok: true, issues: pre.issues } });
     r.registeredId = id;
     return json(201, { submissionId, status: 'pending' });
@@ -170,7 +175,7 @@ export async function handle(s: MockState, method: string, url: URL, headers: He
       return json(200, { autoApproved: true });
     }
     const submissionId = newSubmissionId(s);
-    mod.request = { submissionId, kind: 'transfer', source, submittedBy: me.id, submittedByLogin: me.login, submittedAt: now() };
+    mod.request = { submissionId, kind: 'transfer', source, submittedBy: me.id, submittedByLogin: me.login, submittedAt: now(), ...(typeof b.note === 'string' && b.note.trim() ? { note: b.note.trim().slice(0, 1000) } : {}) };
     s.queue.push({ id: mod.id, status: mod.status, request: mod.request, source: mod.source! });
     return json(200, { submissionId, autoApproved: false });
   }
@@ -205,6 +210,37 @@ export async function handle(s: MockState, method: string, url: URL, headers: He
   if (path.startsWith('/api/admin/')) {
     if (s.persona !== 'maintainer') return err(403, 'forbidden', 'Maintainers only');
     if (path === '/api/admin/queue' && method === 'GET') return json(200, s.queue);
+    if ((m = path.match(/^\/api\/admin\/requests\/([a-z0-9]{10})\/request-changes$/)) && method === 'POST') {
+      const sid = m[1]!;
+      const item = s.queue.find((q) => q.request.submissionId === sid);
+      if (!item) return err(409, 'precondition-failed', 'Request already decided or not found');
+      if (item.request.kind !== 'submit') return err(409, 'bad-state', 'only pending submissions can be sent back for changes');
+      const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+      if (!reason || reason.length > 500) return err(400, 'bad-request', 'reason is required (≤ 500 characters)');
+      s.queue = s.queue.filter((q) => q !== item);
+      const mod = s.modules.find((x) => x.id === item.id);
+      if (mod) {
+        const r = item.request;
+        delete mod.request;
+        if (mod.sync) mod.sync.request = null;
+        mod.status = 'changes-requested';
+        mod.review = {
+          submissionId: sid,
+          kind: r.kind,
+          submittedBy: r.submittedBy,
+          submittedAt: r.submittedAt,
+          decision: 'changes-requested',
+          decidedBy: USERS.maintainer.id,
+          decidedVia: 'portal',
+          decidedAt: now(),
+          reason,
+          source: r.source,
+        };
+        const rr = repoById(r.source.repositoryId);
+        if (rr) rr.registeredId = null; // the Worker reports no registration for returned submissions (resubmit allowed)
+      }
+      return json(200, { ok: true });
+    }
     if ((m = path.match(/^\/api\/admin\/requests\/([a-z0-9]{10})\/(approve|reject)$/)) && method === 'POST') {
       const sid = m[1]!;
       const item = s.queue.find((q) => q.request.submissionId === sid);

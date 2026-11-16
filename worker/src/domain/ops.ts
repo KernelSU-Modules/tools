@@ -18,6 +18,7 @@ import {
   applyExpire,
   applyModeration,
   applyReject,
+  applyRequestChanges,
   applySubmit,
   applyTransfer,
   findBinding,
@@ -162,6 +163,17 @@ async function readRecord(reader: { read(p: string): Promise<string | null> }, i
 
 /* ------------------------------------------------------------------ requests */
 
+export const NOTE_MAX = 1000;
+
+/** Optional submitter note: trimmed, CRLF normalized, at most NOTE_MAX characters; empty -> undefined. */
+export function parseNote(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'string') throw new ApiError(400, 'bad-request', 'note must be a string');
+  const t = v.replace(/\r\n?/g, '\n').trim();
+  if (t.length > NOTE_MAX) throw new ApiError(400, 'bad-request', `note must be at most ${NOTE_MAX} characters`);
+  return t || undefined;
+}
+
 export interface RequestCtx {
   svc: Services;
   user: UserCtx;
@@ -185,13 +197,15 @@ async function bindingGuard(svc: Services, baseCommit: string, repositoryId: num
   return s2;
 }
 
-export async function createSubmission(svc: Services, user: UserCtx, body: { repositoryId: number; id: string }, defer?: Defer) {
+export async function createSubmission(svc: Services, user: UserCtx, body: { repositoryId: number; id: string; note?: unknown }, defer?: Defer) {
   const now = svc.now();
+  const note = parseNote(body.note);
   const snap = await svc.data.snapshot();
   await commonChecks(svc, user, snap);
   idCheck(snap, body.id, now);
   const id = body.id;
-  if (!idIsFree(snap.records[id], snap.policy, now)) throw new ApiError(409, 'id-taken', `Module ID "${id}" is not available.`);
+  // A submission sent back for changes stays reserved for its submitter (resubmit), see idIsFree.
+  if (!idIsFree(snap.records[id], snap.policy, now, user.id)) throw new ApiError(409, 'id-taken', `Module ID "${id}" is not available.`);
   const repo = await verifyTargetRepo(svc, user, body.repositoryId);
   const bound = findBinding(recordsForRepo(snap, repo.id), repo.id, snap.policy, now, id);
   if (bound) throw new ApiError(409, 'repo-bound', `${repo.full_name} is already bound to module "${bound.id}".`);
@@ -199,11 +213,12 @@ export async function createSubmission(svc: Services, user: UserCtx, body: { rep
   if (pre?.manifest && pre.manifest.id !== id)
     throw new ApiError(400, 'manifest-id-mismatch', `module.yaml declares id "${pre.manifest.id}", not "${id}".`);
   requirePrecheck(pre);
-  return openRequest(svc, user, { kind: 'submit', id, repo, pre }, defer);
+  return openRequest(svc, user, { kind: 'submit', id, repo, pre, note }, defer);
 }
 
-export async function createTransfer(svc: Services, user: UserCtx, body: { repositoryId: number; id: string }, defer?: Defer) {
+export async function createTransfer(svc: Services, user: UserCtx, body: { repositoryId: number; id: string; note?: unknown }, defer?: Defer) {
   const now = svc.now();
+  const note = parseNote(body.note);
   const snap = await svc.data.snapshot();
   await commonChecks(svc, user, snap);
   const cur = typeof body.id === 'string' ? snap.records[body.id] : undefined;
@@ -219,7 +234,7 @@ export async function createTransfer(svc: Services, user: UserCtx, body: { repos
   return openRequest(
     svc,
     user,
-    { kind: 'transfer', id: cur.id, repo, pre, auto: oldAdmin, previousFullName: cur.source.fullName, previousRepositoryId: cur.source.repositoryId },
+    { kind: 'transfer', id: cur.id, repo, pre, note, auto: oldAdmin, previousFullName: cur.source.fullName, previousRepositoryId: cur.source.repositoryId },
     defer,
   );
 }
@@ -227,7 +242,16 @@ export async function createTransfer(svc: Services, user: UserCtx, body: { repos
 async function openRequest(
   svc: Services,
   user: UserCtx,
-  o: { kind: OpenRequest['kind']; id: string; repo: RepoInfo; pre: PrecheckResult | null; auto?: boolean; previousFullName?: string; previousRepositoryId?: number },
+  o: {
+    kind: OpenRequest['kind'];
+    id: string;
+    repo: RepoInfo;
+    pre: PrecheckResult | null;
+    note?: string;
+    auto?: boolean;
+    previousFullName?: string;
+    previousRepositoryId?: number;
+  },
   defer?: Defer,
 ) {
   const createdAt = o.auto ? null : await requireAccountAge(svc, user);
@@ -244,6 +268,7 @@ async function openRequest(
         previousFullName: o.previousFullName ?? null,
         submitter: { id: user.id, login: user.login, createdAt },
         precheck: o.pre,
+        note: o.note ?? null,
         portalUrl: svc.env.PORTAL_URL,
       }),
       reviewKeyboard(svc.env.PORTAL_URL, submissionId),
@@ -255,6 +280,7 @@ async function openRequest(
     source,
     submittedBy: user.id,
     submittedByLogin: user.login,
+    ...(o.note ? { note: o.note } : {}),
     ...(telegram ? { telegram } : {}),
   };
   let next: RegistryRecord | null = null;
@@ -286,6 +312,7 @@ async function openRequest(
       };
       if (o.auto) trailers['Approved-by'] = `github:${user.id} via auto`;
       if (replaced) trailers.Expired = replaced.submissionId;
+      if (cur?.status === 'changes-requested' && cur.review) trailers.Resubmits = cur.review.submissionId;
       const verb = o.kind === 'submit' ? 'Submit' : o.auto ? 'Transfer (auto-approved)' : 'Transfer request';
       return { files: { [recordPath(o.id)]: serializeRecord(next) }, message: withTrailers(`${verb}: ${o.id} <- ${source.fullName}`, trailers) };
     });
@@ -327,7 +354,13 @@ async function openRequest(
 
 /* ------------------------------------------------------------------ decisions */
 
-export type Decision = { kind: 'approve' } | { kind: 'reject'; reasonCode: ReasonCode; reason?: string | null };
+export type Decision = { kind: 'approve' } | { kind: 'reject'; reasonCode: ReasonCode; reason?: string | null } | { kind: 'request-changes'; reason: string };
+
+const DECISION: Record<Decision['kind'], { verb: string; trailer: string; outcome: 'approved' | 'rejected' | 'changes requested' }> = {
+  approve: { verb: 'Approve', trailer: 'Approved-by', outcome: 'approved' },
+  reject: { verb: 'Reject', trailer: 'Rejected-by', outcome: 'rejected' },
+  'request-changes': { verb: 'Request changes on', trailer: 'Returned-by', outcome: 'changes requested' },
+};
 
 async function findRequest(svc: Services, submissionId: string): Promise<RegistryRecord> {
   if (!/^[a-z0-9]{10}$/.test(submissionId)) throw new ApiError(400, 'bad-request', 'invalid submissionId');
@@ -367,19 +400,23 @@ export async function decide(svc: Services, actor: Actor & { login: string }, su
       if (d.kind === 'approve') {
         next = applyApprove(cur, submissionId, actor, now);
         if (next.source) await bindingGuard(svc, reader.baseCommit, next.source.repositoryId, id);
-      } else {
+      } else if (d.kind === 'reject') {
         next = applyReject(cur, submissionId, d.reasonCode, d.reason ?? null, actor, now);
+      } else {
+        next = applyRequestChanges(cur, submissionId, d.reason, actor, now);
       }
       const by = `github:${actor.githubId} via ${actor.via}`;
+      const oneLine = (x: string) => x.replace(/\s+/g, ' ').slice(0, 200);
       return {
         files: { [recordPath(id)]: serializeRecord(next) },
-        message: withTrailers(`${d.kind === 'approve' ? 'Approve' : 'Reject'} ${before!.kind}: ${id}`, {
+        message: withTrailers(`${DECISION[d.kind].verb} ${before!.kind}: ${id}`, {
           Action: d.kind,
           Module: id,
           Submission: submissionId,
           'Submitted-by': `github:${before!.submittedBy}`,
-          [d.kind === 'approve' ? 'Approved-by' : 'Rejected-by']: by,
-          Reason: d.kind === 'reject' ? `${d.reasonCode}${d.reason ? `: ${d.reason.replace(/\s+/g, ' ').slice(0, 200)}` : ''}` : undefined,
+          [DECISION[d.kind].trailer]: by,
+          Reason:
+            d.kind === 'reject' ? `${d.reasonCode}${d.reason ? `: ${oneLine(d.reason)}` : ''}` : d.kind === 'request-changes' ? oneLine(d.reason) : undefined,
         }),
       };
     });
@@ -390,15 +427,15 @@ export async function decide(svc: Services, actor: Actor & { login: string }, su
   const decidedAt = new Date(svc.now()).toISOString();
   await sideEffects(defer, async () => {
     await editDecided(svc, id, before, {
-      outcome: d.kind === 'approve' ? 'approved' : 'rejected',
+      outcome: DECISION[d.kind].outcome,
       by: `@${actor.login}`,
       via: actor.via,
       at: decidedAt,
-      reason: d.kind === 'reject' ? `${d.reasonCode}${d.reason ? ` — ${d.reason}` : ''}` : null,
+      reason: d.kind === 'reject' ? `${d.reasonCode}${d.reason ? ` — ${d.reason}` : ''}` : d.kind === 'request-changes' ? d.reason : null,
     });
     if (d.kind === 'approve') await dispatchSync(svc, { reason: `approve`, module: id });
   });
-  return { id, submissionId, status: rec.status, decision: d.kind === 'approve' ? 'approved' : 'rejected' };
+  return { id, submissionId, status: rec.status, decision: rec.review!.decision };
 }
 
 export async function moderate(svc: Services, actor: Actor & { login: string }, id: string, action: ModerationAction, reason: string, defer?: Defer) {

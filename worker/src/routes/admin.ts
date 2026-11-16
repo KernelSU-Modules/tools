@@ -82,6 +82,16 @@ admin.post('/requests/:submissionId/reject', async (c) => {
   return c.json(await decide(c.var.svc, actor, c.req.param('submissionId'), { kind: 'reject', reasonCode: rc.data, reason }, deferrer(c)));
 });
 
+/** Send a pending submission back to the submitter for changes (reason required; the ID stays reserved for them). */
+admin.post('/requests/:submissionId/request-changes', async (c) => {
+  const actor = await requireMaintainer(c);
+  const b = await body(c);
+  const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+  if (!reason) throw new ApiError(400, 'bad-request', 'reason is required: tell the submitter what to change');
+  if (reason.length > 500) throw new ApiError(400, 'bad-request', 'reason must be at most 500 characters');
+  return c.json(await decide(c.var.svc, actor, c.req.param('submissionId'), { kind: 'request-changes', reason }, deferrer(c)));
+});
+
 admin.post('/modules/:id/:action{suspend|unsuspend|archive}', async (c) => {
   const actor = await requireMaintainer(c);
   const b = await body(c);

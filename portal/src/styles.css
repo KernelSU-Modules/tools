@@ -76,6 +76,7 @@ svg.lucide { flex: none; }
 .ok-text { color: var(--ok); }
 .nowrap { white-space: nowrap; }
 .title-code { font-size: inherit; background: none; padding: 0; }
+.note { margin: 6px 0; padding: 6px 12px; border-left: 3px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- boot / spinner / auth ---- */
 .spinner { width: 18px; height: 18px; flex: none; border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%; animation: spin .8s linear infinite; }
@@ -331,7 +332,7 @@ a.badge:hover { text-decoration: underline; }
 .issue-code code { font-weight: 600; }
 .issue-code:hover code { text-decoration: underline; }
 .request-check > p { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.decide { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
+.decide { display: grid; grid-template-columns: auto 1fr 1fr; gap: 24px; align-items: start; }
 
 /* ---- runs ---- */
 .runs { list-style: none; padding: 0; margin: 10px 0; }

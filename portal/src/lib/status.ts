@@ -2,12 +2,13 @@ import type { Issue, ModuleStatus, MyModule, RecordStatus, RequestCheck, Source,
 
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
-export const RECORD_STATUSES: readonly RecordStatus[] = ['pending', 'listed', 'rejected', 'suspended', 'archived'];
+export const RECORD_STATUSES: readonly RecordStatus[] = ['pending', 'listed', 'rejected', 'changes-requested', 'suspended', 'archived'];
 
 const STATUS_TONE: Record<RecordStatus, Tone> = {
   pending: 'info',
   listed: 'success',
   rejected: 'danger',
+  'changes-requested': 'warning',
   suspended: 'warning',
   archived: 'neutral',
 };
@@ -76,6 +77,7 @@ export function moderationActions(status: string): ('suspend' | 'unsuspend' | 'a
 export function attention(m: MyModule): string[] {
   const out: string[] = [];
   if (m.status === 'rejected') out.push('attention.rejected');
+  if (m.status === 'changes-requested') out.push('attention.changesRequested');
   if (m.status === 'suspended') out.push('attention.suspended');
   if (m.status === 'listed' && m.sync && !m.sync.stable) out.push('attention.noStable');
   if (m.sync?.installation === 'missing') out.push('attention.installMissing');
@@ -83,6 +85,23 @@ export function attention(m: MyModule): string[] {
   else if (m.sync?.health === 'stale') out.push('attention.stale');
   if (requestCheckOf(m)?.ok === false) out.push('attention.requestCheckFailed');
   return out;
+}
+
+/** policy.pending.expireDays (default policy): how long a returned submission stays reserved for its submitter. */
+export const RESERVE_DAYS = 30;
+
+/**
+ * A submission sent back for changes: the source to resubmit from and until when the ID stays reserved; else null.
+ */
+export function returnedSubmission(m: Pick<MyModule, 'status' | 'review'>): { source: Source; reservedUntil: string; reason: string } | null {
+  const r = m.review;
+  if (m.status !== 'changes-requested' || r?.decision !== 'changes-requested' || !r.source) return null;
+  return { source: r.source, reservedUntil: new Date(Date.parse(r.decidedAt) + RESERVE_DAYS * 86400_000).toISOString(), reason: r.reason ?? '' };
+}
+
+/** Portal path that resubmits a returned submission (same repository and ID). */
+export function resubmitHref(id: string, source: Pick<Source, 'repositoryId'>): string {
+  return `/repos/${source.repositoryId}/submit?id=${encodeURIComponent(id)}`;
 }
 
 export interface IssueGroups {

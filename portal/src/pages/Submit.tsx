@@ -1,15 +1,20 @@
 import { useState } from 'preact/hooks';
 import { Link } from '../router.tsx';
 import { useAction, useApp, useAsync, useDocumentTitle } from '../context.tsx';
-import { Alert, DL, ErrorBox, Loading, PageHeader, StatusBadge } from '../components/ui.tsx';
+import { Alert, DL, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui.tsx';
 import { IdInput, useIdCheck } from '../components/IdInput.tsx';
 import { suggestId } from '../lib/ids.ts';
+import { formatDate } from '../lib/format.ts';
+import { returnedSubmission } from '../lib/status.ts';
 import { FolderGit2, ListChecks, Package, Send } from '../components/icons.tsx';
 import { getRepo, invalidate } from '../store.ts';
 import type { SubmitResponse } from '../api/types.ts';
 
+/** Same limit as the Worker (NOTE_MAX). */
+export const NOTE_MAX = 1000;
+
 export function Submit({ repositoryId, initialId }: { repositoryId: number; initialId?: string | null }) {
-  const { api, t } = useApp();
+  const { api, t, lang } = useApp();
   const repo = useAsync(() => getRepo(api, repositoryId), [repositoryId]);
   // Without an explicit ?id=, suggest the id declared in the repository's module.yaml (precheck), else the repo name.
   const declared = useAsync(
@@ -22,8 +27,14 @@ export function Submit({ repositoryId, initialId }: { repositoryId: number; init
   const [immutable, setImmutable] = useState(false);
   const [manifest, setManifest] = useState(false);
   const [rules, setRules] = useState(false);
+  const [note, setNote] = useState('');
   const [done, setDone] = useState<SubmitResponse | null>(null);
-  const action = useAction(() => api.submit({ repositoryId, id: effectiveId }));
+  // Resubmitting a submission that was sent back for changes: show what the reviewers asked for.
+  const returned = useAsync(
+    () => (check.state === 'done' && check.result.status === 'changes-requested' && check.result.available ? api.module(effectiveId).then(returnedSubmission, () => null) : Promise.resolve(null)),
+    [effectiveId, check.state === 'done' && check.result.status],
+  );
+  const action = useAction(() => api.submit({ repositoryId, id: effectiveId, ...(note.trim() ? { note: note.trim() } : {}) }));
   const name = repo.data?.fullName ?? `#${repositoryId}`;
   useDocumentTitle(`${t('action.submit')} · ${name}`);
 
@@ -58,7 +69,7 @@ export function Submit({ repositoryId, initialId }: { repositoryId: number; init
   }
 
   const idOk = check.state === 'done' && check.result.available;
-  const ready = idOk && immutable && manifest && rules && repo.data.isAdmin && !repo.data.registeredId;
+  const ready = idOk && immutable && manifest && rules && repo.data.isAdmin && !repo.data.registeredId && note.length <= NOTE_MAX;
   const onSubmit = async (e: Event) => {
     e.preventDefault();
     if (!ready) return;
@@ -74,9 +85,19 @@ export function Submit({ repositoryId, initialId }: { repositoryId: number; init
       <PageHeader title={t('submit.title', { repo: name })} subtitle={t('submit.subtitle')} />
       {!repo.data.isAdmin && <Alert tone="danger">{t('repos.notAdminHint')}</Alert>}
       {repo.data.registeredId && <Alert tone="warning">{t('submit.alreadyRegistered', { id: repo.data.registeredId })}</Alert>}
+      {returned.data && (
+        <Alert tone="warning" title={t('modules.changesRequested')}>
+          <p>{t('submit.resubmitting', { id: effectiveId })}</p>
+          <blockquote class="note">{returned.data.reason}</blockquote>
+          <p class="small muted">{t('modules.changesRequestedBody', { id: effectiveId, date: formatDate(returned.data.reservedUntil, lang) })}</p>
+        </Alert>
+      )}
       <form class="card form" onSubmit={onSubmit} noValidate>
         <IdInput value={effectiveId} onInput={setId} check={check} />
         <p class="hint">{t('submit.idMustMatch')}</p>
+        <Field label={t('submit.note')} id="submit-note" hint={t('submit.noteHint')}>
+          <textarea id="submit-note" rows={4} maxLength={NOTE_MAX} value={note} onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)} />
+        </Field>
         <fieldset>
           <legend>{t('submit.checklist')}</legend>
           <label class="check">

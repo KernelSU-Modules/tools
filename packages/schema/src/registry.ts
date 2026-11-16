@@ -5,7 +5,12 @@ import { GitHubId, IsoDateTime, ModuleId, RelativePath } from './common.ts';
  * Data repo: modules/{id}.yaml
  * ------------------------------------------------------------------ */
 
-export const RecordStatus = z.enum(['pending', 'listed', 'rejected', 'suspended', 'archived']);
+/**
+ * changes-requested: a maintainer sent a submission back for changes (review.reason says what). The ID and the
+ * repository stay reserved for the submitter for policy.pending.expireDays after the decision; resubmitting turns the
+ * record back into `pending`.
+ */
+export const RecordStatus = z.enum(['pending', 'listed', 'rejected', 'changes-requested', 'suspended', 'archived']);
 export type RecordStatus = z.infer<typeof RecordStatus>;
 
 export const Source = z
@@ -42,6 +47,8 @@ export const OpenRequest = z
     submittedBy: GitHubId,
     submittedByLogin: z.string().optional(),
     submittedAt: IsoDateTime,
+    /** Free-text note from the submitter to the reviewers (what the module does, what changed since last time...). */
+    note: z.string().min(1).max(1000).optional(),
     telegram: TelegramRef.optional(),
   })
   .strict();
@@ -58,12 +65,14 @@ export const Review = z
     kind: RequestKind,
     submittedBy: GitHubId,
     submittedAt: IsoDateTime,
-    decision: z.enum(['approved', 'rejected']),
+    decision: z.enum(['approved', 'rejected', 'changes-requested']),
     decidedBy: GitHubId.nullable(),
     decidedVia: DecidedVia,
     decidedAt: IsoDateTime,
     reasonCode: ReasonCode.optional(),
     reason: z.string().max(500).nullable().default(null),
+    /** changes-requested: the source that was submitted (keeps the repository reserved and lets the Portal show it). */
+    source: Source.optional(),
     telegram: TelegramRef.optional(),
   })
   .strict();
@@ -98,6 +107,11 @@ export const RegistryRecord = z
     if (needSource && !r.source) ctx.addIssue({ code: 'custom', path: ['source'], message: `status ${r.status} requires source` });
     if (r.status === 'pending' && (!r.request || r.request.kind !== 'submit'))
       ctx.addIssue({ code: 'custom', path: ['request'], message: 'pending requires a submit request' });
+    if (r.status === 'changes-requested') {
+      if (r.request) ctx.addIssue({ code: 'custom', path: ['request'], message: 'changes-requested cannot have an open request' });
+      if (r.review?.decision !== 'changes-requested' || !r.review.source || !r.review.reason)
+        ctx.addIssue({ code: 'custom', path: ['review'], message: 'changes-requested requires a changes-requested review with source and reason' });
+    }
   });
 export type RegistryRecord = z.infer<typeof RegistryRecord>;
 

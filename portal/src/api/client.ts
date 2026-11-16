@@ -13,6 +13,7 @@ import type {
   PreviewResponse,
   QueueItem,
   RejectRequest,
+  RequestChangesRequest,
   ReposResponse,
   SubmitRequest,
   SubmitResponse,
@@ -176,6 +177,9 @@ export class ApiClient {
   }
   reject(submissionId: string, req: RejectRequest): Promise<unknown> {
     return this.request('POST', `/api/admin/requests/${encodeURIComponent(submissionId)}/reject`, req);
+  }
+  requestChanges(submissionId: string, req: RequestChangesRequest): Promise<unknown> {
+    return this.request('POST', `/api/admin/requests/${encodeURIComponent(submissionId)}/request-changes`, req);
   }
   moderate(id: string, action: ModerationAction, reason: string): Promise<unknown> {
     return this.request('POST', `/api/admin/modules/${encodeURIComponent(id)}/${action}`, { reason });

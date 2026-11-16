@@ -114,13 +114,37 @@ export function initialModules(repos: Repo[]): MyModule[] {
     {
       id: 'pending.mod',
       status: 'pending',
-      request: { submissionId: 'p3nd1ngm0d', kind: 'submit', source: src(r(100008)), submittedBy: 1001, submittedByLogin: 'alice', submittedAt: ago(90) },
+      request: {
+        submissionId: 'p3nd1ngm0d',
+        kind: 'submit',
+        source: src(r(100008)),
+        submittedBy: 1001,
+        submittedByLogin: 'alice',
+        submittedAt: ago(90),
+        note: 'Pending module for testing.\nIt only adds a service.sh that logs the boot time.',
+      },
       sync: syncStatus(r(100008), 'ok', { request: requestCheck('p3nd1ngm0d', 100008, false) }),
     },
     {
       id: 'spam.thing',
       status: 'rejected',
       review: { submissionId: 'r3j3ct3d01', kind: 'submit', submittedBy: 1001, submittedAt: ago(60 * 50), decision: 'rejected', decidedBy: 2001, decidedVia: 'portal', decidedAt: ago(60 * 48), reasonCode: 'bad-id', reason: 'The ID is too generic; please use a more specific name such as alice.spamthing.' },
+    },
+    {
+      id: 'hosts.mod',
+      status: 'changes-requested',
+      review: {
+        submissionId: 'ch4ng3sr3q',
+        kind: 'submit',
+        submittedBy: 1001,
+        submittedAt: ago(60 * 26),
+        decision: 'changes-requested',
+        decidedBy: 2001,
+        decidedVia: 'portal',
+        decidedAt: ago(60 * 24),
+        reason: 'Please describe in docs/README.md which hosts sources are used and how to update them.',
+        source: src(r(100006)),
+      },
     },
     {
       id: 'suspended.mod',

@@ -348,6 +348,121 @@ describe('decisions', () => {
   });
 });
 
+describe('submitter notes and requests for changes', () => {
+  it('the submitter note is stored on the request and shown (escaped) to reviewers', async () => {
+    const { h, alice } = await world1();
+    const c = await login(h, alice);
+    const tooLong = await c.post('/api/submissions', { repositoryId: 501, id: 'demo.toolbox', note: 'x'.repeat(1001) });
+    expect(tooLong.status).toBe(400);
+    expect((await c.post('/api/submissions', { repositoryId: 501, id: 'demo.toolbox', note: 42 })).status).toBe(400);
+    const r = await c.post('/api/submissions', { repositoryId: 501, id: 'demo.toolbox', note: '  Adds a <b>toolbox</b>.\r\nSee README.  ' });
+    expect(r.status).toBe(201);
+    expect(h.world.record('demo.toolbox').request.note).toBe('Adds a <b>toolbox</b>.\nSee README.');
+    const msg = h.world.telegram.find((t) => t.method === 'sendMessage')!;
+    expect(msg.body.text).toContain('Note from the submitter');
+    expect(msg.body.text).toContain('Adds a &lt;b&gt;toolbox&lt;/b&gt;.');
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    const q = (await (await m.get('/api/admin/queue')).json()) as any[];
+    expect(q[0].request.note).toBe('Adds a <b>toolbox</b>.\nSee README.');
+  });
+
+  it('a blank note is dropped', async () => {
+    const { h, alice } = await world1();
+    expect((await (await login(h, alice)).post('/api/submissions', { repositoryId: 501, id: 'demo.toolbox', note: ' \n ' })).status).toBe(201);
+    expect(h.world.record('demo.toolbox').request).not.toHaveProperty('note');
+  });
+
+  it('request changes: reason required; ID and repository stay reserved for the submitter, who resubmits', async () => {
+    const { h, alice, bob } = await world1();
+    const { c, body } = await submit(h, alice, 501, 'demo.toolbox');
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    const url = `/api/admin/requests/${body.submissionId}/request-changes`;
+    expect((await m.post(url, {})).status).toBe(400);
+    expect((await m.post(url, { reason: '   ' })).status).toBe(400);
+    expect((await m.post(url, { reason: 'x'.repeat(501) })).status).toBe(400);
+    expect((await (await login(h, alice)).post(url, { reason: 'self' })).status).toBe(403);
+
+    const r = await m.post(url, { reason: 'Please add a <b>README</b> in English.' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ id: 'demo.toolbox', status: 'changes-requested', decision: 'changes-requested' });
+    const rec = h.world.record('demo.toolbox');
+    expect(rec.status).toBe('changes-requested');
+    expect(rec).not.toHaveProperty('request');
+    expect(rec.review).toMatchObject({
+      submissionId: body.submissionId,
+      decision: 'changes-requested',
+      reason: 'Please add a <b>README</b> in English.',
+      decidedVia: 'portal',
+      source: { repositoryId: 501, fullName: 'alice/demo' },
+    });
+    const edit = h.world.telegram.find((t) => t.method === 'editMessageText')!;
+    expect(edit.body.text).toContain('CHANGES REQUESTED');
+    expect(edit.body.text).toContain('Please add a &lt;b&gt;README&lt;/b&gt; in English.');
+    const commit = h.world.commitMessages()[0]!;
+    expect(commit).toContain('Request changes on submit: demo.toolbox');
+    expect(commit).toContain('Action: request-changes');
+    expect(commit).toContain(`Returned-by: github:${MAINTAINER.id} via portal`);
+    expect(commit).toContain('Reason: Please add a <b>README</b> in English.');
+    expect(decisionDispatches(h)).toHaveLength(0);
+    // Deciding again on the same submission is a conflict.
+    expect((await m.post(`/api/admin/requests/${body.submissionId}/approve`)).status).toBe(409);
+
+    // Reserved: not for bob (his repo also declares demo.toolbox), but still for alice.
+    const b = await login(h, bob);
+    expect(await (await b.get('/api/ids/demo.toolbox')).json()).toMatchObject({ available: false, status: 'changes-requested' });
+    expect((await b.post('/api/submissions', { repositoryId: 601, id: 'demo.toolbox' })).status).toBe(409);
+    expect(await (await c.get('/api/ids/demo.toolbox')).json()).toMatchObject({ available: true, status: 'changes-requested' });
+    // The submitter sees it with the reason, and may open it.
+    const mods = (await (await c.get('/api/modules')).json()) as any[];
+    expect(mods).toEqual([expect.objectContaining({ id: 'demo.toolbox', status: 'changes-requested', review: expect.objectContaining({ reason: 'Please add a <b>README</b> in English.' }) })]);
+    expect((await c.get('/api/modules/demo.toolbox')).status).toBe(200);
+    expect((await b.get('/api/modules/demo.toolbox')).status).toBe(403);
+
+    // Resubmit with a note: pending again, new submission id, links back to the returned one.
+    const again = await c.post('/api/submissions', { repositoryId: 501, id: 'demo.toolbox', note: 'Added the README.' });
+    expect(again.status).toBe(201);
+    const nb = (await again.json()) as any;
+    expect(nb.submissionId).not.toBe(body.submissionId);
+    const rec2 = h.world.record('demo.toolbox');
+    expect(rec2).toMatchObject({ status: 'pending', request: { submissionId: nb.submissionId, note: 'Added the README.' }, review: { decision: 'changes-requested' } });
+    expect(h.world.commitMessages()[0]).toContain(`Resubmits: ${body.submissionId}`);
+    expect((await m.post(`/api/admin/requests/${nb.submissionId}/approve`)).status).toBe(200);
+    expect(h.world.record('demo.toolbox')).toMatchObject({ status: 'listed', source: { repositoryId: 501 }, review: { decision: 'approved', submissionId: nb.submissionId } });
+  });
+
+  it('the reservation lapses after policy.pending.expireDays: anyone may submit the ID', async () => {
+    const { h, alice, bob } = await world1();
+    const { body } = await submit(h, alice, 501, 'demo.toolbox');
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    expect((await m.post(`/api/admin/requests/${body.submissionId}/request-changes`, { reason: 'fix it' })).status).toBe(200);
+    h.world.now += (DEFAULT_POLICY.pending.expireDays - 1) * 86400_000;
+    expect((await (await login(h, bob)).post('/api/submissions', { repositoryId: 601, id: 'demo.toolbox' })).status).toBe(409);
+    h.world.now += 2 * 86400_000;
+    const late = await (await login(h, bob)).post('/api/submissions', { repositoryId: 601, id: 'demo.toolbox' });
+    expect(late.status).toBe(201);
+    expect(h.world.record('demo.toolbox')).toMatchObject({ status: 'pending', request: { submittedBy: 2 } });
+  });
+
+  it('only pending submissions can be sent back for changes (not transfers)', async () => {
+    const { h, bob } = await world1();
+    await h.world.writeData({
+      'modules/demo.toolbox.yaml': YAML.stringify({
+        id: 'demo.toolbox',
+        status: 'listed',
+        source: { host: 'github', repositoryId: 501, ownerId: 1, fullName: 'alice/demo', manifestPath: 'module.yaml' },
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      }),
+    });
+    const t = (await (await (await login(h, bob)).post('/api/transfers', { id: 'demo.toolbox', repositoryId: 601, note: 'I took over maintenance.' })).json()) as any;
+    expect(h.world.record('demo.toolbox').request).toMatchObject({ kind: 'transfer', note: 'I took over maintenance.' });
+    const m = await login(h, h.world.users.get(MAINTAINER.id)!);
+    const r = await m.post(`/api/admin/requests/${t.submissionId}/request-changes`, { reason: 'no' });
+    expect(r.status).toBe(409);
+    expect(h.world.record('demo.toolbox')).toMatchObject({ status: 'listed', request: { submissionId: t.submissionId } });
+  });
+});
+
 describe('request replacement and transfers', () => {
   it('a new submit over an expired pending request edits the old Telegram message to "expired"', async () => {
     const { h, alice, bob } = await world1();

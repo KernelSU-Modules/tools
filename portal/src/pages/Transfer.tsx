@@ -6,6 +6,7 @@ import { getModules, getRepos, invalidate } from '../store.ts';
 import { ArrowLeftRight, Package } from '../components/icons.tsx';
 import { repoFullName } from '../lib/status.ts';
 import type { TransferResponse } from '../api/types.ts';
+import { NOTE_MAX } from './Submit.tsx';
 
 /** Move a module (listed|suspended) to another repository the user administers. */
 export function Transfer({ initialId, initialRepositoryId }: { initialId?: string | null; initialRepositoryId?: number | null }) {
@@ -14,8 +15,9 @@ export function Transfer({ initialId, initialRepositoryId }: { initialId?: strin
   const data = useAsync(() => Promise.all([getModules(api), getRepos(api)]), []);
   const [id, setId] = useState(initialId ?? '');
   const [repoId, setRepoId] = useState<number | null>(initialRepositoryId ?? null);
+  const [note, setNote] = useState('');
   const [done, setDone] = useState<TransferResponse | null>(null);
-  const action = useAction(() => api.transfer({ id, repositoryId: repoId! }));
+  const action = useAction(() => api.transfer({ id, repositoryId: repoId!, ...(note.trim() ? { note: note.trim() } : {}) }));
 
   if (data.loading) return <Loading />;
   if (data.error || !data.data) return <ErrorBox error={data.error} onRetry={data.reload} />;
@@ -97,6 +99,9 @@ export function Transfer({ initialId, initialRepositoryId }: { initialId?: strin
             </select>
           </Field>
           {target && !targets.includes(target) && <Alert tone="warning">{t('transfer.targetInvalid')}</Alert>}
+          <Field label={t('submit.note')} id="tr-note" hint={t('submit.noteHint')}>
+            <textarea id="tr-note" rows={3} maxLength={NOTE_MAX} value={note} onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)} />
+          </Field>
           <ErrorBox error={action.error} />
           <div class="row-actions">
             <button type="submit" class="btn primary" disabled={!ready || action.pending} aria-busy={action.pending}>

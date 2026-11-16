@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODULE_ID_PATTERN as SCHEMA_PATTERN } from '@kernelsu-modules/schema';
-import { attention, canSync, groupIssues, healthTone, isPublic, moderationActions, RECORD_STATUSES, repoFullName, requestCheckOf, statusKey, statusTone } from '../src/lib/status.ts';
+import { attention, canSync, groupIssues, healthTone, isPublic, moderationActions, RECORD_STATUSES, repoFullName, requestCheckOf, resubmitHref, returnedSubmission, statusKey, statusTone } from '../src/lib/status.ts';
 import { idFormatError, MODULE_ID_PATTERN, suggestId } from '../src/lib/ids.ts';
 import { parseLogin, parseTelegramId, rejectNeedsText, telegramOwner } from '../src/lib/admin.ts';
 import { healthSummary, runTone, sortByHealth } from '../src/lib/dashboard.ts';
@@ -18,11 +18,20 @@ const status = (health: SyncHealth, installation: ModuleStatus['installation'] =
 
 describe('status mapping', () => {
   it('covers every record status', () => {
-    expect(RECORD_STATUSES).toHaveLength(5);
-    expect(RECORD_STATUSES.map(statusTone)).toEqual(['info', 'success', 'danger', 'warning', 'neutral']);
+    expect(RECORD_STATUSES).toHaveLength(6);
+    expect(RECORD_STATUSES.map(statusTone)).toEqual(['info', 'success', 'danger', 'warning', 'warning', 'neutral']);
     for (const s of RECORD_STATUSES) expect(statusKey(s)).toBe(`status.${s}`);
     expect(statusKey('weird')).toBe('status.unknown');
     expect(statusTone('weird')).toBe('neutral');
+  });
+  it('returned submissions: source, reservation end and resubmit link', () => {
+    const source = { host: 'github' as const, repositoryId: 7, ownerId: 1, fullName: 'a/b', manifestPath: 'module.yaml' };
+    const review = { submissionId: 'abcdefghij', kind: 'submit' as const, submittedBy: 1, submittedAt: '2026-11-01T00:00:00Z', decision: 'changes-requested' as const, decidedBy: 2, decidedVia: 'portal' as const, decidedAt: '2026-11-02T00:00:00.000Z', reason: 'fix', source };
+    expect(returnedSubmission({ status: 'changes-requested', review })).toEqual({ source, reservedUntil: '2026-12-02T00:00:00.000Z', reason: 'fix' });
+    expect(returnedSubmission({ status: 'pending', review })).toBeNull();
+    expect(returnedSubmission({ status: 'changes-requested', review: { ...review, source: undefined } })).toBeNull();
+    expect(resubmitHref('a.b', source)).toBe('/repos/7/submit?id=a.b');
+    expect(attention({ id: 'a.b', status: 'changes-requested', review } as MyModule)).toEqual(['attention.changesRequested']);
   });
   it('health tone', () => {
     expect(healthTone('ok')).toBe('success');

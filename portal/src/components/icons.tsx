@@ -36,6 +36,7 @@ export {
   Tag,
   Trash2,
   TriangleAlert,
+  Undo2,
   UserPlus,
   Users,
   X,
