@@ -6,7 +6,7 @@
 // logins) use the Bot's data-repo installation token instead of a user token.
 import { Hono, type Context } from 'hono';
 import { RecordStatus } from '@kernelsu-modules/schema';
-import { ApiError } from '../lib/errors.ts';
+import { ApiError, errorBody } from '../lib/errors.ts';
 import { readAccess } from '../lib/mcpauth.ts';
 import { resourceMetadataUrl } from './oauth.ts';
 import { deferrer, type AppEnv } from '../types.ts';
@@ -282,7 +282,7 @@ const textResult = (value: unknown, isError = false) => ({
 /** RFC 6750 / RFC 9728: points the client at the protected-resource metadata, which starts the OAuth flow. */
 function unauthorized(c: Context<AppEnv>, message: string, invalid: boolean) {
   c.header('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl(c)}", scope="admin"${invalid ? ', error="invalid_token"' : ''}`);
-  return c.json({ error: { code: 'unauthorized', message } }, 401);
+  return c.json(errorBody('unauthorized', message), 401);
 }
 
 export const mcp = new Hono<AppEnv>();
@@ -295,13 +295,13 @@ mcp.use('*', async (c, next) => {
 mcp.on(['GET', 'DELETE'], '/', (c) => {
   // Stateless server: no server-initiated SSE stream, no sessions to terminate.
   c.header('Allow', 'POST');
-  return c.json({ error: { code: 'method-not-allowed', message: 'Use POST (MCP Streamable HTTP, JSON responses).' } }, 405);
+  return c.json(errorBody('method-not-allowed', 'Use POST (MCP Streamable HTTP, JSON responses).'), 405);
 });
 
 mcp.post('/', async (c) => {
   // DNS-rebinding guard of the MCP transport: browsers send Origin; only the Portal itself may call.
   const origin = c.req.header('origin');
-  if (origin && origin !== new URL(c.env.PORTAL_URL).origin) return c.json({ error: { code: 'forbidden', message: 'Origin not allowed.' } }, 403);
+  if (origin && origin !== new URL(c.env.PORTAL_URL).origin) return c.json(errorBody('forbidden', 'Origin not allowed.'), 403);
 
   const svc = c.var.svc;
   const auth = c.req.header('authorization') ?? '';
@@ -310,7 +310,7 @@ mcp.post('/', async (c) => {
   const tok = await readAccess(c.env.SESSION_KEY, m[1], svc.now());
   if (!tok) return unauthorized(c, 'Invalid or expired access token; refresh it or authorize again in the Portal.', true);
   const snap = await svc.data.snapshot();
-  if (!maintainerByGithub(snap, tok.uid)) return c.json({ error: { code: 'forbidden', message: 'Maintainers only.' } }, 403);
+  if (!maintainerByGithub(snap, tok.uid)) return c.json(errorBody('forbidden', 'Maintainers only.'), 403);
   const pv = c.req.header('mcp-protocol-version');
   if (pv && !(MCP_PROTOCOL_VERSIONS as readonly string[]).includes(pv)) return c.json(rpcError(null, -32600, `Unsupported MCP-Protocol-Version ${pv}`), 400);
 
@@ -354,7 +354,7 @@ mcp.post('/', async (c) => {
         // Tool failures are results (the model sees them), not protocol errors.
         if (e instanceof ApiError) return c.json(rpcResult(id, textResult({ error: { code: e.code, message: e.message, ...e.details } }, true)));
         console.error('mcp tool failed', tool.name, e instanceof Error ? (e.stack ?? e.message) : String(e));
-        return c.json(rpcResult(id, textResult({ error: { code: 'internal', message: 'Internal error' } }, true)));
+        return c.json(rpcResult(id, textResult(errorBody('internal', 'Internal error'), true)));
       }
     }
     default:
