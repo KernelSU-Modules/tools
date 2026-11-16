@@ -90,8 +90,11 @@ describe('recomputeReleases deletion', () => {
     const kept = recomputeReleases(prev, [], [], { keep: 10, gone: new Set(), changelogMaxBytes: 100 });
     expect([kept.stable!.releaseId, kept.releases.map((x) => x.releaseId), kept.note]).toEqual([2, [2, 1], null]);
     const dropped = recomputeReleases(prev, [], [], { keep: 10, gone: new Set([2]), changelogMaxBytes: 100 });
-    expect([dropped.stable, dropped.releases.map((x) => x.releaseId)]).toEqual([null, [1]]);
-    expect(dropped.note).toMatch(/^stable-unavailable:/);
+    expect([dropped.stable!.releaseId, dropped.releases.map((x) => x.releaseId), dropped.maxStableVersionCode]).toEqual([1, [1], 2]);
+    expect(dropped.note).toMatch(/^stable-fallback:/);
+    const none = recomputeReleases(prev, [], [], { keep: 10, gone: new Set([1, 2]), changelogMaxBytes: 100 });
+    expect([none.stable, none.releases]).toEqual([null, []]);
+    expect(none.note).toMatch(/^stable-unavailable:/);
   });
 });
 

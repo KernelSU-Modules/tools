@@ -375,9 +375,10 @@ const byNewest = (a: LockedRelease, b: LockedRelease) => b.versionCode - a.versi
  * the list alone never deletes anything; a draft in the list counts as deleted too), and recompute
  * stable / prerelease / releases and the two high-water marks.
  *
- * stable = the non-prerelease release with the highest versionCode, but never below maxStableVersionCode: deleting
- * (or demoting) the stable release does not fall back to an older one — stable becomes null (module hidden) until
- * a release above maxVersionCode is accepted.
+ * stable = the locked non-prerelease release with the highest versionCode. When the stable release is deleted (or
+ * demoted) it falls back to the newest older one still locked, with a `stable-fallback` health note; only when no
+ * non-prerelease release is left does stable become null (module hidden, `stable-unavailable`). New releases still
+ * have to exceed maxVersionCode either way; maxStableVersionCode (highest versionCode ever stable) never decreases.
  */
 export function recomputeReleases(
   prev: Pick<ModuleLock, 'stable' | 'prerelease' | 'releases' | 'maxVersionCode' | 'maxStableVersionCode'>,
@@ -406,17 +407,17 @@ export function recomputeReleases(
   }
   const all = [...pool.values()].sort(byNewest);
   const vmax = (...xs: (number | null | undefined)[]) => xs.reduce<number | null>((m, x) => (x == null ? m : m === null || x > m ? x : m), null);
-  const floorPrev = prev.maxStableVersionCode;
-  const top = all.find((r) => !r.prerelease) ?? null;
-  const stable = top && (floorPrev === null || top.versionCode >= floorPrev) ? top : null;
-  const maxStableVersionCode = vmax(floorPrev, stable?.versionCode);
+  const stable = all.find((r) => !r.prerelease) ?? null;
+  const maxStableVersionCode = vmax(prev.maxStableVersionCode, stable?.versionCode);
   const maxVersionCode = vmax(prev.maxVersionCode, ...all.map((r) => r.versionCode));
   const prerelease = all.find((r) => r.prerelease && r.versionCode > (stable?.versionCode ?? 0)) ?? null;
   let releases = all.slice(0, o.keep);
   if (stable && !releases.includes(stable)) releases = [...releases.slice(0, Math.max(0, o.keep - 1)), stable];
   const note =
-    !stable && maxStableVersionCode !== null
-      ? `stable-unavailable: the stable release (versionCode ${maxStableVersionCode}) was deleted or marked as prerelease; the module is hidden until a release with a versionCode above ${maxVersionCode} is published.`
-      : null;
+    maxStableVersionCode === null || (stable && stable.versionCode >= maxStableVersionCode)
+      ? null
+      : stable
+        ? `stable-fallback: the stable release (versionCode ${maxStableVersionCode}) was deleted or marked as prerelease; listing the older ${stable.tag} (versionCode ${stable.versionCode}) until a release with a versionCode above ${maxVersionCode} is published.`
+        : `stable-unavailable: the stable release (versionCode ${maxStableVersionCode}) was deleted or marked as prerelease and no older release is left; the module is hidden until a release with a versionCode above ${maxVersionCode} is published.`;
   return { stable, prerelease, releases, maxVersionCode, maxStableVersionCode, note };
 }

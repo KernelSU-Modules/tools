@@ -512,7 +512,7 @@ describe('sync: mutable fields and channels', () => {
     expect(gh.downloads.size).toBe(2); // nothing re-downloaded
   });
 
-  it('drops deleted releases; deleting the stable one never falls back to an older release', async () => {
+  it('drops deleted releases; deleting the stable one falls back to the newest older locked release', async () => {
     const gh = new FakeGitHub();
     const { repo, commit } = setupRepo(gh, 'demo.mod');
     gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
@@ -525,24 +525,47 @@ describe('sync: mutable fields and channels', () => {
     repo.releases.shift(); // delete v2 (the stable release)
     await run(gh, dir, {}, later(60_000));
     let m = (await readLock(dir)).modules['demo.mod']!;
-    expect(m.stable).toBeNull(); // hidden, not downgraded to v1
+    expect(m.stable!.tag).toBe('v1'); // still listed, with the older release
     expect(m.releases.map((r) => r.tag)).toEqual(['v1']);
     expect([m.maxVersionCode, m.maxStableVersionCode]).toEqual([2, 2]);
     expect(m.health.status).toBe('ok');
-    expect(m.health.message).toMatch(/^stable-unavailable:/);
-    expect((await readStatus(dir)).modules['demo.mod']).toMatchObject({ stable: null, maxVersionCode: 2 });
+    expect(m.health.message).toMatch(/^stable-fallback: .* listing the older v1 \(versionCode 1\) until a release with a versionCode above 2/);
+    expect((await readStatus(dir)).modules['demo.mod']).toMatchObject({ stable: { tag: 'v1', versionCode: 1 }, maxVersionCode: 2 });
 
     // Re-using the deleted versionCode is rejected; a higher one becomes stable again.
     const reuse = gh.addRelease(repo, { tag: 'v2b', zip: moduleZip('demo.mod', 2, 'other build'), commit });
     await run(gh, dir, {}, later(90_000));
     m = (await readLock(dir)).modules['demo.mod']!;
     expect(m.seen[String(reuse.id)]).toMatchObject({ ok: false, code: 'version-not-newer' });
-    expect(m.stable).toBeNull();
+    expect(m.stable!.tag).toBe('v1');
     gh.addRelease(repo, { tag: 'v3', zip: moduleZip('demo.mod', 3), commit });
     await run(gh, dir, {}, later(120_000));
     m = (await readLock(dir)).modules['demo.mod']!;
     expect(m.stable!.tag).toBe('v3');
     expect(m.health.message).toBeNull();
+  });
+
+  it('hidden only when no non-prerelease release is left; demoting the stable one makes it the prerelease', async () => {
+    const gh = new FakeGitHub();
+    const { repo, commit } = setupRepo(gh, 'demo.mod');
+    gh.addRelease(repo, { tag: 'v1', zip: moduleZip('demo.mod', 1), commit });
+    const dir = await makeDataDir([record('demo.mod', repo)]);
+    await run(gh, dir);
+    const v2 = gh.addRelease(repo, { tag: 'v2', zip: moduleZip('demo.mod', 2), commit });
+    await run(gh, dir, {}, later(30_000));
+
+    v2.prerelease = true; // demoted
+    await run(gh, dir, {}, later(60_000));
+    let m = (await readLock(dir)).modules['demo.mod']!;
+    expect([m.stable!.tag, m.prerelease!.tag]).toEqual(['v1', 'v2']);
+    expect(m.health.message).toMatch(/^stable-fallback:/);
+
+    repo.releases.length = 0; // everything deleted
+    await run(gh, dir, {}, later(90_000));
+    m = (await readLock(dir)).modules['demo.mod']!;
+    expect([m.stable, m.prerelease, m.releases]).toEqual([null, null, []]);
+    expect([m.maxVersionCode, m.maxStableVersionCode]).toEqual([2, 2]);
+    expect(m.health.message).toMatch(/^stable-unavailable: .* no older release is left/);
   });
 
   it('prereleases raise the high-water mark; a final release must exceed it (or the beta is promoted)', async () => {
@@ -625,7 +648,7 @@ describe('sync: releases list reads never unpublish (issue #1)', () => {
     gh.failures.push({ method: 'GET', match: listPath, status: 200, body: [], times: 1 });
     await run(gh, dir, {}, later(90_000));
     m = (await readLock(dir)).modules['demo.mod']!;
-    expect(m.stable).toBeNull();
+    expect(m.stable!.tag).toBe('v1');
     expect(lockedTags(m)).toEqual(['v1']);
   });
 
@@ -640,8 +663,8 @@ describe('sync: releases list reads never unpublish (issue #1)', () => {
     expect(m.health).toMatchObject({ status: 'stale', message: expect.stringMatching(/^release-retry: could not confirm/) });
     await run(gh, dir, {}, later(90_000));
     m = (await readLock(dir)).modules['demo.mod']!;
-    expect(m.stable).toBeNull();
-    expect(m.health.message).toMatch(/^stable-unavailable:/);
+    expect(m.stable!.tag).toBe('v1');
+    expect(m.health.message).toMatch(/^stable-fallback:/);
   });
 
   it('a 304 never deletes anything', async () => {
@@ -692,7 +715,7 @@ describe('sync: releases list reads never unpublish (issue #1)', () => {
     const m = (await readLock(dir)).modules['demo.mod']!;
     expect(report.modules[0]!.releases.map((r) => [r.tag, r.result])).toEqual([['v2', 'rejected']]);
     expect(m.seen[String(v2.id)]).toMatchObject({ ok: true });
-    expect([m.stable, lockedTags(m)]).toEqual([null, ['v1']]);
+    expect([m.stable!.tag, lockedTags(m)]).toEqual(['v1', ['v1']]); // falls back, v2 stays out
   });
 });
 

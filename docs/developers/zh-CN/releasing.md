@@ -40,7 +40,7 @@ immutable release 的资源和 tag 都被冻结，而且 KernelSU Modules 对每
 - 每个新 release 的 `versionCode` 必须**大于 KernelSU Modules 曾为该模块 ID 接受过的最高 versionCode**（稳定版或预发布）。这个最高值永不下降：删除 release 或转移到另一个仓库后依然保留。
 - 恰好等于该最高 versionCode、且与持有该值的锁定 release 渠道相同（稳定版 / 预发布）的 release 是"同一版本"，会被忽略（Check Run 仍为成功）。
 - 其他情况都会被 [`version-not-newer`](checks.md#version-not-newer) 拒绝——包括复用已删除 release 的 versionCode，以及发布与已接受预发布 versionCode 相同的正式版。
-- **稳定版本**是有效的非预发布 release 中 `versionCode` 最高的那个，但 KernelSU Modules 永远不会回退到比曾经的最高稳定版更低的 versionCode。如果你删除了稳定版 release 或把它标记为预发布，模块会**从索引中隐藏**，直到你发布 versionCode 更高的 release——更早的 release 不会重新成为稳定版。
+- **稳定版本**是有效的非预发布 release 中 `versionCode` 最高的那个。如果你删除了稳定版 release 或把它标记为预发布，KernelSU Modules 会**回退到仍保留的最新的更早 release**（健康状况提示 `stable-fallback`）；只有一个都不剩时，模块才会**从索引中隐藏**（`stable-unavailable`）。无论哪种情况，下一个 release 的 versionCode 都必须高于曾接受过的最高值——用已删除 release 的 versionCode 重新发布会被拒绝。
 - KernelSU Modules 保留最近 10 个有效 release 作为版本历史。
 - 仓库首次同步时（新上架或转移到另一个仓库），只检查最新的合格 release 及其后发布的 release；更早的 release 只做记录，不会生成 Check Run。
 

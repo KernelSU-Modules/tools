@@ -58,20 +58,25 @@ releases published after it are checked; older releases are recorded silently, w
 Submission and transfer **review** results (approved / rejected and the reason) are shown in
 the [Portal](portal.md), not in check runs.
 
-## Module hidden: `stable-unavailable`
+## Stable release gone: `stable-fallback` / `stable-unavailable`
 
-This is a sync health note (shown in the Portal), not a check result. It means the release that was
+These are sync health notes (shown in the Portal), not check results. They mean the release that was
 your stable version is gone: it was **deleted** on GitHub (the sync looked it up by id and GitHub
-answered 404), turned back into a **draft**, or marked as a **pre-release**. KernelSU Modules never
-falls back to an older release, so the module stays hidden until a new stable version is accepted.
+answered 404), turned back into a **draft**, or marked as a **pre-release**.
+
+- `stable-fallback`: the newest older release KernelSU Modules still keeps is listed as the stable
+  version instead. Users who already installed the newer version are not downgraded (updates are
+  only offered for a higher versionCode), but new installs get the older one.
+- `stable-unavailable`: no older release is left, so the module is hidden from the index.
 
 A release that is merely missing from GitHub's release list is never treated as deleted — each one
 is looked up individually first, and a failed lookup keeps the release and retries on the next run.
 
-**Fix**: if the release was deleted or demoted on purpose, publish a new release with a versionCode
-above the one shown in the note. If you un-ticked "pre-release" again, or the release is still
-published unchanged, click **Sync now** (Portal or check run): previously accepted releases that are
-still published but missing from the lock are re-validated and restored without a new versionCode.
+**Fix**: publish a new release with a versionCode above the one shown in the note; re-publishing the
+deleted versionCode is rejected ([`version-not-newer`](#version-not-newer)). If you un-ticked
+"pre-release" again, or the release is still published unchanged, click **Sync now** (Portal or
+check run): previously accepted releases that are still published but missing from the lock are
+re-validated and restored without a new versionCode.
 
 ## Issue codes
 

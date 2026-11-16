@@ -65,10 +65,11 @@ anything that would fail, so you don't burn a version number.
 - Everything else is rejected with [`version-not-newer`](checks.md#version-not-newer) — including
   re-using the versionCode of a deleted release, and publishing a final release with the same
   versionCode as an accepted prerelease.
-- The **stable** version is the valid non-prerelease release with the highest `versionCode`, but
-  KernelSU Modules never falls back to a lower versionCode than the highest one that was ever stable. If you
-  delete the stable release or mark it as a prerelease, the module is **hidden from the index** until
-  you publish a release with a higher versionCode — older releases do not become stable again.
+- The **stable** version is the valid non-prerelease release with the highest `versionCode`. If you
+  delete the stable release or mark it as a prerelease, KernelSU Modules **falls back to the newest
+  older release** it still keeps (health note `stable-fallback`); only when none is left is the module
+  hidden from the index (`stable-unavailable`). Either way, the next release must have a versionCode
+  above the highest one ever accepted — re-publishing the deleted versionCode is rejected.
 - KernelSU Modules keeps the 10 most recent valid releases as version history.
 - When a repository is synced for the first time (new listing or transfer to another
   repository), only the newest eligible release and releases published after it are checked; older
