@@ -1,6 +1,6 @@
 # Cloudflare Pages project `kernelsu-developer-portal` (Direct Upload) = Developer Portal: static SPA + docs from
 # ../portal/dist, plus Pages Functions in advanced mode (`_worker.js`, bundled by `pnpm build` from
-# src/entry/pages.ts) for /api/*, /auth/*, /webhooks/*, /internal/* only (`_routes.json`).
+# src/entry/pages.ts) for /api/*, /auth/*, /webhooks/*, /internal/*, /mcp, /oauth/*, /.well-known/* only (`_routes.json`).
 # Custom domain developers.kernelsu.org: CNAME `developers` -> kernelsu-developer-portal.pages.dev on Google Cloud DNS.
 # Workers Free limits apply to Functions invocations: 10 ms CPU, 50 subrequests, 100k requests/day (shared).
 #

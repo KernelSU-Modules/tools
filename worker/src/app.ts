@@ -7,6 +7,8 @@ import { loadSession } from './lib/session.ts';
 import { api } from './routes/api.ts';
 import { auth } from './routes/auth.ts';
 import { hooks } from './routes/hooks.ts';
+import { mcp } from './routes/mcp.ts';
+import { oauth } from './routes/oauth.ts';
 import { DYNAMIC_PREFIXES } from './routes-config.ts';
 import { Services, type Deps } from './services.ts';
 import type { AppEnv } from './types.ts';
@@ -42,12 +44,12 @@ export function defaultServices(env: Env): Services {
 
 /**
  * Browser-facing routes only work on the PORTAL_URL host (OAuth callback URL, `__Host-` cookies), so
- * `/auth/*` and `/api/*` on `*.pages.dev` aliases redirect there. Webhooks stay reachable on any host.
+ * `/auth/*`, `/api/*` and `/oauth/*` (MCP authorization, uses the session) on `*.pages.dev` aliases redirect there. Webhooks stay reachable on any host.
  */
 export function canonicalRedirect(req: Request, portalUrl: string): Response | null {
   const url = new URL(req.url);
   if (!url.hostname.endsWith('.pages.dev')) return null;
-  if (!url.pathname.startsWith('/auth/') && !url.pathname.startsWith('/api/')) return null;
+  if (!['/auth/', '/api/', '/oauth/'].some((p) => url.pathname.startsWith(p))) return null;
   let portal: URL;
   try {
     portal = new URL(portalUrl);
@@ -87,6 +89,8 @@ export function createApp(opts: { services?: (env: Env) => Services } = {}) {
 
   app.route('/auth', auth);
   app.route('/api', api);
+  app.route('/mcp', mcp);
+  app.route('/', oauth);
   app.route('/', hooks);
 
   app.onError((err, c) => {

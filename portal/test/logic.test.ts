@@ -8,6 +8,7 @@ import { formatBytes, formatWait, publicModuleUrl } from '../src/lib/format.ts';
 import { blockSync, syncBlockedUntil } from '../src/lib/ratelimit.ts';
 import { buildPreviewDoc, renderPreview } from '../src/lib/preview.ts';
 import { matchRoute, isServerPath } from '../src/lib/route.ts';
+import { claudeCommand, jsonConfig } from '../src/lib/mcp.ts';
 import { docsUrl, issueDocUrl } from '../src/lib/docs.ts';
 import { loginUrl } from '../src/lib/login.ts';
 import type { ModuleStatus, MyModule, SyncHealth } from '../src/api/types.ts';
@@ -179,6 +180,15 @@ describe('format, rate limit, routing', () => {
     expect(isServerPath('/docs/checks')).toBe(true);
     expect(isServerPath('/auth/login')).toBe(true);
     expect(isServerPath('/documents')).toBe(false);
+    expect(isServerPath('/mcp')).toBe(true);
+    expect(isServerPath('/SKILL.md')).toBe(true);
+    expect(isServerPath('/mcpx')).toBe(false);
+    expect(isServerPath('/oauth/authorize')).toBe(true);
+    expect(isServerPath('/.well-known/oauth-authorization-server')).toBe(true);
+  });
+  it('MCP client snippets carry only the endpoint (OAuth does the rest)', () => {
+    expect(claudeCommand('https://x.test/mcp')).toBe('claude mcp add --transport http kernelsu-portal https://x.test/mcp');
+    expect(JSON.parse(jsonConfig('https://x.test/mcp'))).toEqual({ mcpServers: { 'kernelsu-portal': { type: 'http', url: 'https://x.test/mcp' } } });
   });
   it('docs links are locale-aware', () => {
     const routes = { 'zh-CN': ['/', '/checks'] };

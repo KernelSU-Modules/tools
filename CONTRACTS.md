@@ -195,7 +195,7 @@ Workflow `sync-build-deploy.yml`: `workflow_dispatch` inputs `reason` (string), 
 One codebase (`worker/src`), two deployables:
 - **Pages `kernelsu-developer-portal`** (`worker/wrangler.toml`, a Pages config with `pages_build_output_dir = "../portal/dist"`).
   `pnpm --filter @kernelsu-modules/worker build` bundles `src/entry/pages.ts` (Hono app) into `portal/dist/_worker.js`
-  (advanced mode) and writes `portal/dist/_routes.json` (`include: /api/* /auth/* /webhooks/* /internal/*`), so
+  (advanced mode) and writes `portal/dist/_routes.json` (`include: /api/* /auth/* /webhooks/* /internal/* /mcp /oauth/* /.well-known/*`), so
   static requests never invoke Functions. Pages serves the SPA (fallback to `index.html`; no top-level `404.html`)
   and `/docs/*`; `portal/public/_headers` sets the static CSP. Deployed by `portal-deploy.yml`:
   `wrangler pages deploy ../portal/dist --project-name kernelsu-developer-portal --branch main` (cwd `worker/`; wrangler re-wraps the self-contained `_worker.js`).
@@ -240,6 +240,15 @@ POST /webhooks/github            Modules App webhooks (X-Hub-Signature-256): rel
 POST /internal/telegram          from tgcloud forwarder (see section 8)
 POST /webhooks/telegram          optional direct Telegram webhook (X-Telegram-Bot-Api-Secret-Token)
 GET  /docs/*                     served from static assets (developer docs)
+GET  /SKILL.md                   static agent skill (portal/public/SKILL.md; name/description frontmatter, checked by check-dist)
+POST /mcp                        MCP server for maintainers (see below)
+GET  /.well-known/oauth-protected-resource[/mcp]   RFC 9728 metadata {resource: <PORTAL_URL>/mcp, authorization_servers: [<PORTAL_URL>]}
+GET  /.well-known/oauth-authorization-server        RFC 8414 metadata (other /.well-known paths: JSON 404)
+POST /oauth/register             RFC 7591 dynamic registration, public clients only; client_id = sealed {name, redirect_uris}
+GET  /oauth/authorize            code + PKCE S256; signed out -> sealed request cookie, /auth/login?next=/oauth/authorize/continue;
+                                 non-maintainer -> error=access_denied; else consent page (no JS; CSP form-action 'self' + redirect origin)
+POST /oauth/authorize            consent form (session CSRF token) -> redirect_uri?code&state&iss
+POST /oauth/token                authorization_code (PKCE, redirect_uri, client binding, single use best effort) | refresh_token
 
 JSON API (cookie session; mutating requests require header X-CSRF-Token = csrf from /api/me):
 GET  /api/me                      {user:{id,login,avatarUrl}|null, isMaintainer, csrf, installUrl}
@@ -289,6 +298,22 @@ GET  /api/admin/status            {generatedAt, dataCommit, invalidFiles, newest
                                   (from status.json + Actions API)
 Errors: {error: {code, message}} with proper HTTP status.
 ```
+
+MCP (`worker/src/routes/mcp.ts`): Streamable HTTP, stateless — `POST /mcp` takes one JSON-RPC 2.0 message and answers
+`application/json` (no SSE, no `Mcp-Session-Id`; notifications → 202; batches → 400; GET/DELETE → 405). Protocol versions
+2025-11-25 / 2025-06-18 / 2025-03-26 (unknown → newest; an unsupported `MCP-Protocol-Version` header → 400). Methods:
+`initialize`, `ping`, `tools/list`, `tools/call`. Auth: OAuth 2.1 access token `Bearer ksm_…` (`lib/mcpauth.ts`, `routes/oauth.ts`).
+Client ids, codes (120 s), access tokens (1 h) and refresh tokens are AES-GCM sealed under SESSION_KEY with one AAD per kind.
+Every grant carries the Portal session it was approved from (`sid`, absolute `exp`): access tokens never outlive it and
+refresh fails after it, so MCP access ends with that Portal login (≤ 30 days). Cookies are ignored on /mcp (no CSRF
+surface). 401 + `WWW-Authenticate: Bearer resource_metadata="<PORTAL_URL>/.well-known/oauth-protected-resource/mcp"` for a
+missing/invalid/expired token; 403 when the uid is not in maintainers.yaml (checked on every request and refresh). Not
+stateless-revocable otherwise: Portal logout does not end an MCP grant; rotating SESSION_KEY ends all. A browser `Origin`
+other than PORTAL_URL → 403.
+Tools (same domain functions as /api/admin/*, `Actor: github:<id> via portal`; GitHub user lookups use the Bot data-repo token):
+`queue_list request_get request_approve request_reject request_changes modules_list module_get module_moderate module_sync
+sync_status maintainers_list maintainer_add maintainer_set_telegram maintainer_remove banned_list user_ban user_unban`.
+Tool failures are results with `isError: true` and text `{error: {code, message, ...}}`; unknown tool → JSON-RPC -32602.
 Reads of data-repo state: Bot installation token (scoped) + Git Data API, cached ≤60 s in the Cache API. Sessions: sealed cookie with an
 absolute 30-day `exp`; token refresh is single-flight and tolerant (a lost refresh race answers `X-KernelSU-Session: retry`, the SPA retries once). Public site and client never touch the Portal.
 Telegram review messages show kind, id, repo(s), submitter, latest release tag (+ immutable flag, asset name) and the precheck summary; no version/versionCode.

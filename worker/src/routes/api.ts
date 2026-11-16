@@ -12,10 +12,10 @@ import {
   activeIds,
   createSubmission,
   createTransfer,
-  dispatchSync,
   maintainerByGithub,
   type UserCtx,
 } from '../domain/ops.ts';
+import { requestModuleSync } from '../domain/admin.ts';
 import { precheck } from '../domain/precheck.ts';
 import { FileTooLarge, isRepoAdmin, readRepoFile, resolveCommit, userRepo } from '../domain/repo.ts';
 import { idIsFree, requestExpired } from '../domain/state.ts';
@@ -31,7 +31,6 @@ export const PREVIEW_MAX_BYTES = 512 * 1024;
  * needs a few for the data snapshot and tokens). Pages beyond this are dropped and the response says `truncated`.
  */
 export const REPOS_MAX_REQUESTS = 30;
-const SYNC_INTERVAL_S = 600;
 
 api.use('*', async (c, next) => {
   if (!SAFE.has(c.req.method)) {
@@ -311,26 +310,17 @@ api.get('/modules/:id', async (c) => {
 
 api.post('/modules/:id/sync', async (c) => {
   const id = c.req.param('id');
-  const svc = c.var.svc;
   const { rec } = await moduleAccess(c, id);
   // Listed/suspended modules, and any record with an open request (pending submit, transfer):
   // the sync validates every open request's source and writes its Check Run.
   if (!['listed', 'suspended'].includes(rec.status) && !rec.request) throw new ApiError(409, 'bad-state', `Module "${id}" is ${rec.status}.`);
-  // Rate limit: 1 per 10 min per module (Cache API marker; per colo, which is enough for a courtesy limit).
-  const key = `rl/sync/${id}`;
-  const until = Number(await svc.deps.cache.get(key));
-  if (until && until > svc.now()) {
-    const retry = Math.ceil((until - svc.now()) / 1000);
-    c.header('Retry-After', String(retry));
-    return c.json({ error: { code: 'rate-limited', message: `Sync was requested recently; try again in ${retry}s.` }, nextAllowedAt: new Date(until).toISOString() }, 429);
+  try {
+    return c.json({ ok: true, ...(await requestModuleSync(c.var.svc, id)) }, 202);
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 429) throw e;
+    c.header('Retry-After', String(e.details!.retryAfter));
+    return c.json({ error: { code: e.code, message: e.message }, nextAllowedAt: e.details!.nextAllowedAt }, 429);
   }
-  const nextAllowed = svc.now() + SYNC_INTERVAL_S * 1000;
-  await svc.deps.cache.put(key, String(nextAllowed), SYNC_INTERVAL_S);
-  if (!(await dispatchSync(svc, { reason: 'portal', module: id }))) {
-    await svc.deps.cache.delete(key);
-    throw new ApiError(502, 'dispatch-failed', 'Could not start the sync workflow; try again later.');
-  }
-  return c.json({ ok: true, nextAllowedAt: new Date(nextAllowed).toISOString() }, 202);
 });
 
 api.route('/admin', admin);

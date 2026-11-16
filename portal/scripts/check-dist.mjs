@@ -37,11 +37,14 @@ const headers = existsSync(join(dist, '_headers')) ? readFileSync(join(dist, '_h
 if (!/^\s*Strict-Transport-Security:\s*max-age=\d{8,}/m.test(headers)) errors.push('_headers: missing Strict-Transport-Security');
 const csp = /^\s*Content-Security-Policy:\s*(.+)$/m.exec(headers)?.[1] ?? '';
 if (!/script-src 'self'/.test(csp) || /unsafe-(inline|eval)/.test(csp)) errors.push(`_headers: unexpected CSP "${csp}"`);
-for (const need of ['_headers', 'index.html', 'docs/index.html', 'docs/checks.html', 'docs/docs.css', 'preview.css']) {
+for (const need of ['_headers', 'index.html', 'docs/index.html', 'docs/checks.html', 'docs/docs.css', 'preview.css', 'SKILL.md']) {
   if (!existsSync(join(dist, need))) errors.push(`missing ${need}`);
 }
 if (existsSync(join(dist, 'docs/checks.html')) && !/<h3 id="[a-z0-9-]+"/.test(readFileSync(join(dist, 'docs/checks.html'), 'utf8'))) {
   errors.push('docs/checks.html has no <h3 id> issue-code anchors');
+}
+if (existsSync(join(dist, 'SKILL.md')) && !/^---\nname: [a-z0-9-]+\ndescription: .+\n---\n/.test(readFileSync(join(dist, 'SKILL.md'), 'utf8'))) {
+  errors.push('SKILL.md: missing name/description frontmatter');
 }
 const kb = (n) => (n / 1024).toFixed(1) + ' KiB';
 console.log(`portal bundle: JS ${kb(js)} (gzip ${kb(jsGz)}), CSS ${kb(css)} (gzip ${kb(cssGz)}); ${files.filter((f) => f.includes('/docs/') && f.endsWith('.html')).length} docs pages`);

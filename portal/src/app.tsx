@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   Ban,
   BookOpen,
+  Bot,
   Eye,
   FileText,
   FolderGit2,
@@ -44,6 +45,7 @@ import { Moderation } from './pages/admin/Moderation.tsx';
 import { Maintainers } from './pages/admin/Maintainers.tsx';
 import { Banned } from './pages/admin/Banned.tsx';
 import { Status } from './pages/admin/Status.tsx';
+import { Mcp } from './pages/admin/Mcp.tsx';
 
 function readStoredLang(): string | null {
   try {
@@ -186,6 +188,7 @@ function topbarTitle(path: string, t: AppCtx['t']): string {
   if (matchRoute('/admin/status', path)) return t('admin.status');
   if (matchRoute('/admin/maintainers', path)) return t('admin.maintainers');
   if (matchRoute('/admin/banned', path)) return t('admin.banned');
+  if (matchRoute('/admin/mcp', path)) return t('admin.mcp');
   return '';
 }
 
@@ -229,6 +232,7 @@ function Shell() {
     { href: '/admin/status', label: t('admin.status'), icon: Activity, active: !!matchRoute('/admin/status', path) },
     { href: '/admin/maintainers', label: t('admin.maintainers'), icon: Users, active: !!matchRoute('/admin/maintainers', path) },
     { href: '/admin/banned', label: t('admin.banned'), icon: Ban, active: !!matchRoute('/admin/banned', path) },
+    { href: '/admin/mcp', label: t('admin.mcp'), icon: Bot, active: !!matchRoute('/admin/mcp', path) },
   ];
   const repoPage = REPO_PAGE.exec(path);
 
@@ -359,6 +363,7 @@ function Routes() {
     if (matchRoute('/admin/maintainers', path)) return <Maintainers />;
     if (matchRoute('/admin/banned', path)) return <Banned />;
     if (matchRoute('/admin/status', path)) return <Status />;
+    if (matchRoute('/admin/mcp', path)) return <Mcp />;
   }
   return <NotFound />;
 }

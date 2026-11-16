@@ -28,7 +28,7 @@ describe('Pages Functions entry', () => {
     }) as unknown as Env;
 
   it('_routes.json only routes the dynamic prefixes to Functions', () => {
-    expect(pagesRoutes()).toMatchObject({ version: 1, include: ['/api/*', '/auth/*', '/webhooks/*', '/internal/*'], exclude: [] });
+    expect(pagesRoutes()).toMatchObject({ version: 1, include: ['/api/*', '/auth/*', '/webhooks/*', '/internal/*', '/mcp', '/oauth/*', '/.well-known/*'], exclude: [] });
     expect(pagesRoutes().include).toHaveLength(DYNAMIC_PREFIXES.length);
   });
 

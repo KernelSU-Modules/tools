@@ -1,15 +1,11 @@
 // Maintainer API (maintainers.yaml GitHub ids).
 import { Hono, type Context } from 'hono';
-import { splitFullName } from '@kernelsu-modules/github';
-import { ReasonCode } from '@kernelsu-modules/schema';
 import { ApiError } from '../lib/errors.ts';
 import { deferrer, type AppEnv } from '../types.ts';
 import { ban, decide, maintainerByGithub, moderate, unban } from '../domain/ops.ts';
 import { addMaintainer, listMaintainers, removeMaintainer, setMaintainerTelegram } from '../domain/maintainers.ts';
-import { requestExpired, type Actor } from '../domain/state.ts';
-import { newestSuccessAt } from '../domain/data.ts';
-import { indexOf } from '../domain/index.ts';
-import { lastSuccessfulSync } from '../domain/actions.ts';
+import type { Actor } from '../domain/state.ts';
+import { loginOf, parseChangesReason, parseReject, queueView, requestView, statusView } from '../domain/admin.ts';
 
 export const admin = new Hono<AppEnv>();
 
@@ -33,39 +29,10 @@ const body = async (c: Context<AppEnv>): Promise<Record<string, unknown>> => {
   return b as Record<string, unknown>;
 };
 
-admin.get('/queue', async (c) => {
-  const snap = await c.var.svc.data.snapshot();
-  const now = c.var.svc.now();
-  const open = indexOf(snap).open; // oldest first
-  const status = open.length ? await c.var.svc.data.status(snap) : null;
-  const items = open
-    .map((r) => {
-      const entry = status?.modules[r.id];
-      // The sync's validation of this request's source (status.json), only when it belongs to this request.
-      const check = entry?.request;
-      return {
-        id: r.id,
-        status: r.status,
-        request: r.request!,
-        ...(r.source ? { source: r.source } : {}),
-        // Current name of the repository the sync follows by id (renames); the record keeps the name at submit time.
-        ...(entry ? { sync: { repositoryId: entry.repositoryId, fullName: entry.fullName } } : {}),
-        ...(check && check.submissionId === r.request!.submissionId ? { check } : {}),
-        expired: requestExpired(r.request!, snap.policy, now),
-      };
-    });
-  return c.json(items);
-});
+admin.get('/queue', async (c) => c.json(await queueView(c.var.svc)));
 
 /** Single request (open or already decided) by submissionId — backs the Portal link in Telegram messages. */
-admin.get('/requests/:submissionId', async (c) => {
-  const sid = c.req.param('submissionId');
-  const snap = await c.var.svc.data.snapshot();
-  const ix = indexOf(snap);
-  const r = ix.openBySubmission.get(sid) ?? ix.reviewedBySubmission.get(sid);
-  if (!r) throw new ApiError(404, 'not-found', `Request ${sid} not found.`);
-  return c.json({ ...r, open: r.request?.submissionId === sid });
-});
+admin.get('/requests/:submissionId', async (c) => c.json(await requestView(c.var.svc, c.req.param('submissionId'))));
 
 admin.post('/requests/:submissionId/approve', async (c) => {
   const actor = await requireMaintainer(c);
@@ -74,21 +41,14 @@ admin.post('/requests/:submissionId/approve', async (c) => {
 
 admin.post('/requests/:submissionId/reject', async (c) => {
   const actor = await requireMaintainer(c);
-  const b = await body(c);
-  const rc = ReasonCode.safeParse(b.reasonCode);
-  if (!rc.success) throw new ApiError(400, 'bad-request', `reasonCode must be one of ${ReasonCode.options.join(', ')}`);
-  const reason = typeof b.reason === 'string' && b.reason.trim() ? b.reason.trim().slice(0, 500) : null;
-  if (rc.data === 'other' && !reason) throw new ApiError(400, 'bad-request', 'reason is required for reasonCode "other"');
-  return c.json(await decide(c.var.svc, actor, c.req.param('submissionId'), { kind: 'reject', reasonCode: rc.data, reason }, deferrer(c)));
+  const r = parseReject(await body(c));
+  return c.json(await decide(c.var.svc, actor, c.req.param('submissionId'), { kind: 'reject', ...r }, deferrer(c)));
 });
 
 /** Send a pending submission back to the submitter for changes (reason required; the ID stays reserved for them). */
 admin.post('/requests/:submissionId/request-changes', async (c) => {
   const actor = await requireMaintainer(c);
-  const b = await body(c);
-  const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
-  if (!reason) throw new ApiError(400, 'bad-request', 'reason is required: tell the submitter what to change');
-  if (reason.length > 500) throw new ApiError(400, 'bad-request', 'reason must be at most 500 characters');
+  const reason = parseChangesReason((await body(c)).reason);
   return c.json(await decide(c.var.svc, actor, c.req.param('submissionId'), { kind: 'request-changes', reason }, deferrer(c)));
 });
 
@@ -124,14 +84,7 @@ admin.post('/banned', async (c) => {
   const actor = await requireMaintainer(c);
   const b = await body(c);
   const githubId = typeof b.githubId === 'number' ? b.githubId : Number(b.githubId);
-  let login = typeof b.login === 'string' ? b.login : undefined;
-  if (!login && Number.isSafeInteger(githubId) && githubId > 0) {
-    const u = await c.var.svc
-      .userClient(c.var.session!.at)
-      .get<{ login: string }>(`/user/${githubId}`, { allow: [404] })
-      .catch(() => null);
-    if (u?.status === 200) login = u.data.login;
-  }
+  const login = typeof b.login === 'string' ? b.login : await loginOf(c.var.svc.userClient(c.var.session!.at), githubId);
   return c.json(await ban(c.var.svc, actor, { githubId, reason: b.reason as string, login }), 201);
 });
 admin.delete('/banned/:githubId{[0-9]+}', async (c) => {
@@ -139,48 +92,5 @@ admin.delete('/banned/:githubId{[0-9]+}', async (c) => {
   return c.json(await unban(c.var.svc, actor, Number(c.req.param('githubId'))));
 });
 
-admin.get('/status', async (c) => {
-  const svc = c.var.svc;
-  const snap = await svc.data.snapshot();
-  const status = await svc.data.status(snap);
-  const modules = Object.entries(status.modules).map(([id, m]) => {
-    const rec = snap.records[id];
-    const req = m.request && rec?.request?.submissionId === m.request.submissionId ? m.request : null;
-    return { id, status: rec?.status, ...m, request: req };
-  });
-  const run = (r: any) => ({
-    id: r.id,
-    status: r.status,
-    conclusion: r.conclusion,
-    event: r.event,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    htmlUrl: r.html_url,
-    displayTitle: r.display_title,
-  });
-  let runs: unknown[] = [];
-  let lastSuccessfulRun: unknown = null;
-  try {
-    const { owner, repo } = splitFullName(c.env.TOOLS_REPO);
-    const gh = await svc.toolsClient();
-    const [res, ok] = await Promise.all([
-      gh.get<{ workflow_runs: any[] }>(`/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(c.env.SYNC_WORKFLOW)}/runs`, {
-        query: { per_page: 10 },
-      }),
-      lastSuccessfulSync(svc),
-    ]);
-    runs = res.data.workflow_runs.map(run);
-    lastSuccessfulRun = ok ? run(ok) : null;
-  } catch (e) {
-    console.error('workflow runs failed', (e as Error).message);
-  }
-  return c.json({
-    generatedAt: new Date(svc.now()).toISOString(),
-    dataCommit: snap.commit,
-    newestSuccessAt: newestSuccessAt(status),
-    lastSuccessfulRun,
-    invalidFiles: snap.invalid,
-    modules,
-    runs,
-  });
-});
+admin.get('/status', async (c) => c.json(await statusView(c.var.svc)));
+

@@ -376,3 +376,9 @@ a.badge:hover { text-decoration: underline; }
 /* keep single inputs readable inside wide forms */
 .form > .field > input, .form > .field > select { max-width: 520px; }
 .form > .field > textarea { max-width: 760px; }
+
+/* MCP page: copyable snippets */
+.snippet { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.snippet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.snippet pre { margin: 0; padding: 10px 12px; background: var(--chip); border-radius: 8px; overflow-x: auto; }
+.snippet pre code { background: none; padding: 0; white-space: pre; overflow-wrap: normal; }

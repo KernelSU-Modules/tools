@@ -5,7 +5,7 @@ Telegram review flow. One shared codebase (`src/`), two deployables:
 
 | Deployable | What | Config | Entry |
 | --- | --- | --- | --- |
-| Cloudflare **Pages** project `kernelsu-developer-portal` (Direct Upload) | static Portal (`../portal/dist`: SPA + `/docs`, `_headers` CSP) + **Pages Functions** for `/api/*`, `/auth/*`, `/webhooks/*`, `/internal/*` | `wrangler.toml` (Pages config, `pages_build_output_dir`) | `src/entry/pages.ts` → `portal/dist/_worker.js` |
+| Cloudflare **Pages** project `kernelsu-developer-portal` (Direct Upload) | static Portal (`../portal/dist`: SPA + `/docs`, `_headers` CSP) + **Pages Functions** for `/api/*`, `/auth/*`, `/webhooks/*`, `/internal/*`, `/mcp`, `/oauth/*`, `/.well-known/*` (MCP server for maintainers + its OAuth) | `wrangler.toml` (Pages config, `pages_build_output_dir`) | `src/entry/pages.ts` → `portal/dist/_worker.js` |
 | Cloudflare **Worker** `kernelsu-developer-portal-cron` | Cron Triggers only (no routes, no fetch handler, no workers.dev) | `cron/wrangler.toml` | `src/entry/cron.ts` |
 
 Why: `kernelsu.org` DNS is on Google Cloud DNS, so a Worker custom domain is impossible, while a Pages custom

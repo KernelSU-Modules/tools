@@ -22,5 +22,5 @@ export function matchRoute(pattern: string, pathname: string): Record<string, st
 
 /** Paths that must never be handled by the SPA router (served by the Worker / static assets). */
 export function isServerPath(pathname: string): boolean {
-  return /^\/(docs|auth|api|webhooks|internal)(\/|$)/.test(pathname);
+  return /^\/(docs|auth|api|webhooks|internal|mcp|oauth|\.well-known)(\/|$)/.test(pathname) || pathname === '/SKILL.md';
 }
