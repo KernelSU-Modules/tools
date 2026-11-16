@@ -27994,8 +27994,8 @@ var ModuleLock = external_exports.object({
    */
   maxVersionCode: VersionCode.nullable(),
   /**
-   * Highest versionCode that was ever the stable release. Stable is only chosen among releases with at least this
-   * versionCode, so deleting (or demoting) the stable release never falls back to an older one.
+   * Highest versionCode that was ever the stable release. Never decreases. When the current stable is below it
+   * (the stable release was deleted or demoted and an older locked release stands in), sync reports `stable-fallback`.
    */
   maxStableVersionCode: VersionCode.nullable(),
   /** Validated releases (stable + pre), newest versionCode first, max policy.history.keepReleases. */
